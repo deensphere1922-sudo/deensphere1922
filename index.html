@@ -12283,8 +12283,13 @@ function syncNotificationUI() {
 
 
         /* ============================= SETTINGS ============================= */
-            function renderSettings() {
+                function renderSettings() {
           const s = S.settings;
+          
+          // ✅ FIX: Read the actual device notification settings immediately 
+          // so the ticks show correctly on the first render.
+          const deviceNotif = getDeviceNotifSettings(s.notif || {});
+          
           return `
         <div class="settings-page">
         <div class="pg-head" style="margin-bottom: 0; padding-bottom: 10px;">
@@ -12325,93 +12330,94 @@ function syncNotificationUI() {
         </section>
 
     <section class="settings-section">
-  <div class="settings-fixed-top">
-    <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">
-      Notifications
-    </div>
-  </div>
-
-  <div class="card" style="margin-bottom:12px;">
-    ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
-      const isOn = s.notif[k] === true;
-
-      return `
-        <div class="checkrow">
-          <span class="rowtitle" style="flex:1;">
-            ${k[0].toUpperCase() + k.slice(1)} reminder
-          </span>
-
-          <button
-            class="chk ${isOn ? 'done' : ''}"
-            data-notif="${k}"
-            type="button">
-          </button>
+      <div class="settings-fixed-top">
+        <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">
+          Notifications
         </div>
-      `;
-    }).join('')}
-  </div>
-
-  <!-- Notification permission warning -->
-  <div
-    id="notif-permission-warning"
-    style="
-      display:none;
-      align-items:flex-start;
-      gap:12px;
-      padding:16px;
-      margin-bottom:16px;
-      border:1px solid rgba(239, 68, 68, 0.25);
-      border-radius:14px;
-      background:rgba(239, 68, 68, 0.07);
-    "
-  >
-    <div style="
-      width:38px;
-      height:38px;
-      min-width:38px;
-      border-radius:50%;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      background:rgba(239, 68, 68, 0.12);
-      color:#ef4444;
-      font-size:19px;
-    ">
-      <span>!</span>
-    </div>
-
-    <div style="flex:1;">
-      <div style="
-        font-weight:700;
-        font-size:14px;
-        color:var(--tx);
-        margin-bottom:5px;
-      ">
-        Notifications are blocked
       </div>
 
-      <div style="
-        font-size:13px;
-        line-height:1.6;
-        color:var(--tx);
-        opacity:0.75;
-      ">
-        Your browser is blocking notifications.
-        Allow notifications in your browser settings
-        to receive your reminders.
+      <!-- Notification permission warning -->
+      <div
+        id="notif-permission-warning"
+        style="
+          display:none;
+          align-items:flex-start;
+          gap:12px;
+          padding:16px;
+          margin-bottom:12px;
+          border:1px solid rgba(239, 68, 68, 0.25);
+          border-radius:14px;
+          background:rgba(239, 68, 68, 0.07);
+        "
+      >
+        <div style="
+          width:38px;
+          height:38px;
+          min-width:38px;
+          border-radius:50%;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          background:rgba(239, 68, 68, 0.12);
+          color:#ef4444;
+          font-size:19px;
+        ">
+          <span>!</span>
+        </div>
+
+        <div style="flex:1;">
+          <div style="
+            font-weight:700;
+            font-size:14px;
+            color:var(--tx);
+            margin-bottom:5px;
+          ">
+            Notifications are blocked
+          </div>
+
+          <div style="
+            font-size:13px;
+            line-height:1.6;
+            color:var(--tx);
+            opacity:0.75;
+          ">
+            Your browser is blocking notifications.
+            Allow notifications in your browser settings
+            to receive your reminders.
+          </div>
+
+          <div style="
+            font-size:12px;
+            line-height:1.5;
+            margin-top:9px;
+            color:var(--amber);
+          ">
+            After allowing notifications, return here.
+            Your notification settings will become available again.
+          </div>
+        </div>
       </div>
 
-      <div style="
-        font-size:12px;
-        line-height:1.5;
-        margin-top:9px;
-        color:var(--amber);
-      ">
-        After allowing notifications, return here.
-        Your notification settings will become available again.
+      <div class="card" style="margin-bottom:12px;">
+        ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
+          // ✅ Use deviceNotif here to ensure the tick is correct immediately
+          const isOn = deviceNotif[k] === true;
+
+          return `
+            <div class="checkrow">
+              <span class="rowtitle" style="flex:1;">
+                ${k[0].toUpperCase() + k.slice(1)} reminder
+              </span>
+
+              <button
+                class="chk ${isOn ? 'done' : ''}"
+                data-notif="${k}"
+                type="button">
+              </button>
+            </div>
+          `;
+        }).join('')}
       </div>
-    </div>
-  </div>
 </section>
 
         <section class="settings-section">
