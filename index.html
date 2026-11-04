@@ -12251,27 +12251,22 @@ function syncNotificationUI() {
   if (S.screen !== 'settings' || !S.settings) return;
 
   const isSupported = ('Notification' in window);
-  const isDenied =
-    !isSupported || Notification.permission === 'denied';
+  const isDenied = !isSupported || Notification.permission === 'denied';
 
-  const warning = document.getElementById(
-    'notif-permission-warning'
-  );
+  const warning = document.getElementById('notif-permission-warning');
 
+  // Show warning only when notifications are blocked or unsupported
   if (warning) {
     warning.style.display = isDenied ? 'flex' : 'none';
   }
 
-  // Read the actual notification toggle settings for this device.
-  const deviceNotif = getDeviceNotifSettings(
-    S.settings.notif || {}
-  );
+  const deviceNotif = getDeviceNotifSettings(S.settings.notif || {});
 
   document.querySelectorAll('[data-notif]').forEach(button => {
     const key = button.dataset.notif;
 
-    // Show a tick ONLY when the reminder is ON.
-    const isOn = deviceNotif[key] === true;
+    // ✅ FORCE UNTICK: The tick should ONLY show if the browser allows it AND it's turned on.
+    const isOn = !isDenied && deviceNotif[key] === true;
 
     button.classList.toggle('done', isOn);
 
@@ -12282,11 +12277,9 @@ function syncNotificationUI() {
 }
 
 
-        /* ============================= SETTINGS ============================= */
-                  function renderSettings() {
+             function renderSettings() {
           const s = S.settings;
           
-          // ✅ Read the actual device notification settings
           const deviceNotif = getDeviceNotifSettings(s.notif || {});
           
           // ✅ Check if the browser itself is blocking notifications
@@ -12403,8 +12396,7 @@ function syncNotificationUI() {
       <div class="card" style="margin-bottom:12px;">
         ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
           
-          // ✅ If the browser is blocking notifications, FORCE the tick to be off (empty).
-          // Otherwise, show the saved device setting.
+          // ✅ FORCE UNTICK: If browser is blocked, it MUST show as unticked.
           const isOn = !browserBlocked && deviceNotif[k] === true;
 
           return `
