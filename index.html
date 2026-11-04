@@ -12283,12 +12283,14 @@ function syncNotificationUI() {
 
 
         /* ============================= SETTINGS ============================= */
-              function renderSettings() {
+                  function renderSettings() {
           const s = S.settings;
           
-          // ✅ FIX: Read the actual device notification settings immediately 
-          // so the ticks show correctly on the first render.
+          // ✅ Read the actual device notification settings
           const deviceNotif = getDeviceNotifSettings(s.notif || {});
+          
+          // ✅ Check if the browser itself is blocking notifications
+          const browserBlocked = typeof Notification === 'undefined' || Notification.permission === 'denied';
           
           return `
         <div class="settings-page">
@@ -12400,8 +12402,10 @@ function syncNotificationUI() {
 
       <div class="card" style="margin-bottom:12px;">
         ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
-          // ✅ Use deviceNotif here to ensure the tick is correct immediately
-          const isOn = deviceNotif[k] === true;
+          
+          // ✅ If the browser is blocking notifications, FORCE the tick to be off (empty).
+          // Otherwise, show the saved device setting.
+          const isOn = !browserBlocked && deviceNotif[k] === true;
 
           return `
             <div class="checkrow">
@@ -12412,6 +12416,7 @@ function syncNotificationUI() {
               <button
                 class="chk ${isOn ? 'done' : ''}"
                 data-notif="${k}"
+                ${browserBlocked ? 'disabled' : ''}
                 type="button">
               </button>
             </div>
