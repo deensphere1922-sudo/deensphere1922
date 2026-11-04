@@ -12277,12 +12277,10 @@ function syncNotificationUI() {
 }
 
 
-             function renderSettings() {
+                   function renderSettings() {
           const s = S.settings;
           
-          const deviceNotif = getDeviceNotifSettings(s.notif || {});
-          
-          // ✅ Check if the browser itself is blocking notifications
+          // Check if the browser's real toggle is OFF or blocked
           const browserBlocked = typeof Notification === 'undefined' || Notification.permission === 'denied';
           
           return `
@@ -12361,34 +12359,14 @@ function syncNotificationUI() {
         </div>
 
         <div style="flex:1;">
-          <div style="
-            font-weight:700;
-            font-size:14px;
-            color:var(--tx);
-            margin-bottom:5px;
-          ">
+          <div style="font-weight:700; font-size:14px; color:var(--tx); margin-bottom:5px;">
             Notifications are blocked
           </div>
-
-          <div style="
-            font-size:13px;
-            line-height:1.6;
-            color:var(--tx);
-            opacity:0.75;
-          ">
-            Your browser is blocking notifications.
-            Allow notifications in your browser settings
-            to receive your reminders.
+          <div style="font-size:13px; line-height:1.6; color:var(--tx); opacity:0.75;">
+            Your browser is blocking notifications. Allow notifications in your browser settings to receive your reminders.
           </div>
-
-          <div style="
-            font-size:12px;
-            line-height:1.5;
-            margin-top:9px;
-            color:var(--amber);
-          ">
-            After allowing notifications, return here.
-            Your notification settings will become available again.
+          <div style="font-size:12px; line-height:1.5; margin-top:9px; color:var(--amber);">
+            After allowing notifications, return here. Your notification settings will become available again.
           </div>
         </div>
       </div>
@@ -12396,8 +12374,8 @@ function syncNotificationUI() {
       <div class="card" style="margin-bottom:12px;">
         ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
           
-          // ✅ FORCE UNTICK: If browser is blocked, it MUST show as unticked.
-          const isOn = !browserBlocked && deviceNotif[k] === true;
+          // ✅ SIMPLE FIX: If browser is blocked, isOn is strictly false (no tick).
+          const isOn = browserBlocked ? false : (s.notif && s.notif[k] === true);
 
           return `
             <div class="checkrow">
@@ -12408,7 +12386,7 @@ function syncNotificationUI() {
               <button
                 class="chk ${isOn ? 'done' : ''}"
                 data-notif="${k}"
-                ${browserBlocked ? 'disabled' : ''}
+                ${browserBlocked ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
                 type="button">
               </button>
             </div>
