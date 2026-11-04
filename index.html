@@ -12276,7 +12276,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
 }
 
         /* ============================= SETTINGS ============================= */
-                function renderSettings() {
+            function renderSettings() {
           const s = S.settings;
           return `
         <div class="settings-page">
@@ -12406,29 +12406,6 @@ if (dsNow < todayDate && !isEditingPastDay) {
     </div>
   </div>
 </section>
-              <div class="card" style="margin-bottom:16px;">
-             ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
-              // Check if the browser itself allows notifications
-          const deviceNotif = getDeviceNotifSettings(s.notif || {});
-
-const browserBlocked =
-  typeof Notification === 'undefined' ||
-  Notification.permission === 'denied';
-
-const isOn = !browserBlocked && deviceNotif[k] === true;
-              return `<div class="checkrow">
-                <span class="rowtitle" style="flex:1; display: flex; align-items: center;">
-                  ${k[0].toUpperCase() + k.slice(1)} reminder
-                </span>
-             <button
-  class="chk ${isOn ? 'done' : ''}"
-  data-notif="${k}"
-  ${browserBlocked ? 'disabled' : ''}
-></button>
-              </div>`;
-            }).join('')}
-          </div>
-        </section>
 
         <section class="settings-section">
           <div class="settings-fixed-top">
