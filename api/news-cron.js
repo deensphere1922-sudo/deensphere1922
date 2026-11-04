@@ -819,7 +819,7 @@ export default async function handler(req, res) {
           payload = { title: "🌇 Evening Adhkar", body: "Take a moment to remember Allah before the day ends." };
           notificationKey = `evening-adhkar-${dateStr(now)}`;
         }
-       if (!payload && hit(25) && allowed('quran')) {
+       if (!payload && hit(28) && allowed('quran')) {
   payload = { title: "📖 Qur'an Reminder", body: "A moment with the Qur'an brings peace." };
   notificationKey = `quran-${dateStr(now)}`;
 }
