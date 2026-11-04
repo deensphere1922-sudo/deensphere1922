@@ -12246,34 +12246,41 @@ if (dsNow < todayDate && !isEditingPastDay) {
           else if (mq.addListener) mq.addListener(handler);
         })();
 
-    function syncNotificationUI() {
-  if (S.screen !== 'settings' || !S.settings || !S.settings.notif) return;
+  
+function syncNotificationUI() {
+  if (S.screen !== 'settings' || !S.settings) return;
 
   const isSupported = ('Notification' in window);
-  const isDenied = !isSupported || Notification.permission === 'denied';
+  const isDenied =
+    !isSupported || Notification.permission === 'denied';
 
-  const warning = document.getElementById('notif-permission-warning');
+  const warning = document.getElementById(
+    'notif-permission-warning'
+  );
 
-  // Show warning only when notifications are blocked or unsupported
   if (warning) {
     warning.style.display = isDenied ? 'flex' : 'none';
   }
 
-  // Keep saved preferences unchanged.
-  // Only control how the toggles appear and behave.
+  // Read the actual notification toggle settings for this device.
+  const deviceNotif = getDeviceNotifSettings(
+    S.settings.notif || {}
+  );
+
   document.querySelectorAll('[data-notif]').forEach(button => {
     const key = button.dataset.notif;
 
-    button.disabled = isDenied;
-    button.classList.toggle(
-      'done',
-      S.settings.notif[key] === true
-    );
+    // Show a tick ONLY when the reminder is ON.
+    const isOn = deviceNotif[key] === true;
 
+    button.classList.toggle('done', isOn);
+
+    button.disabled = isDenied;
     button.style.opacity = isDenied ? '0.45' : '1';
     button.style.cursor = isDenied ? 'not-allowed' : 'pointer';
   });
 }
+
 
         /* ============================= SETTINGS ============================= */
             function renderSettings() {
