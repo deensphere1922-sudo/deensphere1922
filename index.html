@@ -2205,7 +2205,16 @@
         function pad(n) { return String(n).padStart(2, '0'); }
         function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
       function fmtTime(d) { if (!d) return '--:--'; const c = new Date(d.getTime()); c.setSeconds(0, 0); c.setMinutes(c.getMinutes() + (d.getSeconds() >= 30 ? 1 : 0)); let h = c.getHours(), m = c.getMinutes(); let ap = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12; if (h12 === 0) h12 = 12; return h12 + ':' + pad(m) + ' ' + ap; }
-        function fmtDur(ms) { if (ms < 0) ms = 0; let s = Math.floor(ms / 1000); let h = Math.floor(s / 3600); s -= h * 3600; let m = Math.floor(s / 60); s -= m * 60; return pad(h) + ':' + pad(m) + ':' + pad(s); }
+             function fmtDur(ms) { 
+          if (ms < 0) ms = 0; 
+          // FIX: Use Math.ceil to round up partial seconds to the next whole second
+          let s = Math.ceil(ms / 1000); 
+          let h = Math.floor(s / 3600); 
+          s -= h * 3600; 
+          let m = Math.floor(s / 60); 
+          s -= m * 60; 
+          return pad(h) + ':' + pad(m) + ':' + pad(s); 
+        }
         function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
         function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
