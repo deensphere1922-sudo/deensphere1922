@@ -3684,7 +3684,14 @@ async function syncPrayerTimesToSW() {
           }
         }
 
-             function _qStopAudio(finalizePointer = true) {
+                  function _qStopAudio(finalizePointer = true) {
+          // Force reset BOTH buttons back to Play Surah immediately
+          const wholeBtn = document.querySelector('#play-whole-surah');
+          if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+          
+          const mobBtn = document.querySelector('#play-whole-surah-mobile');
+          if (mobBtn) mobBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
           if (_qAudio && _isPlayingFullSurah && _currentSurahNum && finalizePointer && !_fullSurahPointerFrozen) {
             _freezeFullSurahPointer();
           }
@@ -3989,10 +3996,14 @@ async function syncPrayerTimesToSW() {
             }
           }, { once: true });
 
-          const wholeBtn = document.querySelector('#play-whole-surah');
+                 const wholeBtn = document.querySelector('#play-whole-surah');
+          const mobileBtn = document.querySelector('#play-whole-surah-mobile');
           if (wholeBtn) {
             _qAudioBtn = wholeBtn;
-            wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
+            wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+          }
+          if (mobileBtn) {
+            mobileBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
           }
 
         // ---- MOBILE: scroll ONCE to the saved/resume verse, then never touch scroll again ----
@@ -4158,22 +4169,22 @@ async function syncPrayerTimesToSW() {
         }
         function bindQuranAudio(num, meta) {
           const wholeBtn = $('#play-whole-surah');
-          if (wholeBtn) {
-            wholeBtn.onclick = () => {
-              if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
-                _qAudioBtn = wholeBtn;
-                if (!_qAudio.paused) {
-                  _qAudio.pause();
-                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-                } else {
-                  _qAudio.play().catch(() => { });
-                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
-                }
-                return;
-              }
-              _playSurahAudio(num, true);
-            };
-          }
+                   const mobileBtn = $('#play-whole-surah-mobile');
+  if (mobileBtn) {
+    mobileBtn.onclick = () => {
+      if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
+        if (!_qAudio.paused) {
+          _qAudio.pause();
+          mobileBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+        } else {
+          _qAudio.play().catch(() => { });
+          mobileBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+        }
+        return;
+      }
+      _playSurahAudio(num, true);
+    };
+  }
 
           $$('[data-play]').forEach(b => {
             b.onclick = () => {
