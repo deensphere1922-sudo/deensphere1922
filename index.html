@@ -7666,9 +7666,9 @@ function _routineStats(day) {
 function _calculateQuranReadStats(targetDateStr) {
   let versesRead = 0;
   let lastBookmark = null;
-  let yesterdayLast = null;
 
   if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
+    // Sort all bookmarks chronologically
     const sorted = [...S.bookmarks]
       .filter(b => b && b.date)
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -7676,34 +7676,49 @@ function _calculateQuranReadStats(targetDateStr) {
     const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
     const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
 
-    // Yesterday's (or earlier) last bookmark
-    for (let i = 0; i < sorted.length; i++) {
-      const bTime = new Date(sorted[i].date).getTime();
+    let todayBookmarks = [];
+    let pastBookmarks = [];
+
+    // Separate past bookmarks from today's
+    sorted.forEach(b => {
+      const bTime = new Date(b.date).getTime();
       if (bTime < targetStart) {
-        yesterdayLast = sorted[i];
-      } else {
-        break;
+        pastBookmarks.push(b);
+      } else if (bTime >= targetStart && bTime <= targetEnd) {
+        todayBookmarks.push(b);
       }
-    }
+    });
 
-    // Today's last bookmark
-    for (let i = 0; i < sorted.length; i++) {
-      const bTime = new Date(sorted[i].date).getTime();
-      if (bTime >= targetStart && bTime <= targetEnd) {
-        lastBookmark = sorted[i];
+    if (todayBookmarks.length > 0) {
+      lastBookmark = todayBookmarks[todayBookmarks.length - 1];
+      
+      let startGlobal = 0;
+      
+      // 1. If we have a bookmark from yesterday (or earlier), start from there.
+      if (pastBookmarks.length > 0) {
+        const prev = pastBookmarks[pastBookmarks.length - 1];
+        startGlobal = _qGlobalAyah(prev.surah, prev.verse);
+      } 
+      // 2. If NO past bookmark, but you bookmarked MULTIPLE times today, start from your first bookmark today.
+      else if (todayBookmarks.length > 1) {
+        startGlobal = _qGlobalAyah(todayBookmarks[0].surah, todayBookmarks[0].verse);
+      } 
+      // 3. If this is your ONLY bookmark ever, count from the start of that Surah.
+      else {
+        startGlobal = _qGlobalAyah(lastBookmark.surah, 0); 
       }
-    }
 
-    // Only calculate verses read if BOTH exist
-    if (lastBookmark && yesterdayLast) {
       const todayGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
-      const startGlobal = _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse);
       versesRead = todayGlobal - startGlobal;
-      if (versesRead < 0) versesRead = 0;
+      
+      // Safety catch for edge cases
+      if (versesRead <= 0 && todayBookmarks.length === 1 && !pastBookmarks.length) {
+        versesRead = lastBookmark.verse; 
+      }
     }
   }
 
-  return { versesRead, lastBookmark, yesterdayLast };
+  return { versesRead, lastBookmark };
 }
 
       function _buildHomeProgressSummaryHTML(day) {
