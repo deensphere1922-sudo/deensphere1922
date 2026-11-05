@@ -12831,7 +12831,6 @@ $$('[data-notif]').forEach(b => {
 }
   
     if (Notification.permission === 'default') {
-        b.classList.toggle('done', nextVal);
       const permission = await Notification.requestPermission();
 
       if (permission !== 'granted') {
