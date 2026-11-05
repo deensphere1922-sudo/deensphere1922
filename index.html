@@ -1,5 +1,3 @@
-
-
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -3687,12 +3685,12 @@ window.addEventListener('touchmove', () => {
       document.body.classList.remove('audio-open');
     }
 
-                 function _attachAudio(a, onEnded) {
+                        function _attachAudio(a, onEnded) {
           try { a.playbackRate = _playbackRate; } catch (e) { }
 
           let lastDetectedVerse = 0; 
 
-          const updateUI = (isTabReturn = false) => {
+          const updateUI = (forceSnap = false) => {
             if (_qAudio !== a) return;
             if (_isSeeking) return;
             
@@ -3715,6 +3713,7 @@ window.addEventListener('touchmove', () => {
                 }
                 if (!verseNow) verseNow = timings[timings.length - 1].verse;
               } else {
+                // FALLBACK MATH: If API fails, estimate based on time (Guarantees highlight moves)
                 const meta = SURAHS.find(x => x.num === _currentSurahNum);
                 if (meta) {
                   verseNow = Math.ceil((cur / dur) * meta.verses);
@@ -3723,14 +3722,14 @@ window.addEventListener('touchmove', () => {
               }
               
               // 2. Update highlight and scroll
-              // If it's a tab return, force the update even if the verse hasn't changed yet
-              if (verseNow && (verseNow !== lastDetectedVerse || isTabReturn)) {
+              if (verseNow && (verseNow !== lastDetectedVerse || forceSnap)) {
                 lastDetectedVerse = verseNow;
                 _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
 
                 if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
                   let activeVerseEl = null;
 
+                  // Move the green highlight
                   document.querySelectorAll('.card[data-verse-num]').forEach(card => {
                     const cardVerse = parseInt(card.dataset.verseNum, 10);
                     if (cardVerse === verseNow) {
@@ -3756,14 +3755,13 @@ window.addEventListener('touchmove', () => {
                       const visibleTop = stickyBottom - contentRect.top + 20;
                       const targetY = scrollContainer.scrollTop + (verseRect.top - contentRect.top) - visibleTop;
 
-                      // 'auto' snaps instantly (for tab return). 'smooth' glides normally.
-                      scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: isTabReturn ? 'auto' : 'smooth' });
+                      scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: forceSnap ? 'auto' : 'smooth' });
                     } else {
                       const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
                       const cardTopInPage = activeVerseEl.getBoundingClientRect().top + scrollTop;
                       const targetY = Math.max(0, cardTopInPage - stickyBottom - 20);
                       
-                      window.scrollTo({ top: targetY, behavior: isTabReturn ? 'auto' : 'smooth' });
+                      window.scrollTo({ top: targetY, behavior: forceSnap ? 'auto' : 'smooth' });
                     }
                   }
                 }
@@ -3786,19 +3784,19 @@ window.addEventListener('touchmove', () => {
             }
           };
 
+          // Loop 60 times a second
           const tick = () => {
             if (_qAudio !== a) return;
-            updateUI(false); // Normal smooth scrolling during playback
+            updateUI(false); 
             if (!a.paused) {
               requestAnimationFrame(tick);
             }
           };
 
-          // --- TAB RETURN FIX ---
-          // When you come back to the tab, force the screen to snap to the current verse
+          // --- FORCE SNAP ON REFRESH / TAB RETURN ---
           const handleVisibilityChange = () => {
             if (document.visibilityState === 'visible' && _qAudio === a) {
-              updateUI(true); // true = snap instantly
+              updateUI(true); // true = snap instantly to the current verse
             }
           };
           document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -3806,7 +3804,7 @@ window.addEventListener('touchmove', () => {
 
           a.addEventListener('loadedmetadata', () => {
             try { a.playbackRate = _playbackRate; } catch (e) { }
-            updateUI(true); 
+            updateUI(true); // Snap on initial load
           });
 
           a.addEventListener('play', () => {
