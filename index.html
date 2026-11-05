@@ -3687,207 +3687,115 @@ window.addEventListener('touchmove', () => {
       document.body.classList.remove('audio-open');
     }
 
-        function _attachAudio(a, onEnded) {
+            function _attachAudio(a, onEnded) {
           try { a.playbackRate = _playbackRate; } catch (e) { }
+
+          let lastDetectedVerse = 0; 
 
           const updateUI = () => {
             if (_qAudio !== a) return;
             if (_isSeeking) return;
+            
             const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
             const cur = a.currentTime || 0;
             const pct = dur ? (cur / dur) * 100 : 0;
             _abSetProgressUI(cur, dur, pct);
 
             if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
-           const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
-if (!verseNow) return;
-
-if (window._quranLastVisibleAudioVerse !== verseNow) {
-  window._quranLastVisibleAudioVerse = verseNow;
-}
-
-              _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
-
-              if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
-                let activeVerseEl = null;
-                document.querySelectorAll('.card[data-verse-num]').forEach(card => {
-                  const cardVerse = parseInt(card.dataset.verseNum, 10);
-                  if (cardVerse === verseNow) {
-                    card.classList.add('verse-playing');
-                    activeVerseEl = card;
-                  } else {
-                    card.classList.remove('verse-playing');
-                    if (card.dataset.scrolledFor) {
-                      delete card.dataset.scrolledFor;
-                    }
+              
+              // 1. Calculate the exact verse based on current time
+              let verseNow = null;
+              const timings = _verseTimingsCache[_currentSurahNum];
+              
+              if (timings && timings.length) {
+                for (let i = 0; i < timings.length; i++) {
+                  if (cur >= timings[i].start && cur < timings[i].end) {
+                    verseNow = timings[i].verse; break;
                   }
-                });
-
-                        if (activeVerseEl) {
-                 const rect = activeVerseEl.getBoundingClientRect();
-const viewportH = window.innerHeight || document.documentElement.clientHeight;
-
-const stickyHead = document.querySelector('.quran-reader-sticky-head');
-const audioBar = document.getElementById('audio-bar');
-
-const stickyBottom = stickyHead
-  ? stickyHead.getBoundingClientRect().bottom + 20
-  : 120;
-
-const audioTop = audioBar && audioBar.classList.contains('show')
-  ? audioBar.getBoundingClientRect().top - 20
-  : viewportH - 20;
-
-const isVisible =
-  rect.top >= stickyBottom &&
-  rect.bottom <= audioTop;
-
-                                                            // If we just returned to the tab, do NOT scroll. 
-                 // Just mark it as scrolled so it doesn't jump, and keep the highlight.
-                                 // If we just returned to the tab, DO NOT scroll.
-                 // Mark the current verse as already scrolled, and exit the scroll branch.
-                               // ---------------------------------------------------------
-                 // FROZEN SCROLL ON TAB RETURN
-                 // ---------------------------------------------------------
-                 if (_quranSkipAutoScrollOnTabReturn) {
-                   // Lock onto the current verse so it doesn't jump
-                   window._quranLockedVerse = verseNow; 
-                   _quranSkipAutoScrollOnTabReturn = false;
-                   return; // Do not scroll right now
-                 }
-
-                 // If we are locked, we ONLY unlock when the audio moves to a NEW verse
-                 if (window._quranLockedVerse) {
-                   if (window._quranLockedVerse !== verseNow) {
-                     // A new verse has started! Unlock and allow scrolling.
-                     window._quranLockedVerse = null; 
-                   } else {
-                     // Still on the same verse you left on. Stay frozen.
-                     return;
-                   }
-                 }
-
-                 if (
-  !isVisible &&
-  document.visibilityState === "visible" &&
-  activeVerseEl.dataset.scrolledFor !== String(verseNow)
-) {
-  activeVerseEl.dataset.scrolledFor = String(verseNow);
-  _autoScrolling = true;
-
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    const cardRect = activeVerseEl.getBoundingClientRect();
-    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
-    const cardTopInPage = cardRect.top + scrollTop;
-
-    const stickyHead = document.querySelector('.quran-reader-sticky-head');
-    const stickyTop = stickyHead
-      ? Math.max(0, stickyHead.getBoundingClientRect().bottom)
-      : 140;
-
-    const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
-
-    window.scrollTo({
-      top: targetY,
-      behavior: 'smooth'
-    });
-
-    clearTimeout(window.__autoScrollTimer);
-    window.__autoScrollTimer = setTimeout(() => {
-      _autoScrolling = false;
-    }, 1200);
-  }));
-}
-
-                 if (
-  !isVisible &&
-  document.visibilityState === 'visible' &&
-  !_quranSkipAutoScrollOnTabReturn &&
-  activeVerseEl.dataset.scrolledFor !== String(verseNow)
-) {
-                    activeVerseEl.dataset.scrolledFor = String(verseNow);
-                    _autoScrolling = true;
-
-                    requestAnimationFrame(() => requestAnimationFrame(() => {
-                      const cardRect = activeVerseEl.getBoundingClientRect();
-                      const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
-                      const cardTopInPage = cardRect.top + scrollTop;
-
-                      // Measure how much of the top of the viewport is covered by the
-                      // sticky reader header (Bismillah card + Reciter card). Query
-                      // the actual sticky header element so this adapts automatically
-                      // to any screen size.
-                      let stickyTop = 0;
-                      const stickyHead = document.querySelector('.quran-reader-sticky-head');
-                      if (stickyHead) {
-                        const sr = stickyHead.getBoundingClientRect();
-                        stickyTop = Math.max(0, sr.bottom);
-                      } else {
-                        stickyTop = 140; // fallback estimate
-                      }
-
-                      // Add 20px breathing room below the sticky header.
-                      const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
-
-                      window.scrollTo({
-                        top: targetY,
-                        behavior: 'smooth'
-                      });
-
-                      clearTimeout(window.__autoScrollTimer);
-                      window.__autoScrollTimer = setTimeout(() => {
-                        _autoScrolling = false;
-                      }, 1200);
-                    }));
-                  }
+                }
+                if (!verseNow) verseNow = timings[timings.length - 1].verse;
+              } else {
+                const meta = SURAHS.find(x => x.num === _currentSurahNum);
+                if (meta) {
+                  verseNow = Math.ceil((cur / dur) * meta.verses);
+                  verseNow = Math.max(1, Math.min(verseNow, meta.verses));
                 }
               }
+              
+              // 2. If the verse changed, move highlight AND force the scroll
+              if (verseNow && verseNow !== lastDetectedVerse) {
+                lastDetectedVerse = verseNow;
+                _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
 
-              const now = Date.now();
-              if (S.quranProgress?.surah !== _currentSurahNum ||
-                S.quranProgress?.verse !== verseNow) {
+                if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
+                  let activeVerseEl = null;
 
-                if (!_fullSurahOwnsPointer) return;
+                  // Move the green highlight instantly
+                  document.querySelectorAll('.card[data-verse-num]').forEach(card => {
+                    const cardVerse = parseInt(card.dataset.verseNum, 10);
+                    if (cardVerse === verseNow) {
+                      card.classList.add('verse-playing');
+                      activeVerseEl = card;
+                    } else {
+                      card.classList.remove('verse-playing');
+                    }
+                  });
 
-                S.quranProgress = { surah: _currentSurahNum, verse: verseNow };
+                  // --- THE FORCE SCROLL FIX (Like your 2nd screenshot) ---
+                  if (activeVerseEl) {
+                    const scrollContainer = document.querySelector('.content');
+                    
+                    // Desktop vs Mobile scroll detection
+                    const isContainerScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight &&
+                      (scrollContainer.scrollTop > 0 || getComputedStyle(scrollContainer).overflowY === 'auto' || getComputedStyle(scrollContainer).overflowY === 'scroll');
 
-                _refreshContinueReadingBox();
+                    const stickyHead = document.querySelector('.quran-reader-sticky-head');
+                    const stickyBottom = stickyHead ? stickyHead.getBoundingClientRect().bottom : 140;
 
-                const profEl = document.getElementById('profile-quran-progress');
-                if (profEl) {
-                  const surMeta = SURAHS.find(s => s.num === _currentSurahNum);
-              if (surMeta) profEl.textContent = `Surah ${_currentSurahNum}:${verseNow} \u2014 ${surMeta.translit}`;
+                    if (isContainerScroll) {
+                      const contentRect = scrollContainer.getBoundingClientRect();
+                      const verseRect = activeVerseEl.getBoundingClientRect();
+                      const visibleTop = stickyBottom - contentRect.top + 20;
+                      const targetY = scrollContainer.scrollTop + (verseRect.top - contentRect.top) - visibleTop;
+
+                      // FORCE the scroll
+                      scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+                    } else {
+                      const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+                      const cardTopInPage = activeVerseEl.getBoundingClientRect().top + scrollTop;
+                      const targetY = Math.max(0, cardTopInPage - stickyBottom - 20);
+                      
+                      // FORCE the scroll
+                      window.scrollTo({ top: targetY, behavior: 'smooth' });
+                    }
+                  }
+                  // ----------------------------------------------------
                 }
 
-                // The visible UI is updated synchronously above. Persist every verse
-                // transition immediately so both devices receive the latest pointer.
-                // Audio position is saved with the same verse/time for exact resume.
-                _lastQuranSaveAt = now;
-                _lastPlaybackPos = {
-                  surahNum: _currentSurahNum,
-                  verse: verseNow,
-                  seconds: Math.max(0, cur),
-                  clientUpdatedAt: now
-                };
-                const progressToSave = {
-                  surah: _currentSurahNum,
-                  verse: verseNow,
-                  clientUpdatedAt: now
-                };
-                setJSON('quran-progress', progressToSave).catch(() => {});
-                setJSON('audio-position', _lastPlaybackPos).catch(() => {});
+                // 3. Save progress
+                if (_fullSurahOwnsPointer) {
+                  S.quranProgress = { surah: _currentSurahNum, verse: verseNow };
+                  _refreshContinueReadingBox();
+                  
+                  _lastPlaybackPos = {
+                    surahNum: _currentSurahNum,
+                    verse: verseNow,
+                    seconds: Math.max(0, cur),
+                    clientUpdatedAt: Date.now()
+                  };
+                  setJSON('quran-progress', S.quranProgress).catch(() => {});
+                  setJSON('audio-position', _lastPlaybackPos).catch(() => {});
+                }
               }
             }
           };
-                   const tick = () => {
+
+          // Check 60 times a second for instant, on-the-spot updates
+          const tick = () => {
             if (_qAudio !== a) return;
             updateUI();
             if (!a.paused) {
-              if (document.visibilityState === 'visible') {
-                requestAnimationFrame(tick);
-              } else {
-                setTimeout(tick, 1000);
-              }
+              requestAnimationFrame(tick);
             }
           };
 
@@ -3896,31 +3804,20 @@ const isVisible =
             updateUI();
           });
 
-          a.addEventListener('durationchange', updateUI);
-          a.addEventListener('timeupdate', updateUI);
-
           a.addEventListener('play', () => {
             try { a.playbackRate = _playbackRate; } catch (e) { }
-            if (_isPlayingFullSurah && _qAudio === a) {
-              _fullSurahPointerFrozen = false;
-            }
+            if (_isPlayingFullSurah && _qAudio === a) _fullSurahPointerFrozen = false;
             _abSetPlaying(true);
-          if (_qAudioBtn && !_isPlayingFullSurah) {
-  _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
-}
+            if (_qAudioBtn && !_isPlayingFullSurah) _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
             _abSyncStatus(true);
             _syncMiniPillLabel();
             requestAnimationFrame(tick);
           });
 
           a.addEventListener('pause', () => {
-            if (_isPlayingFullSurah && _qAudio === a && !_fullSurahPointerFrozen) {
-              _freezeFullSurahPointer();
-            }
+            if (_isPlayingFullSurah && _qAudio === a && !_fullSurahPointerFrozen) _freezeFullSurahPointer();
             _abSetPlaying(false);
-          if (_qAudioBtn && !_isPlayingFullSurah) {
-  _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
-}
+            if (_qAudioBtn && !_isPlayingFullSurah) _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
             _abSyncStatus(false);
             _syncMiniPillLabel();
           });
