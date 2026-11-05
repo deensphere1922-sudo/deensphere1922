@@ -3342,8 +3342,8 @@ document.addEventListener('visibilitychange', () => {
     _autoScrolling = false;
     clearTimeout(window.__autoScrollTimer);
   } else {
-    // Stay in skip mode until the NEXT verse starts. Do NOT clear on a timer.
-    window._quranReturnGuardVerse = window._quranLastVisibleAudioVerse || null;
+    // On return, allow ONE auto-scroll to catch up to the current verse.
+    window._quranAllowCatchUpScroll = true;
   }
 });
         let _lastPlaybackPos = null;
@@ -3733,21 +3733,22 @@ const isVisible =
   rect.top >= stickyBottom &&
   rect.bottom <= audioTop;
 
-                            if (_quranSkipAutoScrollOnTabReturn) {
-                   if (window._quranReturnGuardVerse !== verseNow) {
-                     // A new verse has started since we returned — resume.
-                     _quranSkipAutoScrollOnTabReturn = false;
-                     window._quranReturnGuardVerse = verseNow;
-                   } else {
-                     // Same verse we were on when the tab lost focus.
-                     // Update highlight only, do NOT scroll.
-                     return;
-                   }
+                                          // Check if we are returning to the tab and need to catch up ONCE
+                 if (window._quranAllowCatchUpScroll) {
+                   window._quranAllowCatchUpScroll = false; // Only do this once
+                   
+                   // Clear the old scroll memory so it forces a fresh scroll to the CURRENT verse
+                   document.querySelectorAll('.card[data-verse-num]').forEach(c => {
+                     delete c.dataset.scrolledFor;
+                   });
+                   
+                   _quranSkipAutoScrollOnTabReturn = false;
                  }
 
                  if (
   !isVisible &&
   document.visibilityState === 'visible' &&
+  !_quranSkipAutoScrollOnTabReturn &&
   activeVerseEl.dataset.scrolledFor !== String(verseNow)
 ) {
                     activeVerseEl.dataset.scrolledFor = String(verseNow);
