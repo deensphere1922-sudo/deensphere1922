@@ -3334,6 +3334,13 @@ async function syncPrayerTimesToSW() {
         let _isPlayingFullSurah = false;
        let _autoScrolling = false;
 let _quranInitialScrollDone = false;
+let _quranSkipAutoScrollOnTabReturn = false;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    _quranSkipAutoScrollOnTabReturn = true;
+  }
+});
         let _lastPlaybackPos = null;
         const _quranDataCache = {};
         let _lastQuranSaveAt = 0;
@@ -3677,8 +3684,13 @@ let _quranInitialScrollDone = false;
             _abSetProgressUI(cur, dur, pct);
 
             if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
-              const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
-              if (!verseNow) return;
+           const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
+if (!verseNow) return;
+
+if (window._quranLastVisibleAudioVerse !== verseNow) {
+  window._quranLastVisibleAudioVerse = verseNow;
+  _quranSkipAutoScrollOnTabReturn = false;
+}
 
               _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
 
@@ -3716,7 +3728,12 @@ const isVisible =
   rect.top >= stickyBottom &&
   rect.bottom <= audioTop;
 
-                  if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
+                 if (
+  !isVisible &&
+  document.visibilityState === 'visible' &&
+  !_quranSkipAutoScrollOnTabReturn &&
+  activeVerseEl.dataset.scrolledFor !== String(verseNow)
+) {
                     activeVerseEl.dataset.scrolledFor = String(verseNow);
                     _autoScrolling = true;
 
