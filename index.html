@@ -14892,6 +14892,20 @@ function openPrayerModal(prayerName, notifTag) {
     _openPrayerKey = null;
   }
 }
+
+          function triggerPendingAuthPopup() {
+  try {
+    const pendingPrayer = sessionStorage.getItem('__pendingAuthPopup');
+    if (pendingPrayer) {
+      sessionStorage.removeItem('__pendingAuthPopup'); // Clear so it only shows once
+      
+      // Wait 1.5 seconds to make sure the UI has loaded
+      setTimeout(() => {
+        openPrayerModal(pendingPrayer, null); 
+      }, 1500);
+    }
+  } catch(e) {}
+}
     </script>
     </body>
     </html>
