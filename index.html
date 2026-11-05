@@ -3774,7 +3774,10 @@ function _attachAudio(a, onEnded) {
       lastDetectedVerse = verseNow;
       _abSetSub('Yasser Al-Dosari — Verse ' + verseNow);
 
-      if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
+    if (
+  S.screen === 'quran-reader' &&
+  Number(S.arg) === Number(_currentSurahNum)
+) {
         let activeVerseEl = null;
 
         document.querySelectorAll('.card[data-verse-num]').forEach(card => {
@@ -4072,7 +4075,10 @@ if (activeVerseEl) {
             const v = _estimateVerseFromTime(num, a.currentTime, dur);
             if (!v) return;
             _abSetSub('Yasser Al-Dosari \u2014 Verse ' + v);
-            if (S.screen === 'quran-reader' && S.arg === num) {
+          if (
+  S.screen === 'quran-reader' &&
+  Number(S.arg) === Number(num)
+) {
               document.querySelectorAll('.card[data-verse-num]').forEach(card => {
                 const cardVerse = parseInt(card.dataset.verseNum, 10);
                 if (cardVerse === v) card.classList.add('verse-playing');
