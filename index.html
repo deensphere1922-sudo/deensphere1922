@@ -7067,20 +7067,27 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
               </button>
             `).join('');
           resultsBox.querySelectorAll('[data-city-idx]').forEach(btn => {
-  btn.onclick = () => {
-    const r = results[parseInt(btn.dataset.cityIdx)];
-    $('#lat-in').value = r.lat.toFixed(4);
-    $('#lng-in').value = r.lng.toFixed(4);
-    labelEl.textContent = r.short;
-    
-    // 🔥 ADD THIS LINE: Instantly save the correct timezone for the searched city
-    if (!S.settings.location) S.settings.location = {};
-    S.settings.location.timezone = r.timezone; 
-    
-    resultsBox.innerHTML = '';
-    searchInput.value = '';
-    toast('Location set to ' + r.short);
+ btn.onclick = () => {
+  const r = results[parseInt(btn.dataset.cityIdx)];
+
+  $('#lat-in').value = r.lat.toFixed(4);
+  $('#lng-in').value = r.lng.toFixed(4);
+  labelEl.textContent = r.short;
+
+  S.settings.location = {
+    ...S.settings.location,
+    lat: r.lat,
+    lng: r.lng,
+    label: r.short,
+    timezone: r.timezone,
+    source: 'manual'
   };
+
+  resultsBox.innerHTML = '';
+  searchInput.value = '';
+
+  toast('Location set to ' + r.short);
+};
 });
           };
 
