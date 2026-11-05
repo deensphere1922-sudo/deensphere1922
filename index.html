@@ -7017,12 +7017,18 @@ async function autoUpdateLocation() {
 
         await setJSON('settings', S.settings);
 
-        syncPrayerTimesToSW();
+       
+// Sync prayer notifications with the new GPS location
+syncPrayerTimesToSW();
 
-        if (S.screen === 'home') hydrateHome();
-        else if (S.screen === 'settings') render();
+// Refresh the entire current screen immediately
+render();
 
-        toast('Location automatically updated.');
+// Update the next prayer and countdown
+tickCountdown();
+
+toast('Location automatically updated.');
+
 
       } catch (error) {
         console.warn('Auto location update failed:', error);
