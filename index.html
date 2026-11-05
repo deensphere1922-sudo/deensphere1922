@@ -3332,7 +3332,8 @@ async function syncPrayerTimesToSW() {
         let _autoPlayNextSurah = false;
         let _currentSurahNum = null;
         let _isPlayingFullSurah = false;
-        let _autoScrolling = false;
+       let _autoScrolling = false;
+let _quranInitialScrollDone = false;
         let _lastPlaybackPos = null;
         const _quranDataCache = {};
         let _lastQuranSaveAt = 0;
@@ -3996,19 +3997,22 @@ if (wholeBtn) {
 
       // Only perform the initial audio resume scroll.
 // Do not repeat it when returning to a previously opened reader.
+// Auto-scroll to the saved verse only once per reader opening.
 try {
-  const hasSavedReaderPosition =
-    sessionStorage.getItem('quranReaderScroll') !== null;
-
   if (
-    !hasSavedReaderPosition &&
+    !_quranInitialScrollDone &&
     window.matchMedia('(max-width: 880px)').matches &&
     S.screen === 'quran-reader' &&
     S.arg === num
   ) {
+    _quranInitialScrollDone = true;
+
     const targetVerse = (savedPos && savedPos.verse) || 1;
 
     setTimeout(() => {
+      // Do not scroll if the user has switched to another browser tab.
+      if (document.visibilityState !== 'visible') return;
+
       const el = document.querySelector(
         `.card[data-verse-num="${targetVerse}"]`
       );
@@ -6241,6 +6245,10 @@ try {
     }));
   }
 } catch (e) {}
+
+if (screen === 'quran-reader' && S.screen !== 'quran-reader') {
+  _quranInitialScrollDone = false;
+}
 
 S.screen = screen;
 S.arg = arg;
