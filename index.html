@@ -6160,12 +6160,12 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
               }
             } catch (_) {}
 
-            // ✅ PAINT NOW from whatever is already in memory.
-            render();
-
-            if ((screen === 'home' || screen === 'setup-location') && S.profile && S.settings) {
+             if ((screen === 'home' || screen === 'setup-location') && S.profile && S.settings) {
                 triggerPendingAuthPopup();
             }
+
+            // ✅ PAINT NOW from whatever is already in memory.
+            render();
 
             // ✅ Refresh from the cloud in the background. Each branch repaints
             // only if the user is still on the same screen when it resolves.
