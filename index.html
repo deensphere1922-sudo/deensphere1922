@@ -3342,8 +3342,7 @@ document.addEventListener('visibilitychange', () => {
     _autoScrolling = false;
     clearTimeout(window.__autoScrollTimer);
   } else {
-    // On return, allow ONE auto-scroll to catch up to the current verse.
-    window._quranAllowCatchUpScroll = true;
+    // We don't set the flag here anymore. We handle it inside updateUI.
   }
 });
         let _lastPlaybackPos = null;
@@ -3733,16 +3732,14 @@ const isVisible =
   rect.top >= stickyBottom &&
   rect.bottom <= audioTop;
 
-                                          // Check if we are returning to the tab and need to catch up ONCE
-                 if (window._quranAllowCatchUpScroll) {
-                   window._quranAllowCatchUpScroll = false; // Only do this once
+                                             // If we return to the tab and haven't scrolled to the current playing verse yet, do it ONCE.
+                 if (_quranSkipAutoScrollOnTabReturn && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
+                   _quranSkipAutoScrollOnTabReturn = false; // Turn off the guard
                    
-                   // Clear the old scroll memory so it forces a fresh scroll to the CURRENT verse
+                   // Clear old scroll memory so it forces a jump to the current playing verse right now
                    document.querySelectorAll('.card[data-verse-num]').forEach(c => {
                      delete c.dataset.scrolledFor;
                    });
-                   
-                   _quranSkipAutoScrollOnTabReturn = false;
                  }
 
                  if (
@@ -3978,8 +3975,9 @@ const isVisible =
           _lockedSurahNum = num;
           _autoPlayNextSurah = !!autoNext;
           _currentSurahNum = num;
-                 _isPlayingFullSurah = true;
+                        _isPlayingFullSurah = true;
           window._quranReturnGuardVerse = null;
+          _quranSkipAutoScrollOnTabReturn = false; // Reset tab return state for a fresh play
 
           const meta = SURAHS.find(x => x.num === num);
           const url = `https://server11.mp3quran.net/yasser/${String(num).padStart(3, '0')}.mp3`;
