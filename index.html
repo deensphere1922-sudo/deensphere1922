@@ -6970,13 +6970,11 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
   }
 }
             // --- AUTO LOCATION UPDATER ---
-          async function autoUpdateLocation() {
+     // --- AUTO LOCATION UPDATER ---
+async function autoUpdateLocation() {
   if (!S.settings || !S.settings.setupDone || !S.profile) return;
-  if (S.settings.autoLocation === false) return;
+  if (S.settings.autoLocation !== true) return;
   if (!navigator.geolocation) return;
-
-  // Keep manually selected locations unchanged.
-  if (S.settings.location?.source === 'manual') return;
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
@@ -6994,14 +6992,16 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
         const data = await resp.json();
         if (!data?.display_name) return;
 
-        const parts = data.display_name.split(',');
-        const short = parts.slice(0, 2).join(',').trim();
-
-        let timezone =
-          S.settings.location?.timezone ||
-          Intl.DateTimeFormat().resolvedOptions().timeZone;
+        const short = data.display_name
+          .split(',')
+          .slice(0, 2)
+          .join(',')
+          .trim();
 
         const cc = data.address?.country_code?.toLowerCase();
+
+        let timezone =
+          Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 
         if (cc === 'gb') timezone = 'Europe/London';
         else if (cc === 'in') timezone = 'Asia/Kolkata';
@@ -7016,17 +7016,26 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
         };
 
         await setJSON('settings', S.settings);
+
         syncPrayerTimesToSW();
 
         if (S.screen === 'home') hydrateHome();
         else if (S.screen === 'settings') render();
 
-      } catch (e) {
-        console.warn('Auto location fetch failed:', e);
+        toast('Location automatically updated.');
+
+      } catch (error) {
+        console.warn('Auto location update failed:', error);
       }
     },
-    (err) => console.warn('Auto geolocation error:', err),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
+    (error) => {
+      console.warn('Auto geolocation error:', error);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 600000
+    }
   );
 }
 
