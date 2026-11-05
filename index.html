@@ -3687,12 +3687,12 @@ window.addEventListener('touchmove', () => {
       document.body.classList.remove('audio-open');
     }
 
-            function _attachAudio(a, onEnded) {
+                 function _attachAudio(a, onEnded) {
           try { a.playbackRate = _playbackRate; } catch (e) { }
 
           let lastDetectedVerse = 0; 
 
-          const updateUI = () => {
+          const updateUI = (isTabReturn = false) => {
             if (_qAudio !== a) return;
             if (_isSeeking) return;
             
@@ -3703,7 +3703,7 @@ window.addEventListener('touchmove', () => {
 
             if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
               
-              // 1. Calculate the exact verse based on current time
+              // 1. Calculate the exact verse
               let verseNow = null;
               const timings = _verseTimingsCache[_currentSurahNum];
               
@@ -3722,15 +3722,15 @@ window.addEventListener('touchmove', () => {
                 }
               }
               
-              // 2. If the verse changed, move highlight AND force the scroll
-              if (verseNow && verseNow !== lastDetectedVerse) {
+              // 2. Update highlight and scroll
+              // If it's a tab return, force the update even if the verse hasn't changed yet
+              if (verseNow && (verseNow !== lastDetectedVerse || isTabReturn)) {
                 lastDetectedVerse = verseNow;
                 _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
 
                 if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
                   let activeVerseEl = null;
 
-                  // Move the green highlight instantly
                   document.querySelectorAll('.card[data-verse-num]').forEach(card => {
                     const cardVerse = parseInt(card.dataset.verseNum, 10);
                     if (cardVerse === verseNow) {
@@ -3741,11 +3741,9 @@ window.addEventListener('touchmove', () => {
                     }
                   });
 
-                  // --- THE FORCE SCROLL FIX (Like your 2nd screenshot) ---
+                  // FORCE THE SCROLL
                   if (activeVerseEl) {
                     const scrollContainer = document.querySelector('.content');
-                    
-                    // Desktop vs Mobile scroll detection
                     const isContainerScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight &&
                       (scrollContainer.scrollTop > 0 || getComputedStyle(scrollContainer).overflowY === 'auto' || getComputedStyle(scrollContainer).overflowY === 'scroll');
 
@@ -3758,18 +3756,16 @@ window.addEventListener('touchmove', () => {
                       const visibleTop = stickyBottom - contentRect.top + 20;
                       const targetY = scrollContainer.scrollTop + (verseRect.top - contentRect.top) - visibleTop;
 
-                      // FORCE the scroll
-                      scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: 'smooth' });
+                      // 'auto' snaps instantly (for tab return). 'smooth' glides normally.
+                      scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: isTabReturn ? 'auto' : 'smooth' });
                     } else {
                       const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
                       const cardTopInPage = activeVerseEl.getBoundingClientRect().top + scrollTop;
                       const targetY = Math.max(0, cardTopInPage - stickyBottom - 20);
                       
-                      // FORCE the scroll
-                      window.scrollTo({ top: targetY, behavior: 'smooth' });
+                      window.scrollTo({ top: targetY, behavior: isTabReturn ? 'auto' : 'smooth' });
                     }
                   }
-                  // ----------------------------------------------------
                 }
 
                 // 3. Save progress
@@ -3790,18 +3786,27 @@ window.addEventListener('touchmove', () => {
             }
           };
 
-          // Check 60 times a second for instant, on-the-spot updates
           const tick = () => {
             if (_qAudio !== a) return;
-            updateUI();
+            updateUI(false); // Normal smooth scrolling during playback
             if (!a.paused) {
               requestAnimationFrame(tick);
             }
           };
 
+          // --- TAB RETURN FIX ---
+          // When you come back to the tab, force the screen to snap to the current verse
+          const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && _qAudio === a) {
+              updateUI(true); // true = snap instantly
+            }
+          };
+          document.addEventListener('visibilitychange', handleVisibilityChange);
+          window.addEventListener('focus', handleVisibilityChange);
+
           a.addEventListener('loadedmetadata', () => {
             try { a.playbackRate = _playbackRate; } catch (e) { }
-            updateUI();
+            updateUI(true); 
           });
 
           a.addEventListener('play', () => {
@@ -3827,6 +3832,8 @@ window.addEventListener('touchmove', () => {
             _abSetProgressUI(0, 0, 0);
             _hideMiniPill();
             _abHide();
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            window.removeEventListener('focus', handleVisibilityChange);
             if (onEnded) onEnded();
           });
         }
