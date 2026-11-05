@@ -3870,11 +3870,38 @@ if (activeVerseEl) {
     animationFrameId = requestAnimationFrame(tick);
   };
 
-  const handleVisibilityChange = () => {
-    if (document.visibilityState === 'visible' && _qAudio === a) {
-      updateUI(true);
-    }
-  };
+  
+const handleVisibilityChange = async () => {
+  if (
+    document.visibilityState !== 'visible' ||
+    _qAudio !== a ||
+    !_isPlayingFullSurah
+  ) {
+    return;
+  }
+
+  const surahNum = _currentSurahNum;
+
+  // Wait for verse timings before refreshing the highlighted verse.
+  await _fetchVerseTimings(surahNum);
+
+  // Make sure this is still the active audio.
+  if (
+    _qAudio !== a ||
+    document.visibilityState !== 'visible' ||
+    Number(_currentSurahNum) !== Number(surahNum)
+  ) {
+    return;
+  }
+
+  // Force the current audio position to be recalculated.
+  lastDetectedVerse = 0;
+
+  requestAnimationFrame(() => {
+    updateUI(true);
+  });
+};
+
 
   document.addEventListener('visibilitychange', handleVisibilityChange);
   window.addEventListener('focus', handleVisibilityChange);
