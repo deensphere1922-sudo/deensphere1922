@@ -3343,6 +3343,15 @@ document.addEventListener('visibilitychange', () => {
     clearTimeout(window.__autoScrollTimer);
   }
 });
+
+// Re-enable audio auto-scroll only after the user manually scrolls.
+window.addEventListener('wheel', () => {
+  _quranSkipAutoScrollOnTabReturn = false;
+}, { passive: true });
+
+window.addEventListener('touchmove', () => {
+  _quranSkipAutoScrollOnTabReturn = false;
+}, { passive: true });
         let _lastPlaybackPos = null;
         const _quranDataCache = {};
         let _lastQuranSaveAt = 0;
@@ -3733,11 +3742,39 @@ const isVisible =
                  // Just mark it as scrolled so it doesn't jump, and keep the highlight.
                                  // If we just returned to the tab, DO NOT scroll.
                  // Mark the current verse as already scrolled, and exit the scroll branch.
-                 if (_quranSkipAutoScrollOnTabReturn) {
-                   _quranSkipAutoScrollOnTabReturn = false;
-                   activeVerseEl.dataset.scrolledFor = String(verseNow);
-                   return;
-                 }
+                if (_quranSkipAutoScrollOnTabReturn) {
+  activeVerseEl.dataset.scrolledFor = String(verseNow);
+} else if (
+  !isVisible &&
+  document.visibilityState === 'visible' &&
+  activeVerseEl.dataset.scrolledFor !== String(verseNow)
+) {
+  activeVerseEl.dataset.scrolledFor = String(verseNow);
+  _autoScrolling = true;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const cardRect = activeVerseEl.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+    const cardTopInPage = cardRect.top + scrollTop;
+
+    const stickyHead = document.querySelector('.quran-reader-sticky-head');
+    const stickyTop = stickyHead
+      ? Math.max(0, stickyHead.getBoundingClientRect().bottom)
+      : 140;
+
+    const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
+
+    window.scrollTo({
+      top: targetY,
+      behavior: 'smooth'
+    });
+
+    clearTimeout(window.__autoScrollTimer);
+    window.__autoScrollTimer = setTimeout(() => {
+      _autoScrolling = false;
+    }, 1200);
+  }));
+}
 
                  if (
   !isVisible &&
