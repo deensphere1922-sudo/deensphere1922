@@ -4003,10 +4003,13 @@ async function syncPrayerTimesToSW() {
             }
           });
 
-          a.addEventListener('canplay', () => {
+                   a.addEventListener('canplay', () => {
             a.play().then(() => {
               _abSyncStatus(true);
-              if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
+              const pauseHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
+              if (wholeBtn) wholeBtn.innerHTML = pauseHTML;
+              const mobBtn = document.querySelector('#play-whole-surah-mobile');
+              if (mobBtn) mobBtn.innerHTML = pauseHTML + ' Surah';
             }).catch(err => { console.warn('play rejected:', err); toast('Tap once more to play.'); });
           });
 
