@@ -3332,7 +3332,26 @@ async function syncPrayerTimesToSW() {
         let _autoPlayNextSurah = false;
         let _currentSurahNum = null;
         let _isPlayingFullSurah = false;
-        let _autoScrolling = false;
+       let _autoScrolling = false;
+let _quranInitialScrollDone = false;
+let _quranSkipAutoScrollOnTabReturn = false;
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    _quranSkipAutoScrollOnTabReturn = true;
+    _autoScrolling = false;
+    clearTimeout(window.__autoScrollTimer);
+  }
+});
+
+// Re-enable audio auto-scroll only after the user manually scrolls.
+window.addEventListener('wheel', () => {
+  _quranSkipAutoScrollOnTabReturn = false;
+}, { passive: true });
+
+window.addEventListener('touchmove', () => {
+  _quranSkipAutoScrollOnTabReturn = false;
+}, { passive: true });
         let _lastPlaybackPos = null;
         const _quranDataCache = {};
         let _lastQuranSaveAt = 0;
@@ -3346,7 +3365,7 @@ async function syncPrayerTimesToSW() {
         function _qPlayBtnHTML(isPlaying) {
           return isPlaying
             ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`
-           : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+         : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
         }
         function _fmtSec(sec) {
           if (!isFinite(sec) || sec < 0) sec = 0;
@@ -3591,19 +3610,27 @@ async function syncPrayerTimesToSW() {
           }
         }
 
-              function _qStopAudio(finalizePointer = true) {
-          // Force reset the buttons back to Play Surah immediately
-          const wholeBtn = document.querySelector('#play-whole-surah');
-          if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-          const mobBtn = document.querySelector('#play-whole-surah-mobile');
-          if (mobBtn) mobBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-          
+        function _qStopAudio(finalizePointer = true) {
           if (_qAudio && _isPlayingFullSurah && _currentSurahNum && finalizePointer && !_fullSurahPointerFrozen) {
             _freezeFullSurahPointer();
           }
 
           if (_qAudio) { try { _qAudio.pause(); } catch (e) { } _qAudio = null; }
-        if (_qAudioBtn) { _qAudioBtn.innerHTML = _qPlayBtnHTML(false); _qAudioBtn = null; }
+        if (_qAudioBtn) {
+  if (_isPlayingFullSurah) {
+    const playSurahHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
+    const desktopBtn = document.querySelector('#play-whole-surah');
+    const mobileBtn = document.querySelector('#play-whole-surah-mobile');
+
+    if (desktopBtn) desktopBtn.innerHTML = playSurahHTML;
+    if (mobileBtn) mobileBtn.innerHTML = playSurahHTML;
+  } else {
+    _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+  }
+
+  _qAudioBtn = null;
+}
           _autoPlayNextSurah = false;
           _isPlayingFullSurah = false;
           _currentSurahNum = null;
@@ -3668,8 +3695,12 @@ async function syncPrayerTimesToSW() {
             _abSetProgressUI(cur, dur, pct);
 
             if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
-              const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
-              if (!verseNow) return;
+           const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
+if (!verseNow) return;
+
+if (window._quranLastVisibleAudioVerse !== verseNow) {
+  window._quranLastVisibleAudioVerse = verseNow;
+}
 
               _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
 
@@ -3689,11 +3720,68 @@ async function syncPrayerTimesToSW() {
                 });
 
                         if (activeVerseEl) {
-                  const rect = activeVerseEl.getBoundingClientRect();
-                  const viewportH = window.innerHeight || document.documentElement.clientHeight;
-                  const isVisible = (rect.top >= 100 && rect.bottom <= viewportH - 100);
+                 const rect = activeVerseEl.getBoundingClientRect();
+const viewportH = window.innerHeight || document.documentElement.clientHeight;
 
-                  if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
+const stickyHead = document.querySelector('.quran-reader-sticky-head');
+const audioBar = document.getElementById('audio-bar');
+
+const stickyBottom = stickyHead
+  ? stickyHead.getBoundingClientRect().bottom + 20
+  : 120;
+
+const audioTop = audioBar && audioBar.classList.contains('show')
+  ? audioBar.getBoundingClientRect().top - 20
+  : viewportH - 20;
+
+const isVisible =
+  rect.top >= stickyBottom &&
+  rect.bottom <= audioTop;
+
+                                                            // If we just returned to the tab, do NOT scroll. 
+                 // Just mark it as scrolled so it doesn't jump, and keep the highlight.
+                                 // If we just returned to the tab, DO NOT scroll.
+                 // Mark the current verse as already scrolled, and exit the scroll branch.
+                if (_quranSkipAutoScrollOnTabReturn) {
+  activeVerseEl.dataset.scrolledFor = String(verseNow);
+} else if (
+  !isVisible &&
+  document.visibilityState === 'visible' &&
+  activeVerseEl.dataset.scrolledFor !== String(verseNow)
+) {
+  activeVerseEl.dataset.scrolledFor = String(verseNow);
+  _autoScrolling = true;
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const cardRect = activeVerseEl.getBoundingClientRect();
+    const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+    const cardTopInPage = cardRect.top + scrollTop;
+
+    const stickyHead = document.querySelector('.quran-reader-sticky-head');
+    const stickyTop = stickyHead
+      ? Math.max(0, stickyHead.getBoundingClientRect().bottom)
+      : 140;
+
+    const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
+
+    window.scrollTo({
+      top: targetY,
+      behavior: 'smooth'
+    });
+
+    clearTimeout(window.__autoScrollTimer);
+    window.__autoScrollTimer = setTimeout(() => {
+      _autoScrolling = false;
+    }, 1200);
+  }));
+}
+
+                 if (
+  !isVisible &&
+  document.visibilityState === 'visible' &&
+  !_quranSkipAutoScrollOnTabReturn &&
+  activeVerseEl.dataset.scrolledFor !== String(verseNow)
+) {
                     activeVerseEl.dataset.scrolledFor = String(verseNow);
                     _autoScrolling = true;
 
@@ -3768,10 +3856,16 @@ async function syncPrayerTimesToSW() {
               }
             }
           };
-          const tick = () => {
+                   const tick = () => {
             if (_qAudio !== a) return;
             updateUI();
-            if (!a.paused) requestAnimationFrame(tick);
+            if (!a.paused) {
+              if (document.visibilityState === 'visible') {
+                requestAnimationFrame(tick);
+              } else {
+                setTimeout(tick, 1000);
+              }
+            }
           };
 
           a.addEventListener('loadedmetadata', () => {
@@ -3788,7 +3882,9 @@ async function syncPrayerTimesToSW() {
               _fullSurahPointerFrozen = false;
             }
             _abSetPlaying(true);
-            if (_qAudioBtn) _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
+          if (_qAudioBtn && !_isPlayingFullSurah) {
+  _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
+}
             _abSyncStatus(true);
             _syncMiniPillLabel();
             requestAnimationFrame(tick);
@@ -3799,7 +3895,9 @@ async function syncPrayerTimesToSW() {
               _freezeFullSurahPointer();
             }
             _abSetPlaying(false);
-            if (_qAudioBtn) _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+          if (_qAudioBtn && !_isPlayingFullSurah) {
+  _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+}
             _abSyncStatus(false);
             _syncMiniPillLabel();
           });
@@ -3911,7 +4009,9 @@ async function syncPrayerTimesToSW() {
           _lockedSurahNum = num;
           _autoPlayNextSurah = !!autoNext;
           _currentSurahNum = num;
-          _isPlayingFullSurah = true;
+                        _isPlayingFullSurah = true;
+          window._quranReturnGuardVerse = null;
+          _quranSkipAutoScrollOnTabReturn = false; // Reset tab return state for a fresh play
 
           const meta = SURAHS.find(x => x.num === num);
           const url = `https://server11.mp3quran.net/yasser/${String(num).padStart(3, '0')}.mp3`;
@@ -3963,41 +4063,52 @@ async function syncPrayerTimesToSW() {
             }
           }, { once: true });
 
-                               const wholeBtn = document.querySelector('#play-whole-surah');
-          const mobileBtn = document.querySelector('#play-whole-surah-mobile');
-          const pauseHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`;
-          if (wholeBtn) {
-            _qAudioBtn = wholeBtn;
-            wholeBtn.innerHTML = pauseHTML + ' Pause Surah';
-          }
-          if (mobileBtn) {
-            mobileBtn.innerHTML = pauseHTML + ' Pause Surah';
-          }
+         const wholeBtn = document.querySelector('#play-whole-surah');
+if (wholeBtn) {
+  _qAudioBtn = wholeBtn;
+}
 
-        // ---- MOBILE: scroll ONCE to the saved/resume verse, then never touch scroll again ----
-    try {
-      const isMobile = window.matchMedia('(max-width: 880px)').matches
-        || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-      if (isMobile && S.screen === 'quran-reader' && S.arg === num) {
-        const targetVerse = (savedPos && savedPos.verse) || 1;
-        // Wait until the verse cards have actually been painted.
-        setTimeout(() => {
-          const el = document.querySelector(`.card[data-verse-num="${targetVerse}"]`);
-          if (!el) return;
-          const rect = el.getBoundingClientRect();
-          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          const cardCenterInPage = rect.top + scrollTop + (rect.height / 2);
-          const targetY = Math.max(0, cardCenterInPage - (window.innerHeight / 2));
-          window.scrollTo(0, targetY);
-        }, 400);
-      }
-    } catch (_) { }
+      // Only perform the initial audio resume scroll.
+// Do not repeat it when returning to a previously opened reader.
+// Auto-scroll to the saved verse only once per reader opening.
+try {
+  if (
+    !_quranInitialScrollDone &&
+    window.matchMedia('(max-width: 880px)').matches &&
+    S.screen === 'quran-reader' &&
+    S.arg === num
+  ) {
+    _quranInitialScrollDone = true;
+
+    const targetVerse = (savedPos && savedPos.verse) || 1;
+
+    setTimeout(() => {
+      // Do not scroll if the user has switched to another browser tab.
+      if (document.visibilityState !== 'visible') return;
+
+      const el = document.querySelector(
+        `.card[data-verse-num="${targetVerse}"]`
+      );
+
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const cardCenterInPage = rect.top + scrollTop + rect.height / 2;
+      const targetY = Math.max(
+        0,
+        cardCenterInPage - window.innerHeight / 2
+      );
+
+      window.scrollTo(0, targetY);
+    }, 400);
+  }
+} catch (_) {}
 
       _abShow(meta.translit + ' (' + num + ') \u2014 Full Surah', 'Yasser Al-Dosari');
 
-                                       _attachAudio(a, () => {
+          _attachAudio(a, () => {
             if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-            if (mobileBtn) mobileBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
             _qAudio = null; _qAudioBtn = null;
 
             if (_autoPlayNextSurah && num < 114) {
@@ -4015,17 +4126,38 @@ async function syncPrayerTimesToSW() {
             }
           });
 
-          a.addEventListener('canplay', () => {
-            a.play().then(() => {
-              _abSyncStatus(true);
-              if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
-            }).catch(err => { console.warn('play rejected:', err); toast('Tap once more to play.'); });
-          });
+                      const playSurahHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
 
-                  a.addEventListener('error', () => {
+const pauseSurahHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+
+const syncSurahButtons = () => {
+  const isPlaying = _qAudio === a && !a.paused;
+
+  const desktopBtn = document.querySelector('#play-whole-surah');
+  const mobileBtn = document.querySelector('#play-whole-surah-mobile');
+
+  if (desktopBtn) desktopBtn.innerHTML = isPlaying ? pauseSurahHTML : playSurahHTML;
+  if (mobileBtn) mobileBtn.innerHTML = isPlaying ? pauseSurahHTML : playSurahHTML;
+};
+
+a.addEventListener('play', syncSurahButtons);
+a.addEventListener('pause', syncSurahButtons);
+
+a.addEventListener('canplay', () => {
+  a.play()
+    .then(() => {
+      _abSyncStatus(true);
+      syncSurahButtons();
+    })
+    .catch(err => {
+      console.warn('play rejected:', err);
+      toast('Tap once more to play.');
+    });
+}, { once: true });
+
+          a.addEventListener('error', () => {
             console.error('Surah error:', url);
             if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-            if (mobileBtn) mobileBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
             _qAudio = null; _qAudioBtn = null;
             _abHide();
             toast('Surah audio unavailable.');
@@ -4137,24 +4269,46 @@ async function syncPrayerTimesToSW() {
             toast('Audio unavailable for this verse.');
           });
         }
-        function bindQuranAudio(num, meta) {
-          const wholeBtn = $('#play-whole-surah');
-          if (wholeBtn) {
-            wholeBtn.onclick = () => {
-              if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
-                _qAudioBtn = wholeBtn;
-                if (!_qAudio.paused) {
-                  _qAudio.pause();
-                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-                } else {
-                  _qAudio.play().catch(() => { });
-                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
-                }
-                return;
-              }
-              _playSurahAudio(num, true);
-            };
-          }
+                    function bindQuranAudio(num, meta) {
+        
+const wholeBtn = $('#play-whole-surah');
+const mobileBtn = $('#play-whole-surah-mobile');
+
+const playHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
+const pauseHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+
+const updateSurahButtons = () => {
+  const playing = _qAudio &&
+    _isPlayingFullSurah &&
+    _currentSurahNum === num &&
+    !_qAudio.paused;
+
+  if (wholeBtn) wholeBtn.innerHTML = playing ? pauseHTML : playHTML;
+  if (mobileBtn) mobileBtn.innerHTML = playing ? pauseHTML : playHTML;
+};
+
+const toggleSurahAudio = () => {
+  if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
+    if (_qAudio.paused) {
+      _qAudio.play().catch(() => {
+        updateSurahButtons();
+        toast('Unable to play audio. Try again.');
+      });
+    } else {
+      _qAudio.pause();
+    }
+    return;
+  }
+
+  _playSurahAudio(num, true);
+};
+
+if (wholeBtn) wholeBtn.onclick = toggleSurahAudio;
+if (mobileBtn) mobileBtn.onclick = toggleSurahAudio;
+
+updateSurahButtons();
+
 
           $$('[data-play]').forEach(b => {
             b.onclick = () => {
@@ -6152,15 +6306,33 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
     }
   } catch (e) {}
 }
-            S.screen = screen;
-            S.arg = arg;
-            S.verseArg = verseArg;
+         // Save the current Qur'an reader position BEFORE changing screens.
+try {
+  if (S.screen === 'quran-reader' && screen !== 'quran-reader') {
+    const contentEl = document.querySelector('.content');
 
-            // --- FIX: Reset scroll positions for both desktop and mobile ---
-            const contentEl = document.querySelector('.content');
-            if (contentEl) contentEl.scrollTop = 0;
-            window.scrollTo(0, 0);
-            // ---------------------------------------------------------------
+    sessionStorage.setItem('quranReaderScroll', JSON.stringify({
+      surah: S.arg,
+      contentTop: contentEl ? contentEl.scrollTop : 0,
+      windowTop: window.scrollY || 0
+    }));
+  }
+} catch (e) {}
+
+if (screen === 'quran-reader' && S.screen !== 'quran-reader') {
+  _quranInitialScrollDone = false;
+}
+
+S.screen = screen;
+S.arg = arg;
+S.verseArg = verseArg;
+
+// Reset other screens normally.
+if (screen !== 'quran-reader') {
+  const contentEl = document.querySelector('.content');
+  if (contentEl) contentEl.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
 
             // Remember the route (session-only — cleared on tab close).
             try {
@@ -6410,15 +6582,31 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
           const existingContent = app.querySelector('.content');
 
                 if (existingShell && existingContent) {
-            existingContent.innerHTML = bodyHtml;
+           existingContent.innerHTML = bodyHtml;
 
-            // Reset scroll position when switching screens so the new screen
-            // always opens at the top (desktop uses window scroll, mobile uses
-            // .content scroll — reset both).
-            try {
-              existingContent.scrollTop = 0;
-              window.scrollTo(0, 0);
-            } catch (_) {}
+try {
+  if (s === 'quran-reader') {
+    const saved = JSON.parse(
+      sessionStorage.getItem('quranReaderScroll') || 'null'
+    );
+
+    if (saved && Number(saved.surah) === Number(S.arg)) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          existingContent.scrollTop = saved.contentTop || 0;
+          window.scrollTo(0, saved.windowTop || 0);
+          sessionStorage.removeItem('quranReaderScroll');
+        });
+      });
+    } else {
+      existingContent.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }
+  } else {
+    existingContent.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
+} catch (_) {}
 
             $$('.navitem[data-nav]').forEach(b => {
               b.classList.toggle('active', b.dataset.nav === activeNavId);
@@ -8936,7 +9124,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
               ${bismillah}
                       <div class="card reciter-card" data-surah="${num}" style="padding:14px;margin-bottom:16px;">
                 
-                             <!-- DESKTOP VIEW (Untouched) -->
+                <!-- DESKTOP VIEW (Untouched) -->
                 <div class="desktop-reciter-content" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                   <div style="flex:1;min-width:200px;">
                     <label style="font-size:12px;color:var(--tx3);display:block;margin-bottom:6px;">Reciter</label>
@@ -8944,18 +9132,18 @@ if (dsNow < todayDate && !isEditingPastDay) {
                     <div style="font-size:12px;color:var(--tx2);line-height:1.5;">Soothing, calm, gentle — with Yasser CDN fallback for verse audio where needed.</div>
                   </div>
                   <div style="display:flex;gap:8px;padding-top:18px;">
-                  <button class="btn btn-primary" id="play-whole-surah">
-                    ${(_qAudio && _isPlayingFullSurah && _currentSurahNum === num && !_qAudio.paused)
-                      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`
-                      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`}
-                  </button>
+                    <button class="btn btn-primary" id="play-whole-surah">
+                      ${(_qAudio && _isPlayingFullSurah && _currentSurahNum === num && !_qAudio.paused)
+                        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`
+                        : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`}
+                    </button>
                   </div>
                 </div>
 
                 <!-- MOBILE VIEW (Centered) -->
                 <div class="mobile-reciter-content" style="display:none; flex-direction:column; justify-content:center; align-items:center; text-align:center; width:100%;">
                   <div class="reciter-name" style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:10px;">Yasser Al-Dosari</div>
-                  <button class="btn btn-primary" id="play-whole-surah-mobile" onclick="document.getElementById('play-whole-surah').click()">
+              <button class="btn btn-primary" id="play-whole-surah-mobile">
                     ${(_qAudio && _isPlayingFullSurah && _currentSurahNum === num && !_qAudio.paused)
                       ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`
                       : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`}
@@ -8999,8 +9187,9 @@ if (dsNow < todayDate && !isEditingPastDay) {
       bindQuranReader(num);
       bindQuranAudio(num, meta);
 
-                if (S.verseArg) {
-        const verseToScrollTo = Number(S.verseArg);
+              if (S.verseArg && !_quranInitialScrollDone) {
+  _quranInitialScrollDone = true;
+  const verseToScrollTo = Number(S.verseArg);
         const targetSurah = num;
 
         window._quranBookmarkTarget = { surah: targetSurah, verse: verseToScrollTo };
@@ -12716,7 +12905,6 @@ $$('[data-notif]').forEach(b => {
 }
   
     if (Notification.permission === 'default') {
-        b.classList.toggle('done', nextVal);
       const permission = await Notification.requestPermission();
 
       if (permission !== 'granted') {
