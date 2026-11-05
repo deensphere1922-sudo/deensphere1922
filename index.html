@@ -1,3 +1,5 @@
+
+
     <!DOCTYPE html>
     <html lang="en">
     <head>
@@ -1144,14 +1146,47 @@
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
 
-        .audio-bar {
-          position: fixed; left: 50%; transform: translateX(-50%); bottom: 96px;
-          width: calc(100% - 32px); max-width: 600px; background: var(--card);
-          border: 1px solid var(--border); border-radius: var(--r-md);
-          padding: 6px 14px 12px; display: none; flex-direction: column; gap: 10px;
-          box-shadow: 0 12px 40px rgba(0, 0, 0, .6); z-index: 200;
-          touch-action: none; will-change: transform; overflow: hidden;
-        }
+
+.audio-bar {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 16px;
+  width: calc(100% - 32px);
+  max-width: 600px;
+  max-height: 125px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 3px 14px 6px;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, .6);
+  z-index: 200;
+  touch-action: none;
+  will-change: transform;
+  overflow: hidden;
+}
+
+.audio-bar.show {
+  display: flex;
+}
+
+.audio-bar .ab-handle {
+  padding: 2px 0;
+  margin: 0 -14px;
+}
+
+.audio-bar .ab-play {
+  width: 36px;
+  height: 36px;
+}
+
+.audio-bar .ab-seek {
+  height: 20px;
+}
+
         .audio-bar.show { display: flex; }
 
         .audio-bar .ab-handle {
@@ -3685,156 +3720,225 @@ window.addEventListener('touchmove', () => {
       document.body.classList.remove('audio-open');
     }
 
-                        function _attachAudio(a, onEnded) {
-          try { a.playbackRate = _playbackRate; } catch (e) { }
+                       
+function _attachAudio(a, onEnded) {
+  try { a.playbackRate = _playbackRate; } catch (e) {}
 
-          let lastDetectedVerse = 0; 
+  let lastDetectedVerse = 0;
+  let animationFrameId = null;
 
-          const updateUI = (forceSnap = false) => {
-            if (_qAudio !== a) return;
-            if (_isSeeking) return;
-            
-            const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
-            const cur = a.currentTime || 0;
-            const pct = dur ? (cur / dur) * 100 : 0;
-            _abSetProgressUI(cur, dur, pct);
+  const updateUI = (forceSnap = false) => {
+    if (_qAudio !== a || _isSeeking) return;
 
-            if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
-              
-              // 1. Calculate the exact verse
-              let verseNow = null;
-              const timings = _verseTimingsCache[_currentSurahNum];
-              
-              if (timings && timings.length) {
-                for (let i = 0; i < timings.length; i++) {
-                  if (cur >= timings[i].start && cur < timings[i].end) {
-                    verseNow = timings[i].verse; break;
-                  }
-                }
-                if (!verseNow) verseNow = timings[timings.length - 1].verse;
-              } else {
-                // FALLBACK MATH: If API fails, estimate based on time (Guarantees highlight moves)
-                const meta = SURAHS.find(x => x.num === _currentSurahNum);
-                if (meta) {
-                  verseNow = Math.ceil((cur / dur) * meta.verses);
-                  verseNow = Math.max(1, Math.min(verseNow, meta.verses));
-                }
-              }
-              
-              // 2. Update highlight and scroll
-              if (verseNow && (verseNow !== lastDetectedVerse || forceSnap)) {
-                lastDetectedVerse = verseNow;
-                _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
+    const dur = Number.isFinite(a.duration) ? a.duration : 0;
+    const cur = a.currentTime || 0;
 
-                if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
-                  let activeVerseEl = null;
+    _abSetProgressUI(cur, dur, dur > 0 ? (cur / dur) * 100 : 0);
 
-                  // Move the green highlight
-                  document.querySelectorAll('.card[data-verse-num]').forEach(card => {
-                    const cardVerse = parseInt(card.dataset.verseNum, 10);
-                    if (cardVerse === verseNow) {
-                      card.classList.add('verse-playing');
-                      activeVerseEl = card;
-                    } else {
-                      card.classList.remove('verse-playing');
-                    }
-                  });
+    if (!_isPlayingFullSurah || !_currentSurahNum || dur <= 0) return;
 
-                  // FORCE THE SCROLL
-                  if (activeVerseEl) {
-                    const scrollContainer = document.querySelector('.content');
-                    const isContainerScroll = scrollContainer && scrollContainer.scrollHeight > scrollContainer.clientHeight &&
-                      (scrollContainer.scrollTop > 0 || getComputedStyle(scrollContainer).overflowY === 'auto' || getComputedStyle(scrollContainer).overflowY === 'scroll');
+    const meta = SURAHS.find(x => x.num === _currentSurahNum);
+    if (!meta) return;
 
-                    const stickyHead = document.querySelector('.quran-reader-sticky-head');
-                    const stickyBottom = stickyHead ? stickyHead.getBoundingClientRect().bottom : 140;
+    let verseNow = null;
+    const timings = _verseTimingsCache[_currentSurahNum];
 
-                    if (isContainerScroll) {
-                      const contentRect = scrollContainer.getBoundingClientRect();
-                      const verseRect = activeVerseEl.getBoundingClientRect();
-                      const visibleTop = stickyBottom - contentRect.top + 20;
-                      const targetY = scrollContainer.scrollTop + (verseRect.top - contentRect.top) - visibleTop;
-
-                      scrollContainer.scrollTo({ top: Math.max(0, targetY), behavior: forceSnap ? 'auto' : 'smooth' });
-                    } else {
-                      const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
-                      const cardTopInPage = activeVerseEl.getBoundingClientRect().top + scrollTop;
-                      const targetY = Math.max(0, cardTopInPage - stickyBottom - 20);
-                      
-                      window.scrollTo({ top: targetY, behavior: forceSnap ? 'auto' : 'smooth' });
-                    }
-                  }
-                }
-
-                // 3. Save progress
-                if (_fullSurahOwnsPointer) {
-                  S.quranProgress = { surah: _currentSurahNum, verse: verseNow };
-                  _refreshContinueReadingBox();
-                  
-                  _lastPlaybackPos = {
-                    surahNum: _currentSurahNum,
-                    verse: verseNow,
-                    seconds: Math.max(0, cur),
-                    clientUpdatedAt: Date.now()
-                  };
-                  setJSON('quran-progress', S.quranProgress).catch(() => {});
-                  setJSON('audio-position', _lastPlaybackPos).catch(() => {});
-                }
-              }
-            }
-          };
-
-          // Loop 60 times a second
-          const tick = () => {
-            if (_qAudio !== a) return;
-            updateUI(false); 
-            if (!a.paused) {
-              requestAnimationFrame(tick);
-            }
-          };
-
-          // --- FORCE SNAP ON REFRESH / TAB RETURN ---
-          const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && _qAudio === a) {
-              updateUI(true); // true = snap instantly to the current verse
-            }
-          };
-          document.addEventListener('visibilitychange', handleVisibilityChange);
-          window.addEventListener('focus', handleVisibilityChange);
-
-          a.addEventListener('loadedmetadata', () => {
-            try { a.playbackRate = _playbackRate; } catch (e) { }
-            updateUI(true); // Snap on initial load
-          });
-
-          a.addEventListener('play', () => {
-            try { a.playbackRate = _playbackRate; } catch (e) { }
-            if (_isPlayingFullSurah && _qAudio === a) _fullSurahPointerFrozen = false;
-            _abSetPlaying(true);
-            if (_qAudioBtn && !_isPlayingFullSurah) _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
-            _abSyncStatus(true);
-            _syncMiniPillLabel();
-            requestAnimationFrame(tick);
-          });
-
-          a.addEventListener('pause', () => {
-            if (_isPlayingFullSurah && _qAudio === a && !_fullSurahPointerFrozen) _freezeFullSurahPointer();
-            _abSetPlaying(false);
-            if (_qAudioBtn && !_isPlayingFullSurah) _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
-            _abSyncStatus(false);
-            _syncMiniPillLabel();
-          });
-
-          a.addEventListener('ended', () => {
-            _abSetPlaying(false);
-            _abSetProgressUI(0, 0, 0);
-            _hideMiniPill();
-            _abHide();
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
-            window.removeEventListener('focus', handleVisibilityChange);
-            if (onEnded) onEnded();
-          });
+    // Use API timings when a matching timing exists.
+    if (timings && timings.length) {
+      for (let i = 0; i < timings.length; i++) {
+        if (cur >= timings[i].start && cur < timings[i].end) {
+          verseNow = timings[i].verse;
+          break;
         }
+      }
+
+      // Handle gaps between API timing entries.
+      if (!verseNow) {
+        for (let i = timings.length - 1; i >= 0; i--) {
+          if (cur >= timings[i].start) {
+            verseNow = timings[i].verse;
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback when API timings are unavailable or unusable.
+    if (!verseNow) {
+      verseNow = Math.ceil((cur / dur) * meta.verses);
+    }
+
+    verseNow = Math.max(1, Math.min(verseNow, meta.verses));
+
+    if (verseNow !== lastDetectedVerse || forceSnap) {
+      lastDetectedVerse = verseNow;
+      _abSetSub('Yasser Al-Dosari — Verse ' + verseNow);
+
+      if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
+        let activeVerseEl = null;
+
+        document.querySelectorAll('.card[data-verse-num]').forEach(card => {
+          const cardVerse = parseInt(card.dataset.verseNum, 10);
+
+          if (cardVerse === verseNow) {
+            card.classList.add('verse-playing');
+            activeVerseEl = card;
+          } else {
+            card.classList.remove('verse-playing');
+          }
+        });
+
+      
+if (activeVerseEl) {
+  requestAnimationFrame(() => {
+    if (!activeVerseEl.isConnected) return;
+
+    const cardRect = activeVerseEl.getBoundingClientRect();
+
+    const stickyHead = document.querySelector(
+      '.quran-reader-sticky-head'
+    );
+
+    const audioBar = document.getElementById('audio-bar');
+
+    const stickyBottom = stickyHead
+      ? stickyHead.getBoundingClientRect().bottom + 12
+      : 140;
+
+    const audioTop =
+      audioBar && audioBar.classList.contains('show')
+        ? audioBar.getBoundingClientRect().top - 12
+        : window.innerHeight - 12;
+
+    const cardHeight = cardRect.height;
+    const availableHeight = audioTop - stickyBottom;
+
+    // Keep the complete card visible whenever it fits.
+    const targetTop =
+      cardHeight <= availableHeight
+        ? stickyBottom + (availableHeight - cardHeight) / 2
+        : stickyBottom;
+
+    const scrollTop =
+      window.pageYOffset ||
+      document.documentElement.scrollTop ||
+      0;
+
+    const targetY = Math.max(
+      0,
+      scrollTop + cardRect.top - targetTop
+    );
+
+    window.scrollTo({
+      top: targetY,
+      behavior: forceSnap ? 'auto' : 'smooth'
+    });
+  });
+}
+
+      }
+
+      // Preserve existing playback progress saving.
+      if (_fullSurahOwnsPointer) {
+        S.quranProgress = {
+          surah: _currentSurahNum,
+          verse: verseNow
+        };
+
+        _refreshContinueReadingBox();
+
+        _lastPlaybackPos = {
+          surahNum: _currentSurahNum,
+          verse: verseNow,
+          seconds: Math.max(0, cur),
+          clientUpdatedAt: Date.now()
+        };
+
+        setJSON('quran-progress', S.quranProgress).catch(() => {});
+        setJSON('audio-position', _lastPlaybackPos).catch(() => {});
+      }
+    }
+  };
+
+  const tick = () => {
+    if (_qAudio !== a || a.paused) return;
+
+    updateUI(false);
+    animationFrameId = requestAnimationFrame(tick);
+  };
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible' && _qAudio === a) {
+      updateUI(true);
+    }
+  };
+
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('focus', handleVisibilityChange);
+
+  a.addEventListener('loadedmetadata', () => {
+    try { a.playbackRate = _playbackRate; } catch (e) {}
+    updateUI(true);
+  });
+
+  a.addEventListener('durationchange', () => updateUI(true));
+  a.addEventListener('seeked', () => updateUI(true));
+
+  a.addEventListener('play', () => {
+    try { a.playbackRate = _playbackRate; } catch (e) {}
+
+    if (_isPlayingFullSurah && _qAudio === a) {
+      _fullSurahPointerFrozen = false;
+    }
+
+    _abSetPlaying(true);
+
+    if (_qAudioBtn && !_isPlayingFullSurah) {
+      _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
+    }
+
+    _abSyncStatus(true);
+    _syncMiniPillLabel();
+
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+    animationFrameId = requestAnimationFrame(tick);
+  });
+
+  a.addEventListener('pause', () => {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+
+    if (_isPlayingFullSurah && _qAudio === a && !_fullSurahPointerFrozen) {
+      _freezeFullSurahPointer();
+    }
+
+    _abSetPlaying(false);
+
+    if (_qAudioBtn && !_isPlayingFullSurah) {
+      _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+    }
+
+    _abSyncStatus(false);
+    _syncMiniPillLabel();
+  });
+
+  a.addEventListener('ended', () => {
+    if (animationFrameId) cancelAnimationFrame(animationFrameId);
+
+    _abSetPlaying(false);
+    _abSetProgressUI(0, 0, 0);
+    _hideMiniPill();
+    _abHide();
+
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+    window.removeEventListener('focus', handleVisibilityChange);
+
+    if (onEnded) onEnded();
+  });
+}
+
         function _bindSeekOnce() {
           const seek = $('#ab-seek');
           if (!seek || seek.dataset.bound === '1') return;
