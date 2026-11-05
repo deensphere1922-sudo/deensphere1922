@@ -3339,6 +3339,13 @@ let _quranSkipAutoScrollOnTabReturn = false;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     _quranSkipAutoScrollOnTabReturn = true;
+  } else {
+    // Returning to the tab: skip auto-scroll for this pass so the page
+    // doesn't jump to the currently-playing verse, then re-enable it so
+    // normal auto-scroll resumes on the next verse transition.
+    setTimeout(() => {
+      _quranSkipAutoScrollOnTabReturn = false;
+    }, 800);
   }
 });
         let _lastPlaybackPos = null;
@@ -3808,10 +3815,16 @@ const isVisible =
               }
             }
           };
-          const tick = () => {
+                   const tick = () => {
             if (_qAudio !== a) return;
             updateUI();
-            if (!a.paused) requestAnimationFrame(tick);
+            if (!a.paused) {
+              if (document.visibilityState === 'visible') {
+                requestAnimationFrame(tick);
+              } else {
+                setTimeout(tick, 1000);
+              }
+            }
           };
 
           a.addEventListener('loadedmetadata', () => {
@@ -9131,8 +9144,9 @@ if (dsNow < todayDate && !isEditingPastDay) {
       bindQuranReader(num);
       bindQuranAudio(num, meta);
 
-                if (S.verseArg) {
-        const verseToScrollTo = Number(S.verseArg);
+              if (S.verseArg && !_quranInitialScrollDone) {
+  _quranInitialScrollDone = true;
+  const verseToScrollTo = Number(S.verseArg);
         const targetSurah = num;
 
         window._quranBookmarkTarget = { surah: targetSurah, verse: verseToScrollTo };
