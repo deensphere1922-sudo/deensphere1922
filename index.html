@@ -8942,7 +8942,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
                 <!-- MOBILE VIEW (Centered) -->
                 <div class="mobile-reciter-content" style="display:none; flex-direction:column; justify-content:center; align-items:center; text-align:center; width:100%;">
                   <div class="reciter-name" style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:10px;">Yasser Al-Dosari</div>
-                  <button class="btn btn-primary" id="play-whole-surah-mobile" onclick="document.getElementById('play-whole-surah').click()">
+                 <button class="btn btn-primary" id="play-whole-surah-mobile">
                     ${(_qAudio && _isPlayingFullSurah && _currentSurahNum === num && !_qAudio.paused)
                       ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`
                       : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`}
