@@ -3339,13 +3339,11 @@ let _quranSkipAutoScrollOnTabReturn = false;
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'hidden') {
     _quranSkipAutoScrollOnTabReturn = true;
+    _autoScrolling = false;
+    clearTimeout(window.__autoScrollTimer);
   } else {
-    // Returning to the tab: skip auto-scroll for this pass so the page
-    // doesn't jump to the currently-playing verse, then re-enable it so
-    // normal auto-scroll resumes on the next verse transition.
-    setTimeout(() => {
-      _quranSkipAutoScrollOnTabReturn = false;
-    }, 800);
+    // Stay in skip mode until the NEXT verse starts. Do NOT clear on a timer.
+    window._quranReturnGuardVerse = window._quranLastVisibleAudioVerse || null;
   }
 });
         let _lastPlaybackPos = null;
@@ -3735,10 +3733,21 @@ const isVisible =
   rect.top >= stickyBottom &&
   rect.bottom <= audioTop;
 
+                            if (_quranSkipAutoScrollOnTabReturn) {
+                   if (window._quranReturnGuardVerse !== verseNow) {
+                     // A new verse has started since we returned — resume.
+                     _quranSkipAutoScrollOnTabReturn = false;
+                     window._quranReturnGuardVerse = verseNow;
+                   } else {
+                     // Same verse we were on when the tab lost focus.
+                     // Update highlight only, do NOT scroll.
+                     return;
+                   }
+                 }
+
                  if (
   !isVisible &&
   document.visibilityState === 'visible' &&
-  !_quranSkipAutoScrollOnTabReturn &&
   activeVerseEl.dataset.scrolledFor !== String(verseNow)
 ) {
                     activeVerseEl.dataset.scrolledFor = String(verseNow);
@@ -3968,7 +3977,8 @@ const isVisible =
           _lockedSurahNum = num;
           _autoPlayNextSurah = !!autoNext;
           _currentSurahNum = num;
-          _isPlayingFullSurah = true;
+                 _isPlayingFullSurah = true;
+          window._quranReturnGuardVerse = null;
 
           const meta = SURAHS.find(x => x.num === num);
           const url = `https://server11.mp3quran.net/yasser/${String(num).padStart(3, '0')}.mp3`;
