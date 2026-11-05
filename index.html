@@ -7098,34 +7098,80 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             searchTimer = setTimeout(doSearch, 400);
           });
 
-          $('#use-loc').onclick = () => {
-            if (!navigator.geolocation) { toast('Location services aren\'t available here — search for a city instead.'); return; }
-            toast('Requesting your location…');
-            navigator.geolocation.getCurrentPosition(
-              pos => {
-                const lat = pos.coords.latitude, lng = pos.coords.longitude;
-                $('#lat-in').value = lat.toFixed(4);
-                $('#lng-in').value = lng.toFixed(4);
-                labelEl.textContent = lat.toFixed(2) + ', ' + lng.toFixed(2);
-                fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`)
-                  .then(r => r.json())
-                  .then(data => {
-                    if (data && data.display_name) {
-                      const parts = data.display_name.split(',');
-                      const short = parts.slice(0, 2).join(',').trim();
-                      labelEl.textContent = short;
-                    }
-                  })
-                  .catch(() => {});
-                toast('Location detected from your device.');
-              },
-              err => {
-                console.warn('Geolocation error:', err);
-                toast('Couldn\'t access your location — search for a city instead.');
-              },
-              { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-            );
-          };
+       
+$('#use-loc').onclick = () => {
+  if (!navigator.geolocation) {
+    toast('Location services are not available. Search for a city instead.');
+    return;
+  }
+
+  toast('Requesting your location…');
+
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      $('#lat-in').value = lat.toFixed(4);
+      $('#lng-in').value = lng.toFixed(4);
+
+      let label = `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+      let timezone =
+        Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+
+          if (data?.display_name) {
+            label = data.display_name.split(',').slice(0, 2).join(',').trim();
+          }
+
+          const countryCode = data?.address?.country_code?.toLowerCase();
+
+          if (countryCode === 'gb') {
+            timezone = 'Europe/London';
+          } else if (countryCode === 'in') {
+            timezone = 'Asia/Kolkata';
+          }
+        }
+      } catch (error) {
+        console.warn('GPS location lookup failed:', error);
+      }
+
+      labelEl.textContent = label;
+
+      S.settings.location = {
+        ...S.settings.location,
+        lat,
+        lng,
+        label,
+        timezone,
+        source: 'gps'
+      };
+
+      await setJSON('settings', S.settings);
+      syncPrayerTimesToSW();
+
+      toast('Current location detected and saved.');
+    },
+    (error) => {
+      console.warn('GPS error:', error);
+      toast('Could not access your location. Search for a city instead.');
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 300000
+    }
+  );
+};
+
 
          $('#loc-next').onclick = async () => {
   const lat = parseFloat($('#lat-in').value);
