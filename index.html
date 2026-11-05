@@ -3732,14 +3732,11 @@ const isVisible =
   rect.top >= stickyBottom &&
   rect.bottom <= audioTop;
 
-                                             // If we return to the tab and haven't scrolled to the current playing verse yet, do it ONCE.
-                 if (_quranSkipAutoScrollOnTabReturn && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
-                   _quranSkipAutoScrollOnTabReturn = false; // Turn off the guard
-                   
-                   // Clear old scroll memory so it forces a jump to the current playing verse right now
-                   document.querySelectorAll('.card[data-verse-num]').forEach(c => {
-                     delete c.dataset.scrolledFor;
-                   });
+                                                            // If we just returned to the tab, do NOT scroll. 
+                 // Just mark it as scrolled so it doesn't jump, and keep the highlight.
+                 if (_quranSkipAutoScrollOnTabReturn) {
+                   _quranSkipAutoScrollOnTabReturn = false;
+                   return;
                  }
 
                  if (
