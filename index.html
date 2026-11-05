@@ -3703,11 +3703,38 @@ function _qPlayBtnHTML(isPlaying) {
             _qAudio.__verseTimer = null;
           }
 
-          if (_qAudio) { try { _qAudio.pause(); } catch (e) { } _qAudio = null; }
-          if (_qAudioBtn) { _qAudioBtn.innerHTML = _qPlayBtnHTML(false); _qAudioBtn = null; }
-          _autoPlayNextSurah = false;
-          _isPlayingFullSurah = false;
-          _currentSurahNum = null;
+        
+const stoppedSurahHTML =
+  `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
+if (_qAudio) {
+  try { _qAudio.pause(); } catch (e) {}
+  _qAudio = null;
+}
+
+// Reset BOTH desktop and mobile Surah buttons.
+const desktopSurahBtn = document.getElementById('play-whole-surah');
+const mobileSurahBtn = document.getElementById('play-whole-surah-mobile');
+
+if (_isPlayingFullSurah) {
+  if (desktopSurahBtn) {
+    desktopSurahBtn.innerHTML = stoppedSurahHTML;
+  }
+
+  if (mobileSurahBtn) {
+    mobileSurahBtn.innerHTML = stoppedSurahHTML;
+  }
+}
+
+if (_qAudioBtn) {
+  _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+  _qAudioBtn = null;
+}
+
+_autoPlayNextSurah = false;
+_isPlayingFullSurah = false;
+_currentSurahNum = null;
+
           _isSeeking = false;
           _abSetPlaying(false);
           _hideMiniPill();
@@ -7655,7 +7682,6 @@ function _routineStats(day) {
 function _calculateQuranReadStats(targetDateStr) {
   let versesRead = 0;
   let lastBookmark = null;
-  let yesterdayLast = null;
 
   if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
     const sorted = [...S.bookmarks]
@@ -7665,34 +7691,42 @@ function _calculateQuranReadStats(targetDateStr) {
     const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
     const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
 
-    // Yesterday's (or earlier) last bookmark
-    for (let i = 0; i < sorted.length; i++) {
-      const bTime = new Date(sorted[i].date).getTime();
+    let yesterdayLast = null;
+    let todayLast = null;
+
+    // Find the last bookmark from yesterday, and the last from today
+    sorted.forEach(b => {
+      const bTime = new Date(b.date).getTime();
       if (bTime < targetStart) {
-        yesterdayLast = sorted[i];
+        yesterdayLast = b;
+      } else if (bTime >= targetStart && bTime <= targetEnd) {
+        todayLast = b;
+      }
+    });
+
+    if (todayLast) {
+      lastBookmark = todayLast;
+      
+      if (yesterdayLast) {
+        // If same Surah, just subtract verse numbers (e.g., 278 - 259 = 19)
+        if (yesterdayLast.surah === todayLast.surah) {
+          versesRead = todayLast.verse - yesterdayLast.verse;
+        } else {
+          // If different Surah, use global math
+          const startGlobal = _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse);
+          const todayGlobal = _qGlobalAyah(todayLast.surah, todayLast.verse);
+          versesRead = todayGlobal - startGlobal;
+        }
       } else {
-        break;
+        // No yesterday bookmark, count only the current Surah's verses
+        versesRead = todayLast.verse; 
       }
-    }
-
-    // Today's last bookmark
-    for (let i = 0; i < sorted.length; i++) {
-      const bTime = new Date(sorted[i].date).getTime();
-      if (bTime >= targetStart && bTime <= targetEnd) {
-        lastBookmark = sorted[i];
-      }
-    }
-
-    // Only calculate verses read if BOTH exist
-    if (lastBookmark && yesterdayLast) {
-      const todayGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
-      const startGlobal = _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse);
-      versesRead = todayGlobal - startGlobal;
+      
       if (versesRead < 0) versesRead = 0;
     }
   }
 
-  return { versesRead, lastBookmark, yesterdayLast };
+  return { versesRead, lastBookmark };
 }
 
       function _buildHomeProgressSummaryHTML(day) {
@@ -7705,29 +7739,29 @@ function _calculateQuranReadStats(targetDateStr) {
         const completed = order.filter(([k]) => salah[k] === 'completed').length;
         const routineStats = _routineStatsForDate(day, new Date());
 
-              // --- QUR'AN LOGIC ---
-      // --- QUR'AN LOGIC ---
-let quranBlock = '';
-const todayStr = dateStr(new Date());
-const quranStats = _calculateQuranReadStats(todayStr);
+                    // --- QUR'AN LOGIC ---
+        let quranBlock = '';
+        const todayStr = dateStr(new Date());
+        const quranStats = _calculateQuranReadStats(todayStr);
 
-if (quranStats.lastBookmark && quranStats.versesRead > 0) {
-  const lastToday = quranStats.lastBookmark;
-  const surMeta = SURAHS.find(x => x.num === lastToday.surah);
-  
-  quranBlock = `
-  <div class="checkrow" style="cursor:pointer; display:flex; width:100%; box-sizing:border-box;" data-quran-jump="${lastToday.surah}" data-quran-verse="${lastToday.verse}">
-    <div class="rowtitle" style="flex:1; text-align:left; min-width:0; padding-right:10px;">
-      ${surMeta ? surMeta.translit : 'Surah'}
-    </div>
-    <div style="font-weight:700; text-align:right; white-space:nowrap;">
-      Surah ${lastToday.surah}:${lastToday.verse} <br>
-      <span style="font-size:12px; color:var(--tx2); font-weight:500;">— read ${quranStats.versesRead} verse${quranStats.versesRead !== 1 ? 's' : ''}</span>
-    </div>
-  </div>`;
-} else {
-  quranBlock = `<div class="checkrow"><div class="rowtitle" style="flex:1">Qur’an</div><div style="font-weight:700">Not yet</div></div>`;
-}
+        if (quranStats.lastBookmark && quranStats.versesRead > 0) {
+          const last = quranStats.lastBookmark;
+          
+          quranBlock = `
+          <div class="checkrow" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; width:100%;" data-quran-jump="${last.surah}" data-quran-verse="${last.verse}">
+            <div class="rowtitle" style="display:block !important;">Qur’an</div>
+            <div style="font-weight:700; text-align:right; white-space:nowrap;">
+              ${last.surah}:${last.verse} <br>
+              <span style="font-size:12px; color:var(--tx2); font-weight:500;">— read ${quranStats.versesRead} verse${quranStats.versesRead !== 1 ? 's' : ''}</span>
+            </div>
+          </div>`;
+        } else {
+          quranBlock = `
+          <div class="checkrow" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+            <div class="rowtitle" style="display:block !important;">Qur’an</div>
+            <div style="font-weight:700; display:block !important;">Not yet</div>
+          </div>`;
+        }
 
         const adhkar = (day && day.adhkar) || {};
         const adhkarText = (adhkar.morning ? 'Morning ✓ ' : '') + (adhkar.evening ? 'Evening ✓' : '') || (!adhkar.morning ? 'Not yet' : '');
