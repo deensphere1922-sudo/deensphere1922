@@ -12765,25 +12765,37 @@ $$('[data-notif]').forEach(b => {
 });
 
           // ---- Auto-location toggle (instant tick, background save) ----
-          const autoLocToggle = $('[data-toggle-auto-loc]');
-          if (autoLocToggle) {
-            autoLocToggle.onclick = (e) => {
-              e.preventDefault();
-              if (autoLocToggle.dataset.busy === '1') return;
-              autoLocToggle.dataset.busy = '1';
-              setTimeout(() => { try { delete autoLocToggle.dataset.busy; } catch (_) {} }, 300);
+      // ---- Auto-location toggle ----
+const autoLocToggle = $('[data-toggle-auto-loc]');
 
-              const nextVal = !S.settings.autoLocation;
-              S.settings.autoLocation = nextVal;
+if (autoLocToggle) {
+  autoLocToggle.onclick = async (e) => {
+    e.preventDefault();
 
-              autoLocToggle.classList.toggle('done', nextVal);
-              setJSON('settings', S.settings).catch(() => {});
+    if (autoLocToggle.dataset.busy === '1') return;
 
-              toast(nextVal
-                ? 'Auto-update ON — location will sync automatically.'
-                : 'Auto-update OFF — using manual location.');
-            };
-          }
+    autoLocToggle.dataset.busy = '1';
+
+    setTimeout(() => {
+      delete autoLocToggle.dataset.busy;
+    }, 300);
+
+    const nextVal = !S.settings.autoLocation;
+
+    S.settings.autoLocation = nextVal;
+
+    autoLocToggle.classList.toggle('done', nextVal);
+
+    await setJSON('settings', S.settings).catch(console.warn);
+
+    if (nextVal) {
+      toast('Auto-update ON — detecting your location…');
+      autoUpdateLocation();
+    } else {
+      toast('Auto-update OFF — saved location will remain unchanged.');
+    }
+  };
+}
 
           // ---- Arabic font size buttons (instant, no re-render) ----
           $$('[data-fontsz]').forEach(b => {
