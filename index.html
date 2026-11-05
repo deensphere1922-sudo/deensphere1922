@@ -7719,37 +7719,32 @@ function _calculateQuranReadStats(targetDateStr) {
     const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
     const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
 
+    let todayBookmarks = [];
     let yesterdayLast = null;
-    let todayLast = null;
 
-    // Find the last bookmark from yesterday, and the last from today
+    // Separate today's bookmarks from yesterday's
     sorted.forEach(b => {
       const bTime = new Date(b.date).getTime();
       if (bTime < targetStart) {
         yesterdayLast = b;
       } else if (bTime >= targetStart && bTime <= targetEnd) {
-        todayLast = b;
+        todayBookmarks.push(b);
       }
     });
 
-    if (todayLast) {
-      lastBookmark = todayLast;
+    if (todayBookmarks.length > 0) {
+      lastBookmark = todayBookmarks[todayBookmarks.length - 1];
       
-      if (yesterdayLast) {
-        // If same Surah, just subtract verse numbers (e.g., 278 - 259 = 19)
-        if (yesterdayLast.surah === todayLast.surah) {
-          versesRead = todayLast.verse - yesterdayLast.verse;
-        } else {
-          // If different Surah, use global math
-          const startGlobal = _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse);
-          const todayGlobal = _qGlobalAyah(todayLast.surah, todayLast.verse);
-          versesRead = todayGlobal - startGlobal;
-        }
-      } else {
-        // No yesterday bookmark, count only the current Surah's verses
-        versesRead = todayLast.verse; 
-      }
+      // Start from yesterday's last bookmark, or 0 (absolute beginning) if none
+      let startGlobal = yesterdayLast 
+        ? _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse) 
+        : 0;
+
+      // Calculate total read today (Global position of today's last bookmark minus start point)
+      const endGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
+      versesRead = endGlobal - startGlobal;
       
+      // Safety check just in case
       if (versesRead < 0) versesRead = 0;
     }
   }
