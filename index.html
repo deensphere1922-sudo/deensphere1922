@@ -3341,8 +3341,6 @@ document.addEventListener('visibilitychange', () => {
     _quranSkipAutoScrollOnTabReturn = true;
     _autoScrolling = false;
     clearTimeout(window.__autoScrollTimer);
-  } else {
-    // We don't set the flag here anymore. We handle it inside updateUI.
   }
 });
         let _lastPlaybackPos = null;
@@ -3734,8 +3732,11 @@ const isVisible =
 
                                                             // If we just returned to the tab, do NOT scroll. 
                  // Just mark it as scrolled so it doesn't jump, and keep the highlight.
+                                 // If we just returned to the tab, DO NOT scroll.
+                 // Mark the current verse as already scrolled, and exit the scroll branch.
                  if (_quranSkipAutoScrollOnTabReturn) {
                    _quranSkipAutoScrollOnTabReturn = false;
+                   activeVerseEl.dataset.scrolledFor = String(verseNow);
                    return;
                  }
 
