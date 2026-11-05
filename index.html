@@ -12690,8 +12690,9 @@ $$('[data-notif]').forEach(b => {
   toast("Notifications are blocked. Please allow them in your browser settings.");
   return;
 }
-
+  
     if (Notification.permission === 'default') {
+        b.classList.toggle('done', nextVal);
       const permission = await Notification.requestPermission();
 
       if (permission !== 'granted') {
