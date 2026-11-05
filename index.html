@@ -14773,6 +14773,13 @@ function _dismissNotifTag(notifTag) {
 }
 
 function openPrayerModal(prayerName, notifTag) {
+     if (S.screen === 'auth') {
+    try {
+      // Overwrites any older blocked prayer. So Dhuhr replaces Fajr.
+      sessionStorage.setItem('__pendingAuthPopup', prayerName); 
+    } catch(e) {}
+    return; 
+  }
   const modal = document.getElementById('prayer-log-modal');
   if (!modal) return;
   if (_openPrayerKey) return;
