@@ -6215,13 +6215,9 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
     }
   } catch (e) {}
 }
-            S.screen = screen;
-            S.arg = arg;
-            S.verseArg = verseArg;
-
-           // Preserve Quran reader position when leaving the reader.
+         // Save the current Qur'an reader position BEFORE changing screens.
 try {
-  if (S.screen === 'quran-reader') {
+  if (S.screen === 'quran-reader' && screen !== 'quran-reader') {
     const contentEl = document.querySelector('.content');
 
     sessionStorage.setItem('quranReaderScroll', JSON.stringify({
@@ -6231,6 +6227,10 @@ try {
     }));
   }
 } catch (e) {}
+
+S.screen = screen;
+S.arg = arg;
+S.verseArg = verseArg;
 
 // Reset other screens normally.
 if (screen !== 'quran-reader') {
