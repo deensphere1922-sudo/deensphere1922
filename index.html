@@ -6970,63 +6970,65 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
   }
 }
             // --- AUTO LOCATION UPDATER ---
-        async function autoUpdateLocation() {
-          // 1. Only run if the user is logged in, setup is complete, and they haven't turned it off
-          if (!S.settings || !S.settings.setupDone || !S.profile) return;
-          if (S.settings.autoLocation === false) return;
-          if (!navigator.geolocation) return;
+          async function autoUpdateLocation() {
+  if (!S.settings || !S.settings.setupDone || !S.profile) return;
+  if (S.settings.autoLocation === false) return;
+  if (!navigator.geolocation) return;
 
-          navigator.geolocation.getCurrentPosition(
-            async (pos) => {
-              const lat = pos.coords.latitude;
-              const lng = pos.coords.longitude;
-              const currentLat = S.settings.location.lat;
-              const currentLng = S.settings.location.lng;
+  // Keep manually selected locations unchanged.
+  if (S.settings.location?.source === 'manual') return;
 
-              // 2. Check distance to avoid unnecessary API calls (approx 11km threshold)
-              const dist = Math.sqrt(Math.pow(lat - currentLat, 2) + Math.pow(lng - currentLng, 2));
-              if (dist < 0.1) return;
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
 
-              try {
-                // 3. Reverse Geocode to get the city name
-                const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`, {
-                  headers: { 'Accept-Language': 'en' }
-                });
-                const data = await resp.json();
-                
-                if (data && data.display_name) {
-                  const parts = data.display_name.split(',');
-                  const short = parts.slice(0, 2).join(',').trim(); // e.g., "Bangalore, India"
-                  
-                  // 4. Only update if the city actually changed
-                                  if (short && short !== S.settings.location.label) {
-                    S.settings.location = { lat, lng, label: short };
-                    await setJSON('settings', S.settings);
-                    syncPrayerTimesToSW();           // ← ADD THIS
-                    
-                    // 5. Unique toast messages
-                    const msgs = [
-                      `📍 Location synced: Welcome to ${short}!`,
-                      `✈️ GPS updated: You are now in ${short}.`,
-                      `🌍 Location changed: Prayer times updated for ${short}.`,
-                      `✅ Auto-detected: ${short}`
-                    ];
-                    const randomMsg = msgs[Math.floor(Math.random() * msgs.length)];
-                    toast(randomMsg);
-                    
-                    // 6. Refresh the UI if they are on relevant screens
-                    if (S.screen === 'home') hydrateHome();
-                    else if (S.screen === 'settings') render();
-                  }
-                }
-              } catch (e) {
-                console.warn('Auto location fetch failed:', e);
-              }
-            },
-            (err) => console.warn('Auto geolocation error:', err),
-            { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 } // 10 min cache
-          );
-        }
+      try {
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        if (!data?.display_name) return;
+
+        const parts = data.display_name.split(',');
+        const short = parts.slice(0, 2).join(',').trim();
+
+        let timezone =
+          S.settings.location?.timezone ||
+          Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        const cc = data.address?.country_code?.toLowerCase();
+
+        if (cc === 'gb') timezone = 'Europe/London';
+        else if (cc === 'in') timezone = 'Asia/Kolkata';
+
+        S.settings.location = {
+          ...S.settings.location,
+          lat,
+          lng,
+          label: short,
+          timezone,
+          source: 'gps'
+        };
+
+        await setJSON('settings', S.settings);
+        syncPrayerTimesToSW();
+
+        if (S.screen === 'home') hydrateHome();
+        else if (S.screen === 'settings') render();
+
+      } catch (e) {
+        console.warn('Auto location fetch failed:', e);
+      }
+    },
+    (err) => console.warn('Auto geolocation error:', err),
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
+  );
+}
 
         function renderSetupLocation() {
           const loc = S.settings.location;
