@@ -3530,6 +3530,99 @@ async function syncPrayerTimesToSW() {
             ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`
             : `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
         }
+           
+                     // ============================================================
+        // VERSE-HIGHLIGHT SCHEDULER
+        // Fires once at the exact timestamp of each upcoming verse
+        // boundary. Uses setTimeout armed from currentTime, so it does
+        // NOT depend on the browser's ~250ms timeupdate cadence.
+        // ============================================================
+        function _scheduleVerseHighlight(a, surahNum) {
+          if (!a) return;
+          clearTimeout(a.__verseTimer);
+          a.__verseTimer = null;
+
+          if (a.paused) return;
+          const timings = _verseTimingsCache[surahNum];
+          if (!timings || !timings.length) return;
+
+          const cur = a.currentTime || 0;
+
+          let next = null;
+          for (let i = 0; i < timings.length; i++) {
+            if (timings[i].start > cur + 0.001) { next = timings[i]; break; }
+          }
+          if (!next) return;
+
+          // Arm the timer to fire exactly at the boundary, minus a
+          // 60ms head-start so the DOM class-swap has time to paint
+          // before the reciter's first syllable is audible.
+          const delayMs = Math.max(0, (next.start - cur) * 1000 - 60);
+
+          a.__verseTimer = setTimeout(() => {
+            if (_qAudio !== a || a.paused) return;
+            _applyVerseHighlight(surahNum, next.verse);
+            _scheduleVerseHighlight(a, surahNum);
+          }, delayMs);
+        }
+
+        function _applyVerseHighlight(surahNum, verseNow) {
+          if (S.screen === 'quran-reader' && S.arg === surahNum) {
+            let activeVerseEl = null;
+            document.querySelectorAll('.card[data-verse-num]').forEach(card => {
+              const cardVerse = parseInt(card.dataset.verseNum, 10);
+              if (cardVerse === verseNow) {
+                card.classList.add('verse-playing');
+                activeVerseEl = card;
+              } else {
+                card.classList.remove('verse-playing');
+                if (card.dataset.scrolledFor) delete card.dataset.scrolledFor;
+              }
+            });
+
+            if (activeVerseEl) {
+              const rect = activeVerseEl.getBoundingClientRect();
+              const viewportH = window.innerHeight || document.documentElement.clientHeight;
+              const isVisible = (rect.top >= 100 && rect.bottom <= viewportH - 100);
+              if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
+                activeVerseEl.dataset.scrolledFor = String(verseNow);
+                _autoScrolling = true;
+                requestAnimationFrame(() => requestAnimationFrame(() => {
+                  const cardRect = activeVerseEl.getBoundingClientRect();
+                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+                  const cardTopInPage = cardRect.top + scrollTop;
+                  let stickyTop = 0;
+                  const stickyHead = document.querySelector('.quran-reader-sticky-head');
+                  if (stickyHead) stickyTop = Math.max(0, stickyHead.getBoundingClientRect().bottom);
+                  else stickyTop = 140;
+                  const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
+                  window.scrollTo({ top: targetY, behavior: 'smooth' });
+                  clearTimeout(window.__autoScrollTimer);
+                  window.__autoScrollTimer = setTimeout(() => { _autoScrolling = false; }, 1200);
+                }));
+              }
+            }
+          }
+
+          _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
+
+          if (S.quranProgress?.surah !== surahNum || S.quranProgress?.verse !== verseNow) {
+            if (!_fullSurahOwnsPointer) return;
+            S.quranProgress = { surah: surahNum, verse: verseNow };
+            _refreshContinueReadingBox();
+            const profEl = document.getElementById('profile-quran-progress');
+            if (profEl) {
+              const surMeta = SURAHS.find(s => s.num === surahNum);
+              if (surMeta) profEl.textContent = `Surah ${surahNum}:${verseNow} \u2014 ${surMeta.translit}`;
+            }
+            const now = Date.now();
+            _lastQuranSaveAt = now;
+            _lastPlaybackPos = { surahNum, verse: verseNow, seconds: Math.max(0, _qAudio?.currentTime || 0), clientUpdatedAt: now };
+            setJSON('quran-progress', { surah: surahNum, verse: verseNow, clientUpdatedAt: now }).catch(() => {});
+            setJSON('audio-position', _lastPlaybackPos).catch(() => {});
+          }
+        }
+
         function _abSetProgressUI(current, duration, percent) {
           const fill = $('#ab-fill');
           const thumb = $('#ab-thumb');
@@ -3591,9 +3684,15 @@ async function syncPrayerTimesToSW() {
           }
         }
 
-        function _qStopAudio(finalizePointer = true) {
+             function _qStopAudio(finalizePointer = true) {
           if (_qAudio && _isPlayingFullSurah && _currentSurahNum && finalizePointer && !_fullSurahPointerFrozen) {
             _freezeFullSurahPointer();
+          }
+
+          // Kill any pending verse-transition timer before dropping the reference.
+          if (_qAudio) {
+            clearTimeout(_qAudio.__verseTimer);
+            _qAudio.__verseTimer = null;
           }
 
           if (_qAudio) { try { _qAudio.pause(); } catch (e) { } _qAudio = null; }
@@ -3661,105 +3760,12 @@ async function syncPrayerTimesToSW() {
             const pct = dur ? (cur / dur) * 100 : 0;
             _abSetProgressUI(cur, dur, pct);
 
+                      // Verse highlight is driven by _scheduleVerseHighlight (precise setTimeout),
+            // NOT by timeupdate. Here we only repaint the current verse so a fresh
+            // play or a seek shows the correct verse immediately.
             if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
               const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
-              if (!verseNow) return;
-
-              _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
-
-              if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
-                let activeVerseEl = null;
-                document.querySelectorAll('.card[data-verse-num]').forEach(card => {
-                  const cardVerse = parseInt(card.dataset.verseNum, 10);
-                  if (cardVerse === verseNow) {
-                    card.classList.add('verse-playing');
-                    activeVerseEl = card;
-                  } else {
-                    card.classList.remove('verse-playing');
-                    if (card.dataset.scrolledFor) {
-                      delete card.dataset.scrolledFor;
-                    }
-                  }
-                });
-
-                        if (activeVerseEl) {
-                  const rect = activeVerseEl.getBoundingClientRect();
-                  const viewportH = window.innerHeight || document.documentElement.clientHeight;
-                  const isVisible = (rect.top >= 100 && rect.bottom <= viewportH - 100);
-
-                  if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
-                    activeVerseEl.dataset.scrolledFor = String(verseNow);
-                    _autoScrolling = true;
-
-                    requestAnimationFrame(() => requestAnimationFrame(() => {
-                      const cardRect = activeVerseEl.getBoundingClientRect();
-                      const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
-                      const cardTopInPage = cardRect.top + scrollTop;
-
-                      // Measure how much of the top of the viewport is covered by the
-                      // sticky reader header (Bismillah card + Reciter card). Query
-                      // the actual sticky header element so this adapts automatically
-                      // to any screen size.
-                      let stickyTop = 0;
-                      const stickyHead = document.querySelector('.quran-reader-sticky-head');
-                      if (stickyHead) {
-                        const sr = stickyHead.getBoundingClientRect();
-                        stickyTop = Math.max(0, sr.bottom);
-                      } else {
-                        stickyTop = 140; // fallback estimate
-                      }
-
-                      // Add 20px breathing room below the sticky header.
-                      const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
-
-                      window.scrollTo({
-                        top: targetY,
-                        behavior: 'smooth'
-                      });
-
-                      clearTimeout(window.__autoScrollTimer);
-                      window.__autoScrollTimer = setTimeout(() => {
-                        _autoScrolling = false;
-                      }, 1200);
-                    }));
-                  }
-                }
-              }
-
-              const now = Date.now();
-              if (S.quranProgress?.surah !== _currentSurahNum ||
-                S.quranProgress?.verse !== verseNow) {
-
-                if (!_fullSurahOwnsPointer) return;
-
-                S.quranProgress = { surah: _currentSurahNum, verse: verseNow };
-
-                _refreshContinueReadingBox();
-
-                const profEl = document.getElementById('profile-quran-progress');
-                if (profEl) {
-                  const surMeta = SURAHS.find(s => s.num === _currentSurahNum);
-              if (surMeta) profEl.textContent = `Surah ${_currentSurahNum}:${verseNow} \u2014 ${surMeta.translit}`;
-                }
-
-                // The visible UI is updated synchronously above. Persist every verse
-                // transition immediately so both devices receive the latest pointer.
-                // Audio position is saved with the same verse/time for exact resume.
-                _lastQuranSaveAt = now;
-                _lastPlaybackPos = {
-                  surahNum: _currentSurahNum,
-                  verse: verseNow,
-                  seconds: Math.max(0, cur),
-                  clientUpdatedAt: now
-                };
-                const progressToSave = {
-                  surah: _currentSurahNum,
-                  verse: verseNow,
-                  clientUpdatedAt: now
-                };
-                setJSON('quran-progress', progressToSave).catch(() => {});
-                setJSON('audio-position', _lastPlaybackPos).catch(() => {});
-              }
+              if (verseNow) _applyVerseHighlight(_currentSurahNum, verseNow);
             }
           };
           const tick = () => {
@@ -3776,7 +3782,7 @@ async function syncPrayerTimesToSW() {
           a.addEventListener('durationchange', updateUI);
           a.addEventListener('timeupdate', updateUI);
 
-          a.addEventListener('play', () => {
+                   a.addEventListener('play', () => {
             try { a.playbackRate = _playbackRate; } catch (e) { }
             if (_isPlayingFullSurah && _qAudio === a) {
               _fullSurahPointerFrozen = false;
@@ -3786,9 +3792,35 @@ async function syncPrayerTimesToSW() {
             _abSyncStatus(true);
             _syncMiniPillLabel();
             requestAnimationFrame(tick);
+            // Arm the precise verse-boundary scheduler.
+            if (_isPlayingFullSurah && _currentSurahNum) {
+              _scheduleVerseHighlight(a, _currentSurahNum);
+            }
           });
 
-          a.addEventListener('pause', () => {
+          a.addEventListener('seeking', () => {
+            if (_isPlayingFullSurah && _currentSurahNum) {
+              const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
+              if (dur > 0) {
+                const v = _estimateVerseFromTime(_currentSurahNum, a.currentTime || 0, dur);
+                if (v) _applyVerseHighlight(_currentSurahNum, v);
+              }
+              _scheduleVerseHighlight(a, _currentSurahNum);
+            }
+          });
+
+          a.addEventListener('seeked', () => {
+            if (_isPlayingFullSurah && _currentSurahNum) {
+              _scheduleVerseHighlight(a, _currentSurahNum);
+            }
+          });
+
+                   a.addEventListener('pause', () => {
+            // Kill the pending verse-transition timer — nothing should fire
+            // while the player is paused.
+            clearTimeout(a.__verseTimer);
+            a.__verseTimer = null;
+
             if (_isPlayingFullSurah && _qAudio === a && !_fullSurahPointerFrozen) {
               _freezeFullSurahPointer();
             }
@@ -3936,17 +3968,14 @@ async function syncPrayerTimesToSW() {
             if (dur <= 0) return;
             const v = _estimateVerseFromTime(num, a.currentTime, dur);
             if (!v) return;
-            _abSetSub('Yasser Al-Dosari \u2014 Verse ' + v);
-            if (S.screen === 'quran-reader' && S.arg === num) {
-              document.querySelectorAll('.card[data-verse-num]').forEach(card => {
-                const cardVerse = parseInt(card.dataset.verseNum, 10);
-                if (cardVerse === v) card.classList.add('verse-playing');
-                else card.classList.remove('verse-playing');
-              });
+                       _abSetSub('Yasser Al-Dosari \u2014 Verse ' + v);
+            _applyVerseHighlight(num, v);
+            if (_qAudio === a && !a.paused && _isPlayingFullSurah) {
+              _scheduleVerseHighlight(a, num);
             }
           });
 
-          a.addEventListener('loadedmetadata', () => {
+                 a.addEventListener('loadedmetadata', () => {
             if (!savedPos) return;
             const timings = _verseTimingsCache[num];
             if (timings && timings.length) {
@@ -3954,6 +3983,9 @@ async function syncPrayerTimesToSW() {
               if (target) {
                 try { a.currentTime = target.start; } catch (e) { }
               }
+            }
+            if (_isPlayingFullSurah && _currentSurahNum === num) {
+              _scheduleVerseHighlight(a, num);
             }
           }, { once: true });
 
@@ -14781,6 +14813,20 @@ function openPrayerModal(prayerName, notifTag) {
     console.warn('openPrayerModal setup failed:', err);
     _openPrayerKey = null;
   }
+}
+
+          function triggerPendingAuthPopup() {
+  try {
+    const pendingPrayer = sessionStorage.getItem('__pendingAuthPopup');
+    if (pendingPrayer) {
+      sessionStorage.removeItem('__pendingAuthPopup'); // Clear so it only shows once
+      
+      // Wait 1.5 seconds to make sure the UI has loaded
+      setTimeout(() => {
+        openPrayerModal(pendingPrayer, null); 
+      }, 1500);
+    }
+  } catch(e) {}
 }
     </script>
     </body>
