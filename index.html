@@ -6944,16 +6944,17 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
       let tz = item.extratags?.timezone || null;
       
       // Smart Fallbacks if the API misses the timezone
-      if (!tz) {
-        const cc = item.address?.country_code?.toLowerCase();
-        if (cc === 'gb') tz = 'Europe/London';
-        else if (cc === 'in') tz = 'Asia/Kolkata';
-        else if (cc === 'us') tz = 'America/New_York'; 
-        else if (cc === 'sa') tz = 'Asia/Riyadh';
-        else if (cc === 'pk') tz = 'Asia/Karachi';
-        else if (cc === 'ae') tz = 'Asia/Dubai';
-        else tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      }
+     if (!tz) {
+  const cc = item.address?.country_code?.toLowerCase();
+
+  if (cc === 'gb') tz = 'Europe/London';
+  else if (cc === 'in') tz = 'Asia/Kolkata';
+  else if (cc === 'us') tz = 'America/New_York';
+  else if (cc === 'sa') tz = 'Asia/Riyadh';
+  else if (cc === 'pk') tz = 'Asia/Karachi';
+  else if (cc === 'ae') tz = 'Asia/Dubai';
+  else tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
 
       return {
         label: item.display_name,
