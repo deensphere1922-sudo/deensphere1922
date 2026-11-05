@@ -3346,7 +3346,7 @@ async function syncPrayerTimesToSW() {
         function _qPlayBtnHTML(isPlaying) {
           return isPlaying
             ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`
-            : `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play`;
+         : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
         }
         function _fmtSec(sec) {
           if (!isFinite(sec) || sec < 0) sec = 0;
@@ -3597,7 +3597,21 @@ async function syncPrayerTimesToSW() {
           }
 
           if (_qAudio) { try { _qAudio.pause(); } catch (e) { } _qAudio = null; }
-          if (_qAudioBtn) { _qAudioBtn.innerHTML = _qPlayBtnHTML(false); _qAudioBtn = null; }
+        if (_qAudioBtn) {
+  if (_isPlayingFullSurah) {
+    const playSurahHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
+    const desktopBtn = document.querySelector('#play-whole-surah');
+    const mobileBtn = document.querySelector('#play-whole-surah-mobile');
+
+    if (desktopBtn) desktopBtn.innerHTML = playSurahHTML;
+    if (mobileBtn) mobileBtn.innerHTML = playSurahHTML;
+  } else {
+    _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+  }
+
+  _qAudioBtn = null;
+}
           _autoPlayNextSurah = false;
           _isPlayingFullSurah = false;
           _currentSurahNum = null;
@@ -3782,7 +3796,9 @@ async function syncPrayerTimesToSW() {
               _fullSurahPointerFrozen = false;
             }
             _abSetPlaying(true);
-            if (_qAudioBtn) _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
+          if (_qAudioBtn && !_isPlayingFullSurah) {
+  _qAudioBtn.innerHTML = _qPlayBtnHTML(true);
+}
             _abSyncStatus(true);
             _syncMiniPillLabel();
             requestAnimationFrame(tick);
@@ -3793,7 +3809,9 @@ async function syncPrayerTimesToSW() {
               _freezeFullSurahPointer();
             }
             _abSetPlaying(false);
-            if (_qAudioBtn) _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+          if (_qAudioBtn && !_isPlayingFullSurah) {
+  _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
+}
             _abSyncStatus(false);
             _syncMiniPillLabel();
           });
@@ -3957,11 +3975,10 @@ async function syncPrayerTimesToSW() {
             }
           }, { once: true });
 
-          const wholeBtn = document.querySelector('#play-whole-surah');
-          if (wholeBtn) {
-            _qAudioBtn = wholeBtn;
-            wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
-          }
+         const wholeBtn = document.querySelector('#play-whole-surah');
+if (wholeBtn) {
+  _qAudioBtn = wholeBtn;
+}
 
         // ---- MOBILE: scroll ONCE to the saved/resume verse, then never touch scroll again ----
     try {
@@ -4003,15 +4020,34 @@ async function syncPrayerTimesToSW() {
             }
           });
 
-                         a.addEventListener('canplay', () => {
-            a.play().then(() => {
-              _abSyncStatus(true);
-              const pauseHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
-              if (wholeBtn) wholeBtn.innerHTML = pauseHTML;
-              const mobBtn = document.querySelector('#play-whole-surah-mobile');
-              if (mobBtn) mobBtn.innerHTML = pauseHTML + ' Surah';
-            }).catch(err => { console.warn('play rejected:', err); toast('Tap once more to play.'); });
-          });
+                      const playSurahHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
+const pauseSurahHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+
+const syncSurahButtons = () => {
+  const isPlaying = _qAudio === a && !a.paused;
+
+  const desktopBtn = document.querySelector('#play-whole-surah');
+  const mobileBtn = document.querySelector('#play-whole-surah-mobile');
+
+  if (desktopBtn) desktopBtn.innerHTML = isPlaying ? pauseSurahHTML : playSurahHTML;
+  if (mobileBtn) mobileBtn.innerHTML = isPlaying ? pauseSurahHTML : playSurahHTML;
+};
+
+a.addEventListener('play', syncSurahButtons);
+a.addEventListener('pause', syncSurahButtons);
+
+a.addEventListener('canplay', () => {
+  a.play()
+    .then(() => {
+      _abSyncStatus(true);
+      syncSurahButtons();
+    })
+    .catch(err => {
+      console.warn('play rejected:', err);
+      toast('Tap once more to play.');
+    });
+}, { once: true });
 
           a.addEventListener('error', () => {
             console.error('Surah error:', url);
@@ -4128,23 +4164,45 @@ async function syncPrayerTimesToSW() {
           });
         }
                     function bindQuranAudio(num, meta) {
-          const wholeBtn = $('#play-whole-surah');
-          if (wholeBtn) {
-            wholeBtn.onclick = () => {
-              if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
-                _qAudioBtn = wholeBtn;
-                if (!_qAudio.paused) {
-                  _qAudio.pause();
-                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-                } else {
-                  _qAudio.play().catch(() => { });
-                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
-                }
-                return;
-              }
-              _playSurahAudio(num, true);
-            };
-          }
+        
+const wholeBtn = $('#play-whole-surah');
+const mobileBtn = $('#play-whole-surah-mobile');
+
+const playHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+
+const pauseHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+
+const updateSurahButtons = () => {
+  const playing = _qAudio &&
+    _isPlayingFullSurah &&
+    _currentSurahNum === num &&
+    !_qAudio.paused;
+
+  if (wholeBtn) wholeBtn.innerHTML = playing ? pauseHTML : playHTML;
+  if (mobileBtn) mobileBtn.innerHTML = playing ? pauseHTML : playHTML;
+};
+
+const toggleSurahAudio = () => {
+  if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
+    if (_qAudio.paused) {
+      _qAudio.play().catch(() => {
+        updateSurahButtons();
+        toast('Unable to play audio. Try again.');
+      });
+    } else {
+      _qAudio.pause();
+    }
+    return;
+  }
+
+  _playSurahAudio(num, true);
+};
+
+if (wholeBtn) wholeBtn.onclick = toggleSurahAudio;
+if (mobileBtn) mobileBtn.onclick = toggleSurahAudio;
+
+updateSurahButtons();
+
 
           $$('[data-play]').forEach(b => {
             b.onclick = () => {
@@ -8945,7 +9003,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
                 <!-- MOBILE VIEW (Centered) -->
                 <div class="mobile-reciter-content" style="display:none; flex-direction:column; justify-content:center; align-items:center; text-align:center; width:100%;">
                   <div class="reciter-name" style="font-size:14px;font-weight:600;color:var(--tx);margin-bottom:10px;">Yasser Al-Dosari</div>
-                <button class="btn btn-primary" id="play-whole-surah-mobile" onclick="document.getElementById('play-whole-surah').click()">
+              <button class="btn btn-primary" id="play-whole-surah-mobile">
                     ${(_qAudio && _isPlayingFullSurah && _currentSurahNum === num && !_qAudio.paused)
                       ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`
                       : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`}
