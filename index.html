@@ -3697,9 +3697,23 @@ async function syncPrayerTimesToSW() {
                 });
 
                         if (activeVerseEl) {
-                  const rect = activeVerseEl.getBoundingClientRect();
-                  const viewportH = window.innerHeight || document.documentElement.clientHeight;
-                  const isVisible = (rect.top >= 100 && rect.bottom <= viewportH - 100);
+                 const rect = activeVerseEl.getBoundingClientRect();
+const viewportH = window.innerHeight || document.documentElement.clientHeight;
+
+const stickyHead = document.querySelector('.quran-reader-sticky-head');
+const audioBar = document.getElementById('audio-bar');
+
+const stickyBottom = stickyHead
+  ? stickyHead.getBoundingClientRect().bottom + 20
+  : 120;
+
+const audioTop = audioBar && audioBar.classList.contains('show')
+  ? audioBar.getBoundingClientRect().top - 20
+  : viewportH - 20;
+
+const isVisible =
+  rect.top >= stickyBottom &&
+  rect.bottom <= audioTop;
 
                   if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
                     activeVerseEl.dataset.scrolledFor = String(verseNow);
