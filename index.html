@@ -7127,23 +7127,42 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             );
           };
 
-           $('#loc-next').onclick = async () => {
-  const lat = parseFloat($('#lat-in').value), lng = parseFloat($('#lng-in').value);
-  if (isNaN(lat) || isNaN(lng)) { toast('Enter a valid latitude and longitude.'); return; }
-  const label = labelEl.textContent || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
-  
-  // 1. Try to get the timezone saved from the city search
-  // 2. If using GPS, guess the timezone based on longitude (fallback)
-  let tz = S.settings.location.timezone;
-  if (!tz) {
-      if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; // India
-      else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; // UK
-      else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback to device
+         $('#loc-next').onclick = async () => {
+  const lat = parseFloat($('#lat-in').value);
+  const lng = parseFloat($('#lng-in').value);
+
+  if (isNaN(lat) || isNaN(lng)) {
+    toast('Enter a valid latitude and longitude.');
+    return;
   }
 
-   S.settings.location = { lat, lng, label, timezone: tz }; // <-- Saves the exact timezone
+  const label = labelEl.textContent ||
+    `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+
+  let timezone = S.settings.location?.timezone;
+
+  if (!timezone) {
+    if (lng > 68 && lng < 97 && lat > 8 && lat < 35) {
+      timezone = 'Asia/Kolkata';
+    } else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) {
+      timezone = 'Europe/London';
+    } else {
+      timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    }
+  }
+
+  S.settings.location = {
+    ...S.settings.location,
+    lat,
+    lng,
+    label,
+    timezone,
+    source: S.settings.location?.source || 'manual'
+  };
+
   await setJSON('settings', S.settings);
-  syncPrayerTimesToSW();             // ← ADD THIS
+  syncPrayerTimesToSW();
+
   go('setup-calc');
 };
         }
