@@ -3341,6 +3341,10 @@ document.addEventListener('visibilitychange', () => {
     _quranSkipAutoScrollOnTabReturn = true;
     _autoScrolling = false;
     clearTimeout(window.__autoScrollTimer);
+  } else {
+    // When returning to the tab, note the time.
+    // We use this to lock the auto-scroll so it doesn't jump.
+    window._quranReturnTime = Date.now();
   }
 });
 
@@ -3742,11 +3746,30 @@ const isVisible =
                  // Just mark it as scrolled so it doesn't jump, and keep the highlight.
                                  // If we just returned to the tab, DO NOT scroll.
                  // Mark the current verse as already scrolled, and exit the scroll branch.
-                if (_quranSkipAutoScrollOnTabReturn) {
-  activeVerseEl.dataset.scrolledFor = String(verseNow);
-} else if (
+                               // ---------------------------------------------------------
+                 // FROZEN SCROLL ON TAB RETURN
+                 // ---------------------------------------------------------
+                 if (_quranSkipAutoScrollOnTabReturn) {
+                   // Lock onto the current verse so it doesn't jump
+                   window._quranLockedVerse = verseNow; 
+                   _quranSkipAutoScrollOnTabReturn = false;
+                   return; // Do not scroll right now
+                 }
+
+                 // If we are locked, we ONLY unlock when the audio moves to a NEW verse
+                 if (window._quranLockedVerse) {
+                   if (window._quranLockedVerse !== verseNow) {
+                     // A new verse has started! Unlock and allow scrolling.
+                     window._quranLockedVerse = null; 
+                   } else {
+                     // Still on the same verse you left on. Stay frozen.
+                     return;
+                   }
+                 }
+
+                 if (
   !isVisible &&
-  document.visibilityState === 'visible' &&
+  document.visibilityState === "visible" &&
   activeVerseEl.dataset.scrolledFor !== String(verseNow)
 ) {
   activeVerseEl.dataset.scrolledFor = String(verseNow);
