@@ -3980,24 +3980,39 @@ if (wholeBtn) {
   _qAudioBtn = wholeBtn;
 }
 
-        // ---- MOBILE: scroll ONCE to the saved/resume verse, then never touch scroll again ----
-    try {
-      const isMobile = window.matchMedia('(max-width: 880px)').matches
-        || /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-      if (isMobile && S.screen === 'quran-reader' && S.arg === num) {
-        const targetVerse = (savedPos && savedPos.verse) || 1;
-        // Wait until the verse cards have actually been painted.
-        setTimeout(() => {
-          const el = document.querySelector(`.card[data-verse-num="${targetVerse}"]`);
-          if (!el) return;
-          const rect = el.getBoundingClientRect();
-          const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
-          const cardCenterInPage = rect.top + scrollTop + (rect.height / 2);
-          const targetY = Math.max(0, cardCenterInPage - (window.innerHeight / 2));
-          window.scrollTo(0, targetY);
-        }, 400);
-      }
-    } catch (_) { }
+      // Only perform the initial audio resume scroll.
+// Do not repeat it when returning to a previously opened reader.
+try {
+  const hasSavedReaderPosition =
+    sessionStorage.getItem('quranReaderScroll') !== null;
+
+  if (
+    !hasSavedReaderPosition &&
+    window.matchMedia('(max-width: 880px)').matches &&
+    S.screen === 'quran-reader' &&
+    S.arg === num
+  ) {
+    const targetVerse = (savedPos && savedPos.verse) || 1;
+
+    setTimeout(() => {
+      const el = document.querySelector(
+        `.card[data-verse-num="${targetVerse}"]`
+      );
+
+      if (!el) return;
+
+      const rect = el.getBoundingClientRect();
+      const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+      const cardCenterInPage = rect.top + scrollTop + rect.height / 2;
+      const targetY = Math.max(
+        0,
+        cardCenterInPage - window.innerHeight / 2
+      );
+
+      window.scrollTo(0, targetY);
+    }, 400);
+  }
+} catch (_) {}
 
       _abShow(meta.translit + ' (' + num + ') \u2014 Full Surah', 'Yasser Al-Dosari');
 
@@ -6204,11 +6219,25 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             S.arg = arg;
             S.verseArg = verseArg;
 
-            // --- FIX: Reset scroll positions for both desktop and mobile ---
-            const contentEl = document.querySelector('.content');
-            if (contentEl) contentEl.scrollTop = 0;
-            window.scrollTo(0, 0);
-            // ---------------------------------------------------------------
+           // Preserve Quran reader position when leaving the reader.
+try {
+  if (S.screen === 'quran-reader') {
+    const contentEl = document.querySelector('.content');
+
+    sessionStorage.setItem('quranReaderScroll', JSON.stringify({
+      surah: S.arg,
+      contentTop: contentEl ? contentEl.scrollTop : 0,
+      windowTop: window.scrollY || 0
+    }));
+  }
+} catch (e) {}
+
+// Reset other screens normally.
+if (screen !== 'quran-reader') {
+  const contentEl = document.querySelector('.content');
+  if (contentEl) contentEl.scrollTop = 0;
+  window.scrollTo(0, 0);
+}
 
             // Remember the route (session-only — cleared on tab close).
             try {
@@ -6458,15 +6487,31 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
           const existingContent = app.querySelector('.content');
 
                 if (existingShell && existingContent) {
-            existingContent.innerHTML = bodyHtml;
+           existingContent.innerHTML = bodyHtml;
 
-            // Reset scroll position when switching screens so the new screen
-            // always opens at the top (desktop uses window scroll, mobile uses
-            // .content scroll — reset both).
-            try {
-              existingContent.scrollTop = 0;
-              window.scrollTo(0, 0);
-            } catch (_) {}
+try {
+  if (s === 'quran-reader') {
+    const saved = JSON.parse(
+      sessionStorage.getItem('quranReaderScroll') || 'null'
+    );
+
+    if (saved && Number(saved.surah) === Number(S.arg)) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          existingContent.scrollTop = saved.contentTop || 0;
+          window.scrollTo(0, saved.windowTop || 0);
+          sessionStorage.removeItem('quranReaderScroll');
+        });
+      });
+    } else {
+      existingContent.scrollTop = 0;
+      window.scrollTo(0, 0);
+    }
+  } else {
+    existingContent.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }
+} catch (_) {}
 
             $$('.navitem[data-nav]').forEach(b => {
               b.classList.toggle('active', b.dataset.nav === activeNavId);
