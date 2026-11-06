@@ -7968,9 +7968,17 @@ function _calculateQuranReadStats(targetDateStr) {
         routine: { ...(day.routine || {}) },
         adhkar:  { ...(day.adhkar  || {}) }
       };
-      fresh.salah[k] = nowDone ? 'completed' : 'pending';
-      fresh.routine[k] = nowDone; // Sync with Routine
+     fresh.salah[k] = nowDone ? 'completed' : 'pending';
+fresh.routine['r_' + k] = nowDone;
+
 S.dayCache[dsNow] = fresh;
+
+// Refresh Home progress immediately
+if (S.screen === 'home') {
+  repaintHomeFromCache(dsNow);
+}
+
+saveDay(dsNow, fresh).catch(console.error);
 
 // Immediately update Home → Today's progress
 if (S.screen === 'home') {
