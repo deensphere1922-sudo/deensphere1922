@@ -262,9 +262,9 @@ export default async function handler(req, res) {
           notificationKey = `evening-adhkar-${dateStr(localDate)}`;
         }
 
-     if (!payload && hit(15 * 60 + 50) && allowed('quran')) {
-  payload = { title: "📖 Qur'an Reminder", body: "A moment with the Qur'an brings peace." };
-  notificationKey = `quran-${dateStr(localDate)}`;
+   if (!payload && allowed('quran')) {
+  payload = { title: "📖 Qur'an Test", body: "Test at " + new Date().toISOString() };
+  notificationKey = `quran-test-${dateStr(localDate)}-${at}`;
 }
 
         if (!payload && at === 9 * 60 && settings.birthday && allowed('birthday')) {
