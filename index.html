@@ -7970,7 +7970,12 @@ function _calculateQuranReadStats(targetDateStr) {
       };
       fresh.salah[k] = nowDone ? 'completed' : 'pending';
       fresh.routine[k] = nowDone; // Sync with Routine
-      S.dayCache[dsNow] = fresh;
+S.dayCache[dsNow] = fresh;
+
+// Immediately update Home → Today's progress
+if (S.screen === 'home') {
+  repaintHomeFromCache(dsNow);
+}
     saveDay(dsNow, fresh)
   .then(() => {
     S.dayCache[dsNow] = fresh;
