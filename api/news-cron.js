@@ -819,10 +819,11 @@ export default async function handler(req, res) {
           payload = { title: "🌇 Evening Adhkar", body: "Take a moment to remember Allah before the day ends." };
           notificationKey = `evening-adhkar-${dateStr(now)}`;
         }
-       if (!payload && hit(20 * 60) && allowed('quran')) {
-  payload = { title: "📖 Qur'an Reminder", body: "A moment with the Qur'an brings peace." };
-  notificationKey = `quran-${dateStr(now)}`;
-}
+      // ✅ QUR'AN REMINDER AT 4:08 PM (16*60 + 8 = 968 minutes)
+        if (!payload && hit(16 * 60 + 8) && allowed('quran')) {
+          payload = { title: "📖 Qur'an Reminder", body: "A moment with the Qur'an brings peace." };
+          notificationKey = `quran-${dateStr(localDate)}`;
+        }
 
         if (!payload && at === 9 * 60 && settings.birthday && allowed('birthday')) {
           try {
