@@ -693,7 +693,7 @@ export default async function handler(req, res) {
         // ==========================================
         if (
           !payload &&
-          hit(21 * 60 + 45) &&
+         hit(20 * 60) &&
           allowed('quran')
         ) {
           payload = {
