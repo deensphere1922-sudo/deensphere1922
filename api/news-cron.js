@@ -263,7 +263,7 @@ export default async function handler(req, res) {
         }
 
         // ✅ QUR'AN REMINDER AT 8:00 PM (20 * 60 = 1200 minutes)
-       if (!payload && hit(16 * 60 + 16) && allowed('quran')) {
+      if (!payload && allowed('quran')) {
           payload = { title: "📖 Qur'an Reminder", body: "A moment with the Qur'an brings peace." };
           notificationKey = `quran-${dateStr(localDate)}`;
         }
