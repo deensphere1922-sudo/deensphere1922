@@ -7180,18 +7180,25 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
     return [];
   }
 }
+
+let autoLocationTimer = null;
+let autoLocationRequestId = 0;
           
 // --- AUTO LOCATION UPDATER ---
-async function autoUpdateLocation() {
-  // OFF means absolutely no GPS access.
-  if (!S.settings || !S.settings.setupDone || !S.profile) return;
-  if (S.settings.autoLocation !== true) return;
+async function autoUpdateLocation(showToast = false, requestId = null) {
+  if (!S.settings || S.settings.autoLocation !== true) return;
+  if (!S.settings.setupDone || !S.profile) return;
   if (!navigator.geolocation) return;
+
+  const requestIsValid = () =>
+    S.settings?.autoLocation === true &&
+    (requestId === null || requestId === autoLocationRequestId);
+
+  if (!requestIsValid()) return;
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
-      // Check again in case the user switched it OFF while GPS was running.
-      if (!S.settings || S.settings.autoLocation !== true) return;
+      if (!requestIsValid()) return;
 
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
@@ -7202,12 +7209,13 @@ async function autoUpdateLocation() {
           { headers: { 'Accept-Language': 'en' } }
         );
 
-        if (!resp.ok) return;
+        if (!resp.ok || !requestIsValid()) return;
 
         const data = await resp.json();
-        if (!data || !data.address) return;
+        if (!data?.address || !requestIsValid()) return;
 
         const address = data.address;
+
         const city =
           address.city ||
           address.town ||
@@ -7218,69 +7226,38 @@ async function autoUpdateLocation() {
 
         if (!city) return;
 
-        // Check the switch again before saving.
-        if (!S.settings || S.settings.autoLocation !== true) return;
-
+        const country = address.country || '';
+        const locationLabel = [city, country].filter(Boolean).join(', ');
         const currentLocation = S.settings.location || {};
-        const currentCity = (currentLocation.city || currentLocation.label || '')
-          .split(',')[0]
-          .trim();
 
-        // No update or toast if the city has not changed.
-      if (city.toLowerCase() === currentCity.toLowerCase()) {
-  const locationLabel = [city, address.country || '']
-    .filter(Boolean)
-    .join(', ');
+        // Save the latest GPS location, even if the city is unchanged.
+        S.settings.location = {
+          ...currentLocation,
+          lat,
+          lng,
+          city,
+          label: locationLabel
+        };
 
-  // Keep the saved location label up to date.
-  S.settings.location = {
-    ...currentLocation,
-    lat,
-    lng,
-    city,
-    label: locationLabel
-  };
+        if (!requestIsValid()) return;
 
-  await setJSON('settings', S.settings);
-  syncPrayerTimesToSW();
+        await setJSON('settings', S.settings);
 
-  if (S.screen === 'home') {
-    hydrateHome();
-  } else if (S.screen === 'settings') {
-    render();
-  }
+        if (!requestIsValid()) return;
 
-  toast(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
-  return;
-}
+        // Update prayer calculations and service worker.
+        syncPrayerTimesToSW();
 
-    const country = address.country || '';
-const locationLabel = [city, country].filter(Boolean).join(', ');
+        if (S.screen === 'home') {
+          hydrateHome();
+        } else if (S.screen === 'settings') {
+          render();
+        }
 
-S.settings.location = {
-  ...currentLocation,
-  lat,
-  lng,
-  city,
-  label: locationLabel
-};
-
-await setJSON('settings', S.settings);
-syncPrayerTimesToSW();
-
-// Update the location text immediately on Home.
-const homeLocation = document.getElementById('home-location');
-if (homeLocation) {
-  homeLocation.textContent = locationLabel;
-}
-
-if (S.screen === 'home') {
-  hydrateHome();
-} else if (S.screen === 'settings') {
-  render();
-}
-
-toast(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
+        // Only the explicit ON action can show this toast.
+        if (showToast) {
+          toast(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
+        }
 
       } catch (err) {
         console.warn('Auto location fetch failed:', err);
@@ -13064,6 +13041,7 @@ $$('[data-notif]').forEach(b => {
 
             // ---- Auto-location toggle ----
 // ---- Auto-location toggle ----
+// ---- Auto-location toggle ----
 const autoLocToggle = $('[data-toggle-auto-loc]');
 
 if (autoLocToggle) {
@@ -13079,24 +13057,38 @@ if (autoLocToggle) {
     }, 300);
 
     const nextVal = S.settings.autoLocation !== true;
-    S.settings.autoLocation = nextVal;
 
+    S.settings.autoLocation = nextVal;
     autoLocToggle.classList.toggle('done', nextVal);
+
+    // Cancel any previously scheduled GPS lookup.
+    clearTimeout(autoLocationTimer);
+    autoLocationTimer = null;
+
+    // Invalidate any previous GPS request.
+    autoLocationRequestId++;
 
     setJSON('settings', S.settings).catch(err => {
       console.warn('Could not save auto-location setting:', err);
     });
 
-    if (nextVal) {
-      // Start GPS automatically after 3 seconds.
-      setTimeout(() => {
-        if (S.settings.autoLocation === true) {
-          autoUpdateLocation();
-        }
-      }, 3000);
-    } else {
+    if (!nextVal) {
+      // OFF: retain manual location and do not start GPS.
       toast('Auto-update OFF — using manual location.');
+      return;
     }
+
+    // ON: start one GPS lookup after 3 seconds.
+    const requestId = autoLocationRequestId;
+
+    autoLocationTimer = setTimeout(() => {
+      if (
+        S.settings.autoLocation === true &&
+        requestId === autoLocationRequestId
+      ) {
+        autoUpdateLocation(true, requestId);
+      }
+    }, 3000);
   };
 }
 
