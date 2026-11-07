@@ -2514,8 +2514,14 @@
               return;
             }
 
-            if (key === 'routine-struct') {
+                       if (key === 'routine-struct') {
               if (Array.isArray(val) && val.length) {
+                S.routineStruct = val;
+                if (S.screen === 'routine') hydrateRoutine();
+                return;
+              }
+              if (val && typeof val === 'object' &&
+                  (Array.isArray(val.weekday) || Array.isArray(val.data))) {
                 S.routineStruct = val;
                 if (S.screen === 'routine') hydrateRoutine();
               }
@@ -3025,11 +3031,17 @@ latestVal = getCloudSyncValue(key, latestVal);
               return;
             }
 
-            if (key === 'settings') {
+                      if (key === 'settings') {
               if (val) {
-               S.settings = applyDeviceNotifSettings(val);
+                S.settings = applyDeviceNotifSettings(val);
                 applyArabicSize(val.arabicFontSize);
-                if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) render();
+                // The Routine screen is driven by holidayDates, so it must
+                // repaint when settings arrive over the low-latency broadcast.
+                if (S.screen === 'routine') {
+                  hydrateRoutine();
+                } else if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) {
+                  render();
+                }
               }
               return;
             }
@@ -5620,12 +5632,26 @@ function getCloudSyncValue(key, value) {
           const deletedItems = await getJSON('deleted-routine-items');
           S.deletedRoutineItems = Array.isArray(deletedItems) ? deletedItems : [];
 
-// ✅ FIX: Correctly load the saved routine structure (which includes the isWeekendMode flag)
-if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
+// ── Migrate routine-struct to the two-mode shape { weekday, weekend }. ──
+// Older saves were either a plain array or { data, isWeekendMode }.
+// Migrating on read keeps a returning user's customizations intact in BOTH modes.
+if (routineStruct && typeof routineStruct === 'object' &&
+    Array.isArray(routineStruct.weekday) && Array.isArray(routineStruct.weekend)) {
   S.routineStruct = routineStruct;
+} else if (routineStruct && typeof routineStruct === 'object' && Array.isArray(routineStruct.data)) {
+  const wasWeekend = !!routineStruct.isWeekendMode;
+  S.routineStruct = {
+    weekday: wasWeekend ? _cloneRoutineArray(ROUTINE_STRUCT_DEFAULT) : _cloneRoutineArray(routineStruct.data),
+    weekend: wasWeekend ? _cloneRoutineArray(routineStruct.data) : _cloneRoutineArray(ROUTINE_STRUCT_WEEKEND)
+  };
+  // Persist the migrated shape so it reaches the other device too.
+  setJSON('routine-struct', S.routineStruct).catch(() => {});
 } else if (Array.isArray(routineStruct) && routineStruct.length) {
-  // Fallback for older saves that were just arrays
-  S.routineStruct = { data: routineStruct, isWeekendMode: false };
+  S.routineStruct = {
+    weekday: _cloneRoutineArray(routineStruct),
+    weekend: _cloneRoutineArray(ROUTINE_STRUCT_WEEKEND)
+  };
+  setJSON('routine-struct', S.routineStruct).catch(() => {});
 } else {
   S.routineStruct = null;
 }
@@ -5842,12 +5868,19 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             }
           });
 
-              subscribeToKey('routine-struct', (val) => {
-            if (Array.isArray(val) && val.length) {
-              S.routineStruct = val;
-              if (S.screen === 'routine') hydrateRoutine();
-            }
-          });
+           subscribeToKey('routine-struct', (val) => {
+  if (Array.isArray(val) && val.length) {
+    // Legacy plain-array save — upgrade in memory only.
+    S.routineStruct = val;
+    if (S.screen === 'routine') hydrateRoutine();
+    return;
+  }
+  if (val && typeof val === 'object' &&
+      (Array.isArray(val.weekday) || Array.isArray(val.data))) {
+    S.routineStruct = val;
+    if (S.screen === 'routine') hydrateRoutine();
+  }
+});
 
                 subscribeToKey('guide-history', (val) => {
             if (!Array.isArray(val)) return;
@@ -8175,88 +8208,75 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-           function getRoutineStruct(d) {
+          // ─── Date-specific Holiday Mode ────────────────────────────────────────
+// Returns true if the given YYYY-MM-DD is a "holiday" (Weekend Routine) day.
+// Rules:
+//   • If settings.holidayDates[dateKey] is explicitly set, honour it.
+//   • Otherwise auto-holiday on Saturday & Sunday.
+function _isHolidayDate(dateKey) {
+  const d = new Date(dateKey + 'T12:00:00');
+  const isWeekendDay = d.getDay() === 0 || d.getDay() === 6;
+  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
+    return !!S.settings.holidayDates[dateKey];
+  }
+  return isWeekendDay;
+}
+
+// "weekday" or "weekend" — which routine should render for this date.
+function _routineModeForDate(dateKey) {
+  return _isHolidayDate(dateKey) ? 'weekend' : 'weekday';
+}
+
+// Deep clone helper used across the two-mode routine store.
+function _cloneRoutineArray(arr) {
+  return arr.map(([k, l, items]) => [k, l, items.map(([ik, il]) => [ik, il])]);
+}
+
+function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
-  const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
-  
-  let isHoliday;
-  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-    isHoliday = S.settings.holidayDates[dateKey];
-  } else {
-    isHoliday = isWeekendDay;
-  }
+  const mode = _routineModeForDate(dateKey);
 
-  // Start with the saved routine, or default if none
   let baseStruct;
-  if (S.routineStruct && S.routineStruct.isWeekendMode === isHoliday) {
+
+  // New shape: { weekday: [...], weekend: [...] } — both modes stored separately.
+  if (S.routineStruct && Array.isArray(S.routineStruct.weekday) && Array.isArray(S.routineStruct.weekend)) {
+    baseStruct = S.routineStruct[mode];
+  }
+  // Legacy shape { data, isWeekendMode } — read whichever mode it was saved as.
+  else if (S.routineStruct && Array.isArray(S.routineStruct.data) &&
+           S.routineStruct.isWeekendMode === (mode === 'weekend')) {
     baseStruct = S.routineStruct.data;
-  } else {
-    baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
+  }
+  // First run, or the saved struct is for the OTHER mode → seed from defaults.
+  else {
+    baseStruct = mode === 'weekend' ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
   }
 
-  // ✅ FILTER OUT DELETED ITEMS
-  // We map through sections, and filter out items that are in S.deletedRoutineItems
-  return baseStruct.map(section => {
-    const [secKey, secLabel, items] = section;
-    const filteredItems = items.filter(item => {
-      const itemKey = item[0];
-      return !S.deletedRoutineItems.includes(itemKey);
-    });
-    return [secKey, secLabel, filteredItems];
-  }).filter(section => section[2].length > 0); // Optional: hide sections if they become empty
+  // Filter out items the user deleted (S.deletedRoutineItems).
+  return baseStruct
+    .map(section => {
+      const [secKey, secLabel, items] = section;
+      const filteredItems = items.filter(item => !S.deletedRoutineItems.includes(item[0]));
+      return [secKey, secLabel, filteredItems];
+    })
+    .filter(section => section[2].length > 0);
 }
 
-        function cloneDefaultRoutine(d) {
+       function cloneDefaultRoutine(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
-  const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
-  
-  let isHoliday;
-  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-    isHoliday = S.settings.holidayDates[dateKey];
-  } else {
-    isHoliday = isWeekendDay;
-  }
-  
-  let base;
-  if (isHoliday) {
-    base = [
-      ROUTINE_STRUCT_WEEKEND[0],
-      ROUTINE_STRUCT_WEEKEND[1],
-      ROUTINE_STRUCT_WEEKEND[2],
-      ROUTINE_STRUCT_WEEKEND[3]
-    ];
-  } else {
-    base = ROUTINE_STRUCT_DEFAULT;
-  }
-
-  // Deep clone it so we don't modify the original arrays
-  return base.map(([key, label, items]) =>
-    [key, label, items.map(([ik, il]) => [ik, il])]
-  );
+  const mode = _routineModeForDate(dateKey);
+  const base = mode === 'weekend' ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
+  return _cloneRoutineArray(base);
 }
 
-     async function saveRoutineStruct(struct) {
-    const viewDate = S.routineViewDate ? new Date(S.routineViewDate + 'T12:00:00') : new Date();
-    const dateKey = dateStr(viewDate);
-    const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
-    
-    let isHoliday;
-    if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-      isHoliday = S.settings.holidayDates[dateKey];
-    } else {
-      isHoliday = isWeekendDay;
-    }
-
-    const structToSave = {
-      data: struct,
-      isWeekendMode: isHoliday
-    };
-
-    S.routineStruct = structToSave;
-    await setJSON('routine-struct', structToSave);
-  }
+        // NOTE: saveRoutineStruct() was removed.
+     // All routine persistence now flows through instantUpdate() inside
+     // _bindRoutineButtons(), which writes the two-mode shape
+     // { weekday: [...], weekend: [...] } so editing one mode never
+     // overwrites the other. Leaving the old single-mode writer here
+     // would silently clobber the store if it were ever called.
 
       /* Synchronous Routine body builder — reads only from S.dayCache so the very
       first paint is fully populated. hydrateRoutine() reuses this exact builder
@@ -8365,7 +8385,7 @@ function renderRoutine() {
       </div>
     </div>
 
-    <div class="routine-fixed-top">
+       <div class="routine-fixed-top">
       <div class="card" style="margin-bottom:0;">
         <label class="rowsub" style="display:block;margin-bottom:6px;">
           View / edit a specific day
@@ -8377,6 +8397,13 @@ function renderRoutine() {
           max="${today}"
           style="width:100%;"
         >
+        <div class="checkrow" style="border-bottom:none;padding:12px 0 2px;">
+          <span class="rowtitle" style="flex:1;">
+            Holiday Mode (${_isHolidayDate(viewDate) ? 'Weekend Routine' : 'Weekday Routine'})
+          </span>
+          <button class="chk ${_isHolidayDate(viewDate) ? 'done' : ''}"
+                  id="routine-holiday-toggle" type="button"></button>
+        </div>
       </div>
     </div>
 
@@ -8453,7 +8480,7 @@ function renderRoutine() {
         };
       }
 
-      // RETURN TO TODAY
+          // RETURN TO TODAY
       const back = $('#routine-back-today');
 
       if (back) {
@@ -8461,6 +8488,36 @@ function renderRoutine() {
           S.routineViewDate = null;
           S.routineEditModeDate = null;
           render();
+        };
+      }
+
+      // ---- Holiday Mode toggle (date-specific) ----
+      const holidayBtn = $('#routine-holiday-toggle');
+      if (holidayBtn) {
+        holidayBtn.onclick = async (e) => {
+          e.preventDefault();
+          if (holidayBtn.dataset.busy === '1') return;
+          holidayBtn.dataset.busy = '1';
+          setTimeout(() => { try { delete holidayBtn.dataset.busy; } catch (_) {} }, 300);
+
+          const targetDate = S.routineViewDate || dateStr(new Date());
+          if (!S.settings.holidayDates) S.settings.holidayDates = {};
+
+          const nextVal = !_isHolidayDate(targetDate);
+          S.settings.holidayDates[targetDate] = nextVal;
+          holidayBtn.classList.toggle('done', nextVal);
+
+          try {
+            await setJSON('settings', S.settings);
+            toast(nextVal
+              ? 'Holiday Mode ON for ' + targetDate + ' — Weekend Routine.'
+              : 'Holiday Mode OFF for ' + targetDate + ' — Weekday Routine.');
+          } catch (err) {
+            console.error('Failed to save Holiday Mode:', err);
+            toast('Could not save Holiday Mode.');
+          }
+
+          hydrateRoutine();
         };
       }
     }
@@ -8472,32 +8529,35 @@ function renderRoutine() {
 
 const instantUpdate = async (newStruct, successMsg) => {
   const viewDate = S.routineViewDate || dateStr(new Date());
-  const today = dateStr(new Date());
+  const mode = _routineModeForDate(viewDate);
 
-  // ✅ ALLOW EDITING PAST DAYS so you never lose your data
-
-  const selectedDate = new Date(viewDate + 'T12:00:00');
-  const dateKey = dateStr(selectedDate);
-  const isWeekendDay =
-    selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
-
-  const isHoliday =
-    S.settings?.holidayDates?.[dateKey] !== undefined
-      ? S.settings.holidayDates[dateKey]
-      : isWeekendDay;
+  // Read the OTHER mode so we preserve its customizations.
+  // Migrate a legacy single-mode store into the two-mode shape first.
+  let prevWeekday, prevWeekend;
+  if (S.routineStruct && Array.isArray(S.routineStruct.weekday) && Array.isArray(S.routineStruct.weekend)) {
+    prevWeekday = S.routineStruct.weekday;
+    prevWeekend = S.routineStruct.weekend;
+  } else if (S.routineStruct && Array.isArray(S.routineStruct.data)) {
+    const wasWeekend = !!S.routineStruct.isWeekendMode;
+    prevWeekday = wasWeekend
+      ? _cloneRoutineArray(ROUTINE_STRUCT_DEFAULT)
+      : _cloneRoutineArray(S.routineStruct.data);
+    prevWeekend = wasWeekend
+      ? _cloneRoutineArray(S.routineStruct.data)
+      : _cloneRoutineArray(ROUTINE_STRUCT_WEEKEND);
+  } else {
+    prevWeekday = _cloneRoutineArray(ROUTINE_STRUCT_DEFAULT);
+    prevWeekend = _cloneRoutineArray(ROUTINE_STRUCT_WEEKEND);
+  }
 
   S.routineStruct = {
-    data: newStruct,
-    isWeekendMode: isHoliday
+    weekday: mode === 'weekday' ? newStruct : prevWeekday,
+    weekend: mode === 'weekend' ? newStruct : prevWeekend
   };
 
   const body = document.getElementById('routine-body');
-
   if (body) {
-    body.innerHTML = _buildRoutineBodyHTML(
-      viewDate,
-      S.dayCache[viewDate] || null
-    );
+    body.innerHTML = _buildRoutineBodyHTML(viewDate, S.dayCache[viewDate] || null);
     _bindRoutineButtons();
   }
 
@@ -8525,8 +8585,8 @@ const instantUpdate = async (newStruct, successMsg) => {
       const trimmed = next.trim();
       if (!trimmed) { toast('Item name cannot be empty.'); return; }
       
-      // Clone the EXACT structure you are looking at
-      const st = cloneRoutineStruct(ds); 
+           // Clone the structure for THIS specific day (weekday vs weekend safe).
+      const st = cloneRoutineStruct(ds);
       
       // Find and update the item
       for (const [, , items] of st) { 
@@ -8691,9 +8751,11 @@ const instantUpdate = async (newStruct, successMsg) => {
     };
   }
 
-      function cloneRoutineStruct() {
-  const raw = getRoutineStruct();
-  return raw.map(([k, l, items]) => [k, l, items.map(([ik, il]) => [ik, il])]);
+    function cloneRoutineStruct(d) {
+  // Must clone the routine for the DAY BEING VIEWED, not "today".
+  // Otherwise editing a past/future day corrupts today's saved mode.
+  const raw = getRoutineStruct(d);
+  return _cloneRoutineArray(raw);
 }
 
    function _bindRoutineDelegate() {
@@ -12832,6 +12894,44 @@ $$('[data-notif]').forEach(b => {
     }
   };
 });
+
+                  // ---- Holiday Mode toggle (date-specific) ----
+          // Drives the same state as the Routine-screen toggle and syncs to
+          // the other device instantly via setJSON('settings', …).
+          const holidayToggle = $('[data-toggle-holiday]');
+          if (holidayToggle) {
+            holidayToggle.onclick = async (e) => {
+              e.preventDefault();
+              if (holidayToggle.dataset.busy === '1') return;
+              holidayToggle.dataset.busy = '1';
+              setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
+
+              const targetDate = (S.screen === 'routine' && S.routineViewDate)
+                ? S.routineViewDate
+                : dateStr(new Date());
+
+              if (!S.settings.holidayDates) S.settings.holidayDates = {};
+
+              const nextVal = !_isHolidayDate(targetDate);
+              S.settings.holidayDates[targetDate] = nextVal;
+              holidayToggle.classList.toggle('done', nextVal);
+
+              try {
+                await setJSON('settings', S.settings);
+                toast(nextVal
+                  ? 'Holiday Mode ON for ' + targetDate + ' — Weekend Routine.'
+                  : 'Holiday Mode OFF for ' + targetDate + ' — Weekday Routine.');
+              } catch (err) {
+                console.error('Failed to save Holiday Mode:', err);
+                toast('Could not save Holiday Mode.');
+              }
+
+              if (S.screen === 'routine') {
+                const vd = S.routineViewDate || dateStr(new Date());
+                if (vd === targetDate) hydrateRoutine();
+              }
+            };
+          }
 
           // ---- Auto-location toggle (instant tick, background save) ----
           const autoLocToggle = $('[data-toggle-auto-loc]');
