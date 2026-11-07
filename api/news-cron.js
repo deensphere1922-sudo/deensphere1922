@@ -99,9 +99,13 @@ async function sendUserNotification(userId, payload, notificationKey) {
   const finalPayload = { ...payload, icon: '/Deensphere_app_icon.png', url: '/' };
   let delivered = false;
 
-  for (const row of subscriptions) {
+   for (const row of subscriptions) {
     try {
-      await webpush.sendNotification(row.subscription, JSON.stringify(finalPayload), { TTL: 60 });
+      await webpush.sendNotification(
+        row.subscription, 
+        JSON.stringify(finalPayload), 
+        { TTL: 3600 } // <--- CHANGED TO 3600
+      );
       delivered = true;
     } catch (error) {
       if (error.statusCode === 410 || error.statusCode === 404) {
