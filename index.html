@@ -7227,7 +7227,32 @@ async function autoUpdateLocation() {
           .trim();
 
         // No update or toast if the city has not changed.
-        if (city.toLowerCase() === currentCity.toLowerCase()) return;
+      if (city.toLowerCase() === currentCity.toLowerCase()) {
+  const locationLabel = [city, address.country || '']
+    .filter(Boolean)
+    .join(', ');
+
+  // Keep the saved location label up to date.
+  S.settings.location = {
+    ...currentLocation,
+    lat,
+    lng,
+    city,
+    label: locationLabel
+  };
+
+  await setJSON('settings', S.settings);
+  syncPrayerTimesToSW();
+
+  if (S.screen === 'home') {
+    hydrateHome();
+  } else if (S.screen === 'settings') {
+    render();
+  }
+
+  toast(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
+  return;
+}
 
     const country = address.country || '';
 const locationLabel = [city, country].filter(Boolean).join(', ');
@@ -13038,6 +13063,7 @@ $$('[data-notif]').forEach(b => {
 });
 
             // ---- Auto-location toggle ----
+// ---- Auto-location toggle ----
 const autoLocToggle = $('[data-toggle-auto-loc]');
 
 if (autoLocToggle) {
@@ -13047,27 +13073,30 @@ if (autoLocToggle) {
     if (autoLocToggle.dataset.busy === '1') return;
 
     autoLocToggle.dataset.busy = '1';
+
     setTimeout(() => {
-      try {
-        delete autoLocToggle.dataset.busy;
-      } catch (_) {}
+      delete autoLocToggle.dataset.busy;
     }, 300);
 
     const nextVal = S.settings.autoLocation !== true;
     S.settings.autoLocation = nextVal;
 
     autoLocToggle.classList.toggle('done', nextVal);
-    setJSON('settings', S.settings).catch((err) => {
+
+    setJSON('settings', S.settings).catch(err => {
       console.warn('Could not save auto-location setting:', err);
     });
 
-    // Do not access GPS when switched OFF.
-    if (!nextVal) {
+    if (nextVal) {
+      // Start GPS automatically after 3 seconds.
+      setTimeout(() => {
+        if (S.settings.autoLocation === true) {
+          autoUpdateLocation();
+        }
+      }, 3000);
+    } else {
       toast('Auto-update OFF — using manual location.');
-      return;
     }
-
-    toast('Auto-update ON — location will sync automatically.');
   };
 }
 
