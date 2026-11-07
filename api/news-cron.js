@@ -273,37 +273,37 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 5. ADHKAR / QURAN / BIRTHDAY (Early Payload + 00-Sec Timer)
+        // 5. ADHKAR / QURAN / BIRTHDAY
         // ==========================================
 
-        // Morning Adhkar: Server hits at 06:59 or 07:00, phone shows exactly at 07:00
-        if (!payload && hit(7 * 60 - 1) && allowed('adhkar')) {
-          const exactMin = getExactHitMinute(7 * 60 - 1);
-          payload = { title: '🌅 Morning Adhkar', body: 'Start your day with the remembrance of Allah.', targetTime: getTargetTime(7 * 60) };
+        // Morning Adhkar: Server triggers at 07:00 exactly
+        if (!payload && hit(7 * 60) && allowed('adhkar')) {
+          const exactMin = getExactHitMinute(7 * 60);
+          payload = { title: '🌅 Morning Adhkar', body: 'Start your day with the remembrance of Allah.', targetTime: getTargetTime(exactMin) };
           notificationKey = `morning-adhkar-${today}`;
         }
 
-        // Evening Adhkar: Server hits at 09:29 or 09:30, phone shows exactly at 09:30
-        if (!payload && hit(9 * 60 + 30 - 1) && allowed('adhkar')) {
-          const exactMin = getExactHitMinute(9 * 60 + 30 - 1);
-          payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(9 * 60 + 30) };
+        // Evening Adhkar: Server triggers at 09:30 exactly (No Early Send)
+        if (!payload && hit(9 * 60 + 30) && allowed('adhkar')) {
+          const exactMin = getExactHitMinute(9 * 60 + 30);
+          payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) };
           notificationKey = `evening-adhkar-${today}`;
         }
 
-        // Quran: Server hits at 19:59 or 20:00, phone shows exactly at 20:00
-        if (!payload && hit(20 * 60 - 1) && allowed('quran')) {
-          const exactMin = getExactHitMinute(20 * 60 - 1);
-          payload = { title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(20 * 60) };
+        // Quran: Server triggers at 20:00 exactly
+        if (!payload && hit(20 * 60) && allowed('quran')) {
+          const exactMin = getExactHitMinute(20 * 60);
+          payload = { title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(exactMin) };
           notificationKey = `quran-${today}`;
         }
 
-        // Birthday: Server hits at 08:59 or 09:00, phone shows exactly at 09:00
-        if (!payload && hit(9 * 60 - 1) && settings.birthday && allowed('birthday')) {
+        // Birthday: Server triggers at 09:00 exactly
+        if (!payload && hit(9 * 60) && settings.birthday && allowed('birthday')) {
           try {
             const [, birthdayMonth, birthdayDay] = String(settings.birthday).split('-').map(Number);
             if (birthdayMonth === local.month && birthdayDay === local.day) {
-              const exactMin = getExactHitMinute(9 * 60 - 1);
-              payload = { title: '🎂 Happy Birthday', body: 'May Allah bless your year ahead. Take a moment for gratitude today.', targetTime: getTargetTime(9 * 60) };
+              const exactMin = getExactHitMinute(9 * 60);
+              payload = { title: '🎂 Happy Birthday', body: 'May Allah bless your year ahead. Take a moment for gratitude today.', targetTime: getTargetTime(exactMin) };
               notificationKey = `birthday-${today}`;
             }
           } catch {}
