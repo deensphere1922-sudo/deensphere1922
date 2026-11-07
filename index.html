@@ -7164,62 +7164,90 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
     return [];
   }
 }
-            // --- AUTO LOCATION UPDATER ---
-    async function autoUpdateLocation() {
-  // 1. Only run if logged in, setup is done, and Auto-Update is TICKED (prevents toast if unticked)
+          
+// --- AUTO LOCATION UPDATER ---
+async function autoUpdateLocation() {
+  // OFF means absolutely no GPS access.
   if (!S.settings || !S.settings.setupDone || !S.profile) return;
-  if (S.settings.autoLocation === false) return; 
+  if (S.settings.autoLocation !== true) return;
   if (!navigator.geolocation) return;
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
+      // Check again in case the user switched it OFF while GPS was running.
+      if (!S.settings || S.settings.autoLocation !== true) return;
+
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
-      const currentLat = S.settings.location.lat;
-      const currentLng = S.settings.location.lng;
-
-      // 2. Check distance (approx 11km threshold) to avoid unnecessary API calls
-      const dist = Math.sqrt(Math.pow(lat - currentLat, 2) + Math.pow(lng - currentLng, 2));
-      if (dist < 0.1) return;
 
       try {
-        // 3. Reverse Geocode to get the city name
-        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`, {
-          headers: { 'Accept-Language': 'en' }
-        });
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+
+        if (!resp.ok) return;
+
         const data = await resp.json();
-        
-        if (data && data.display_name) {
-          const parts = data.display_name.split(',');
-          const short = parts.slice(0, 2).join(',').trim(); // e.g., "Chennai, Chennai Metropolitan Area"
-          
-          // 4. Only update if the city actually changed
-          if (short && short !== S.settings.location.label) {
-            
-            // Update the data
-            S.settings.location = { lat, lng, label: short };
-            await setJSON('settings', S.settings);
-            syncPrayerTimesToSW();           
-            
-            // 5. THE SINGLE LINE TOAST YOU REQUESTED
-            toast(`📍 GPS automatically updated to ${short}`);
-            
-            // 6. FORCE THE UI TO UPDATE SO THE TEXT CHANGES FROM MANDYA TO CHENNAI INSTANTLY
-            if (S.screen === 'home') {
-              hydrateHome(); 
-            } else if (S.screen === 'settings') {
-              render(); 
-            }
-          }
+        if (!data || !data.address) return;
+
+        const address = data.address;
+        const city =
+          address.city ||
+          address.town ||
+          address.village ||
+          address.municipality ||
+          address.county ||
+          address.state;
+
+        if (!city) return;
+
+        // Check the switch again before saving.
+        if (!S.settings || S.settings.autoLocation !== true) return;
+
+        const currentLocation = S.settings.location || {};
+        const currentCity = (currentLocation.city || currentLocation.label || '')
+          .split(',')[0]
+          .trim();
+
+        // No update or toast if the city has not changed.
+        if (city.toLowerCase() === currentCity.toLowerCase()) return;
+
+        S.settings.location = {
+          ...currentLocation,
+          lat,
+          lng,
+          city,
+          label: city
+        };
+
+        await setJSON('settings', S.settings);
+        syncPrayerTimesToSW();
+
+        // Refresh the visible screen immediately.
+        if (S.screen === 'home') {
+          hydrateHome();
+        } else if (S.screen === 'settings') {
+          render();
         }
-      } catch (e) {
-        console.warn('Auto location fetch failed:', e);
+
+        toast(`🛰️ GPS Synced: Your location is now set to ${city}`);
+
+      } catch (err) {
+        console.warn('Auto location fetch failed:', err);
       }
     },
-    (err) => console.warn('Auto geolocation error:', err),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
+    (err) => {
+      console.warn('Auto geolocation error:', err);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 600000
+    }
   );
 }
+
 
         function renderSetupLocation() {
           const loc = S.settings.location;
@@ -12985,26 +13013,39 @@ $$('[data-notif]').forEach(b => {
   };
 });
 
-                  // ---- Auto-location toggle (instant tick, background save) ----
-          const autoLocToggle = $('[data-toggle-auto-loc]');
-          if (autoLocToggle) {
-            autoLocToggle.onclick = (e) => {
-              e.preventDefault();
-              if (autoLocToggle.dataset.busy === '1') return;
-              autoLocToggle.dataset.busy = '1';
-              setTimeout(() => { try { delete autoLocToggle.dataset.busy; } catch (_) {} }, 300);
+            // ---- Auto-location toggle ----
+const autoLocToggle = $('[data-toggle-auto-loc]');
 
-              const nextVal = !S.settings.autoLocation;
-              S.settings.autoLocation = nextVal;
+if (autoLocToggle) {
+  autoLocToggle.onclick = (e) => {
+    e.preventDefault();
 
-              autoLocToggle.classList.toggle('done', nextVal);
-              setJSON('settings', S.settings).catch(() => {});
+    if (autoLocToggle.dataset.busy === '1') return;
 
-              toast(nextVal
-                ? 'Auto-update ON — location will sync automatically.'
-                : 'Auto-update OFF — using manual location.');
-            };
-          }
+    autoLocToggle.dataset.busy = '1';
+    setTimeout(() => {
+      try {
+        delete autoLocToggle.dataset.busy;
+      } catch (_) {}
+    }, 300);
+
+    const nextVal = S.settings.autoLocation !== true;
+    S.settings.autoLocation = nextVal;
+
+    autoLocToggle.classList.toggle('done', nextVal);
+    setJSON('settings', S.settings).catch((err) => {
+      console.warn('Could not save auto-location setting:', err);
+    });
+
+    // Do not access GPS when switched OFF.
+    if (!nextVal) {
+      toast('Auto-update OFF — using manual location.');
+      return;
+    }
+
+    toast('Auto-update ON — location will sync automatically.');
+  };
+}
 
             
 
@@ -13590,7 +13631,17 @@ $$('[data-notif]').forEach(b => {
         /* ============================= SCREEN ACTION BINDER ============================= */
         function bindScreenActions(s) {
           try {
-            if (s === 'home') { subscribeToCurrentDay(); hydrateHome(); }
+           if (s === 'home') {
+  subscribeToCurrentDay();
+  hydrateHome();
+
+  // Run GPS auto-update within 3 seconds of opening Home.
+  setTimeout(() => {
+    if (S.screen === 'home' && S.settings?.autoLocation === true) {
+      autoUpdateLocation();
+    }
+  }, 3000);
+}
             else if (s === 'salah') { subscribeToCurrentDay(); hydrateSalahPage(); }
             else if (s === 'routine') { subscribeToCurrentDay(); hydrateRoutine(); }
             else if (s === 'quran-library') { hydrateQuranLibrary(); }
