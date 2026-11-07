@@ -7213,13 +7213,16 @@ async function autoUpdateLocation() {
         // No update or toast if the city has not changed.
         if (city.toLowerCase() === currentCity.toLowerCase()) return;
 
-        S.settings.location = {
-          ...currentLocation,
-          lat,
-          lng,
-          city,
-          label: city
-        };
+       const country = address.country || '';
+const locationLabel = [city, country].filter(Boolean).join(', ');
+
+S.settings.location = {
+  ...currentLocation,
+  lat,
+  lng,
+  city,
+  label: locationLabel
+};
 
         await setJSON('settings', S.settings);
         syncPrayerTimesToSW();
@@ -7231,7 +7234,7 @@ async function autoUpdateLocation() {
           render();
         }
 
-        toast(`🛰️ GPS Synced: Your location is now set to ${city}`);
+       toast(`📍 GPS Synced: Your location is now set to ${city}, India`);
 
       } catch (err) {
         console.warn('Auto location fetch failed:', err);
