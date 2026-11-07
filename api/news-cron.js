@@ -273,31 +273,31 @@ export default async function handler(req, res) {
         }
 
         // ==========================================
-        // 5. ADHKAR / QURAN / BIRTHDAY
+        // 5. ADHKAR / QURAN / BIRTHDAY (Instant / 1-min safe window)
         // ==========================================
 
-        // Morning Adhkar: Server triggers at 07:00 exactly
+        // Morning Adhkar: 07:00 AM
         if (!payload && hit(7 * 60) && allowed('adhkar')) {
           const exactMin = getExactHitMinute(7 * 60);
           payload = { title: '🌅 Morning Adhkar', body: 'Start your day with the remembrance of Allah.', targetTime: getTargetTime(exactMin) };
           notificationKey = `morning-adhkar-${today}`;
         }
 
-                      // Evening Adhkar: Server triggers at 18:00 (6:00 PM) exactly
+        // Evening Adhkar: 18:00 (6:00 PM)
         if (!payload && hit(18 * 60) && allowed('adhkar')) {
           const exactMin = getExactHitMinute(18 * 60);
           payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) };
           notificationKey = `evening-adhkar-${today}`;
         }
 
-        // Quran: Server triggers at 20:00 exactly
+        // Quran: 20:00 (8:00 PM)
         if (!payload && hit(20 * 60) && allowed('quran')) {
           const exactMin = getExactHitMinute(20 * 60);
           payload = { title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(exactMin) };
           notificationKey = `quran-${today}`;
         }
 
-        // Birthday: Server triggers at 09:00 exactly
+        // Birthday: 09:00 AM
         if (!payload && hit(9 * 60) && settings.birthday && allowed('birthday')) {
           try {
             const [, birthdayMonth, birthdayDay] = String(settings.birthday).split('-').map(Number);
