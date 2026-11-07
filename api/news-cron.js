@@ -525,7 +525,7 @@ export default async function handler(req, res) {
         // ==========================================
         // 6. EVENING ADHKAR — 18:00 exact
         // ==========================================
-        if (!payload && hitExact(19 * 60 + 42) && allowed('adhkar')) {
+        if (!payload && hitExact(7 * 60 + 45) && allowed('adhkar')) {
           payload = {
             title: '🌇 Evening Adhkar',
             body: 'Take a moment to remember Allah before the day ends.'
