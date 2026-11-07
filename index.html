@@ -14014,18 +14014,17 @@ if (nextVal) {
             syncPrayerTimesToSW();
 
             // 🔒 FIRST OPEN OF THIS SESSION — clear the guards and run GPS once.
-            try {
-              sessionStorage.removeItem('__gpsRunDone');
-              sessionStorage.removeItem('__gpsToastShown');
-            } catch (e) {}
+           // FIRST OPEN / REFRESH — wait 2 seconds before GPS sync.
+try {
+  sessionStorage.removeItem('__gpsRunDone');
+  sessionStorage.removeItem('__gpsToastShown');
+} catch (e) {}
 
-            // Wait 1.5 seconds so the Home screen finishes painting, 
-            // then fire the GPS sync. This guarantees the toast is seen.
-            setTimeout(() => {
-              if (S.settings && S.settings.autoLocation === true) {
-                autoUpdateLocation();
-              }
-            }, 1500);
+setTimeout(() => {
+  if (S.settings && S.settings.autoLocation === true) {
+    autoUpdateLocation();
+  }
+}, 2000);
 
           } else if (user) {
   go('setup-location');
