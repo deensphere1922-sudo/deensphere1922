@@ -284,7 +284,7 @@ export default async function handler(req, res) {
         }
 
         // Evening Adhkar: Server hits at 17:59 or 18:00, phone shows exactly at 18:00
-        if (!payload && hit(9 * 60 + 11 - 1) && allowed('adhkar')) {
+        if (!payload && hit(18 * 60 - 1) && allowed('adhkar')) {
           const exactMin = getExactHitMinute(18 * 60 - 1);
           payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(18 * 60) };
           notificationKey = `evening-adhkar-${today}`;
