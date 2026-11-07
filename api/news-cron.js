@@ -206,9 +206,6 @@ export default async function handler(req, res) {
         const hit = (targetMinute) => isWithinOneMinuteWindow(targetMinute, at);
         const allowed = (key) => !settings.notif || settings.notif[key] !== false;
 
-        let payload = null;
-        let notificationKey = null;
-
         let userMin;
         try { userMin = await getAladhanTimings(lat, lng, tzName, calcMethod, asrMethod, localDate); } catch { continue; }
 
@@ -222,97 +219,80 @@ export default async function handler(req, res) {
           return at === targetMinute ? targetMinute : targetMinute + 1;
         };
 
+        // Helper to send and count
+        const send = async (payload, key) => {
+          const delivered = await sendUserNotification(profile.user_id, payload, key);
+          if (delivered) sentCount++;
+        };
+
         // ==========================================
-        // 3. FIVE PRAYERS (Instant / 1-min safe window)
+        // 3. FIVE PRAYERS
         // ==========================================
+        let prayerFired = null; 
+        let prayerTarget = null;
+
         if (hit(userMin.fajr) && allowed('fajr')) {
+          prayerFired = 'fajr'; prayerTarget = userMin.fajr;
           const exactMin = getExactHitMinute(userMin.fajr);
-          payload = { title: '🕌 Fajr Prayer', body: 'Time for Fajr. Begin your day with prayer.', prayer: 'fajr', kind: 'time', targetTime: getTargetTime(exactMin) };
-          notificationKey = `fajr-${today}`;
-        } else if (hit(userMin.dhuhr) && allowed('dhuhr')) {
+          await send({ title: '🕌 Fajr Prayer', body: 'Time for Fajr. Begin your day with prayer.', prayer: 'fajr', kind: 'time', targetTime: getTargetTime(exactMin) }, `fajr-${today}`);
+        }
+        if (hit(userMin.dhuhr) && allowed('dhuhr')) {
+          prayerFired = 'dhuhr'; prayerTarget = userMin.dhuhr;
           const exactMin = getExactHitMinute(userMin.dhuhr);
-          payload = { title: '🕌 Dhuhr Prayer', body: 'Time for Dhuhr. Take a break and reconnect with Allah.', prayer: 'dhuhr', kind: 'time', targetTime: getTargetTime(exactMin) };
-          notificationKey = `dhuhr-${today}`;
-        } else if (hit(userMin.asr) && allowed('asr')) {
+          await send({ title: '🕌 Dhuhr Prayer', body: 'Time for Dhuhr. Take a break and reconnect with Allah.', prayer: 'dhuhr', kind: 'time', targetTime: getTargetTime(exactMin) }, `dhuhr-${today}`);
+        }
+        if (hit(userMin.asr) && allowed('asr')) {
+          prayerFired = 'asr'; prayerTarget = userMin.asr;
           const exactMin = getExactHitMinute(userMin.asr);
-          payload = { title: '🕌 Asr Prayer', body: 'Time for Asr. Pause your day to remember Him.', prayer: 'asr', kind: 'time', targetTime: getTargetTime(exactMin) };
-          notificationKey = `asr-${today}`;
-        } else if (hit(userMin.maghrib) && allowed('maghrib')) {
+          await send({ title: '🕌 Asr Prayer', body: 'Time for Asr. Pause your day to remember Him.', prayer: 'asr', kind: 'time', targetTime: getTargetTime(exactMin) }, `asr-${today}`);
+        }
+        if (hit(userMin.maghrib) && allowed('maghrib')) {
+          prayerFired = 'maghrib'; prayerTarget = userMin.maghrib;
           const exactMin = getExactHitMinute(userMin.maghrib);
-          payload = { title: '🕌 Maghrib Prayer', body: 'Time for Maghrib. The sun has set, time to pray.', prayer: 'maghrib', kind: 'time', targetTime: getTargetTime(exactMin) };
-          notificationKey = `maghrib-${today}`;
-        } else if (hit(userMin.isha) && allowed('isha')) {
+          await send({ title: '🕌 Maghrib Prayer', body: 'Time for Maghrib. The sun has set, time to pray.', prayer: 'maghrib', kind: 'time', targetTime: getTargetTime(exactMin) }, `maghrib-${today}`);
+        }
+        if (hit(userMin.isha) && allowed('isha')) {
+          prayerFired = 'isha'; prayerTarget = userMin.isha;
           const exactMin = getExactHitMinute(userMin.isha);
-          payload = { title: '🕌 Isha Prayer', body: 'Time for Isha. End your day with prayer and peace.', prayer: 'isha', kind: 'time', targetTime: getTargetTime(exactMin) };
-          notificationKey = `isha-${today}`;
+          await send({ title: '🕌 Isha Prayer', body: 'Time for Isha. End your day with prayer and peace.', prayer: 'isha', kind: 'time', targetTime: getTargetTime(exactMin) }, `isha-${today}`);
         }
 
         // ==========================================
-        // 4. CHECKS (Instant / 1-min safe window)
+        // 4. CHECKS (Shifts if prayer was late)
         // ==========================================
-        if (!payload && hit((userMin.fajr + 30) % 1440) && allowed('fajr')) {
-          const exactMin = getExactHitMinute((userMin.fajr + 30) % 1440);
-          payload = { title: '🕌 Fajr Check', body: 'Did you offer Fajr? Tap to log your prayer now.', prayer: 'fajr', kind: 'check', targetTime: getTargetTime(exactMin) };
-          notificationKey = `fajr-check-${today}`;
-        } else if (!payload && hit((userMin.dhuhr + 30) % 1440) && allowed('dhuhr')) {
-          const exactMin = getExactHitMinute((userMin.dhuhr + 30) % 1440);
-          payload = { title: '🕌 Dhuhr Check', body: 'Did you offer Dhuhr? Tap to log your prayer now.', prayer: 'dhuhr', kind: 'check', targetTime: getTargetTime(exactMin) };
-          notificationKey = `dhuhr-check-${today}`;
-        } else if (!payload && hit((userMin.asr + 30) % 1440) && allowed('asr')) {
-          const exactMin = getExactHitMinute((userMin.asr + 30) % 1440);
-          payload = { title: '🕌 Asr Check', body: 'Did you offer Asr? Tap to log your prayer now.', prayer: 'asr', kind: 'check', targetTime: getTargetTime(exactMin) };
-          notificationKey = `asr-check-${today}`;
-        } else if (!payload && hit((userMin.maghrib + 30) % 1440) && allowed('maghrib')) {
-          const exactMin = getExactHitMinute((userMin.maghrib + 30) % 1440);
-          payload = { title: '🕌 Maghrib Check', body: 'Did you offer Maghrib? Tap to log your prayer now.', prayer: 'maghrib', kind: 'check', targetTime: getTargetTime(exactMin) };
-          notificationKey = `maghrib-check-${today}`;
-        } else if (!payload && hit((userMin.isha + 30) % 1440) && allowed('isha')) {
-          const exactMin = getExactHitMinute((userMin.isha + 30) % 1440);
-          payload = { title: '🕌 Isha Check', body: 'Did you offer Isha? Tap to log your prayer now.', prayer: 'isha', kind: 'check', targetTime: getTargetTime(exactMin) };
-          notificationKey = `isha-check-${today}`;
+        if (prayerFired && prayerTarget !== null) {
+          const checkTarget = (prayerTarget + 30) % 1440; 
+          const checkKey = `${prayerFired}-check-${today}`;
+          const exactMin = getExactHitMinute(checkTarget);
+          await send({ title: `🕌 ${prayerFired.charAt(0).toUpperCase() + prayerFired.slice(1)} Check`, body: `Did you offer ${prayerFired}? Tap to log your prayer now.`, prayer: prayerFired, kind: 'check', targetTime: getTargetTime(exactMin) }, checkKey);
         }
 
         // ==========================================
-        // 5. ADHKAR / QURAN / BIRTHDAY (Instant / 1-min safe window)
+        // 5. ADHKAR / QURAN / BIRTHDAY
         // ==========================================
-
-        // Morning Adhkar: 07:00 AM
-        if (!payload && hit(7 * 60) && allowed('adhkar')) {
+        if (hit(7 * 60) && allowed('adhkar')) {
           const exactMin = getExactHitMinute(7 * 60);
-          payload = { title: '🌅 Morning Adhkar', body: 'Start your day with the remembrance of Allah.', targetTime: getTargetTime(exactMin) };
-          notificationKey = `morning-adhkar-${today}`;
+          await send({ title: '🌅 Morning Adhkar', body: 'Start your day with the remembrance of Allah.', targetTime: getTargetTime(exactMin) }, `morning-adhkar-${today}`);
         }
 
-        // Evening Adhkar: 18:00 (6:00 PM)
-        if (!payload && hit(18 * 60) && allowed('adhkar')) {
+        if (hit(18 * 60) && allowed('adhkar')) {
           const exactMin = getExactHitMinute(18 * 60);
-          payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) };
-          notificationKey = `evening-adhkar-${today}`;
+          await send({ title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) }, `evening-adhkar-${today}`);
         }
 
-        // Quran: 20:00 (8:00 PM)
-        if (!payload && hit(20 * 60) && allowed('quran')) {
+        if (hit(20 * 60) && allowed('quran')) {
           const exactMin = getExactHitMinute(20 * 60);
-          payload = { title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(exactMin) };
-          notificationKey = `quran-${today}`;
+          await send({ title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(exactMin) }, `quran-${today}`);
         }
 
-        // Birthday: 09:00 AM
-        if (!payload && hit(9 * 60) && settings.birthday && allowed('birthday')) {
+        if (hit(9 * 60) && settings.birthday && allowed('birthday')) {
           try {
             const [, birthdayMonth, birthdayDay] = String(settings.birthday).split('-').map(Number);
             if (birthdayMonth === local.month && birthdayDay === local.day) {
               const exactMin = getExactHitMinute(9 * 60);
-              payload = { title: '🎂 Happy Birthday', body: 'May Allah bless your year ahead. Take a moment for gratitude today.', targetTime: getTargetTime(exactMin) };
-              notificationKey = `birthday-${today}`;
+              await send({ title: '🎂 Happy Birthday', body: 'May Allah bless your year ahead. Take a moment for gratitude today.', targetTime: getTargetTime(exactMin) }, `birthday-${today}`);
             }
           } catch {}
-        }
-
-        // 9. SEND
-        if (payload && notificationKey) {
-          const delivered = await sendUserNotification(profile.user_id, payload, notificationKey);
-          if (delivered) sentCount++;
         }
 
       } catch (profileError) { }
