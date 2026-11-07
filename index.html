@@ -2514,19 +2514,13 @@
               return;
             }
 
-           if (key === 'routine-struct') {
-  const normalized = normalizeRoutineStruct(val);
-
-  if (normalized) {
-    S.routineStruct = normalized;
-
-    if (S.screen === 'routine') {
-      hydrateRoutine();
-    }
-  }
-
-  return;
-}
+            if (key === 'routine-struct') {
+              if (Array.isArray(val) && val.length) {
+                S.routineStruct = val;
+                if (S.screen === 'routine') hydrateRoutine();
+              }
+              return;
+            }
 
             if (key === 'guide-history') {
               if (!Array.isArray(val)) return;
@@ -3001,19 +2995,13 @@ latestVal = getCloudSyncValue(key, latestVal);
               return;
             }
 
-          if (key === 'routine-struct') {
-  const normalized = normalizeRoutineStruct(val);
-
-  if (normalized) {
-    S.routineStruct = normalized;
-
-    if (S.screen === 'routine') {
-      hydrateRoutine();
-    }
-  }
-
-  return;
-}
+            if (key === 'routine-struct') {
+              if (Array.isArray(val) && val.length) {
+                S.routineStruct = val;
+                if (S.screen === 'routine') hydrateRoutine();
+              }
+              return;
+            }
 
             if (key === 'guide-history') {
               if (!Array.isArray(val)) return;
@@ -5536,26 +5524,15 @@ function getCloudSyncValue(key, value) {
             const onboardingRaw = localStorage.getItem(_lsKey('onboarding-done'));
             if (onboardingRaw) S.onboardingDone = JSON.parse(onboardingRaw);
 
-           
-const routineRaw = localStorage.getItem(_lsKey('routine-struct'));
-
-if (routineRaw) {
-  try {
-    const parsed = JSON.parse(routineRaw);
-    const normalized = normalizeRoutineStruct(parsed);
-
-    if (normalized) {
-      S.routineStruct = normalized;
-    }
-  } catch (e) {
-    console.warn('Routine local cache could not be loaded:', e);
-  }
-}
-
+            const routineRaw = localStorage.getItem(_lsKey('routine-struct'));
+            if (routineRaw) {
+              const parsed = JSON.parse(routineRaw);
+              if (Array.isArray(parsed) && parsed.length) S.routineStruct = parsed;
+            }
 
             // --- CRITICAL FIX: Load ALL cached days instantly from local storage ---
-          for (let i = 0; i < localStorage.length; i++) {
-  const k = localStorage.key(i);
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
               if (k && k.includes(':day:')) {
                 const ds = k.split(':day:')[1];
                 const rawDay = localStorage.getItem(k);
@@ -5865,17 +5842,12 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             }
           });
 
-             subscribeToKey('routine-struct', (val) => {
-  const normalized = normalizeRoutineStruct(val);
-
-  if (normalized) {
-    S.routineStruct = normalized;
-
-    if (S.screen === 'routine') {
-      hydrateRoutine();
-    }
-  }
-});
+              subscribeToKey('routine-struct', (val) => {
+            if (Array.isArray(val) && val.length) {
+              S.routineStruct = val;
+              if (S.screen === 'routine') hydrateRoutine();
+            }
+          });
 
                 subscribeToKey('guide-history', (val) => {
             if (!Array.isArray(val)) return;
@@ -6448,21 +6420,16 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
                   }
                 }
 
-            if (screen === 'routine') {
-  if (
-    !S.routineStruct ||
-    !Array.isArray(S.routineStruct.data) ||
-    !S.routineStruct.data.length
-  ) {
-    const fresh = await getJSON('routine-struct');
-    const normalized = normalizeRoutineStruct(fresh);
+                if (screen === 'routine') {
+                  if (!Array.isArray(S.routineStruct) || !S.routineStruct.length) {
+                    const fresh = await getJSON('routine-struct');
+                    if (Array.isArray(fresh) && fresh.length && S.screen === 'routine') {
+                      S.routineStruct = fresh;
+                      hydrateRoutine();
+                    }
+                  }
+                }
 
-    if (normalized && S.screen === 'routine') {
-      S.routineStruct = normalized;
-      hydrateRoutine();
-    }
-  }
-}
                 if (screen === 'deenguide') {
                   if (!Array.isArray(S.guideMsgs) || !S.guideMsgs.length) {
                     const fresh = await getJSON('guide-history');
@@ -8208,29 +8175,6 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-        function normalizeRoutineStruct(value) {
-  if (Array.isArray(value) && value.length) {
-    return {
-      data: value,
-      isWeekendMode: false
-    };
-  }
-
-  if (
-    value &&
-    typeof value === 'object' &&
-    Array.isArray(value.data) &&
-    value.data.length
-  ) {
-    return {
-      data: value.data,
-      isWeekendMode: !!value.isWeekendMode
-    };
-  }
-
-  return null;
-}
-
            function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
@@ -8557,22 +8501,13 @@ const instantUpdate = async (newStruct, successMsg) => {
     _bindRoutineButtons();
   }
 
- try {
-  const saved = await setJSON(
-    'routine-struct',
-    S.routineStruct
-  );
-
-  if (saved === false) {
-    throw new Error('Routine cloud save failed');
+  try {
+    await setJSON('routine-struct', S.routineStruct);
+    if (successMsg) toast(successMsg);
+  } catch (error) {
+    console.error('Failed to save routine structure:', error);
+    toast('Failed to save routine changes.');
   }
-
-  if (successMsg) toast(successMsg);
-
-} catch (error) {
-  console.error('Failed to save routine structure:', error);
-  toast('Failed to save routine changes.');
-}
 };
 
 
