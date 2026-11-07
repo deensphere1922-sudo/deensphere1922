@@ -284,8 +284,8 @@ export default async function handler(req, res) {
         }
 
                        // Evening Adhkar: Server triggers at 10:08 exactly (No Early Send)
-        if (!payload && hit(10 * 60 + 8) && allowed('adhkar')) {
-          const exactMin = getExactHitMinute(10 * 60 + 8);
+        if (!payload && hit(10 * 60 + 10) && allowed('adhkar')) {
+          const exactMin = getExactHitMinute(10 * 60 + 10);
           payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) };
           notificationKey = `evening-adhkar-${today}`;
         }
