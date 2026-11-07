@@ -2514,9 +2514,21 @@
               return;
             }
 
-            if (key === 'routine-struct') {
-              if (Array.isArray(val) && val.length) {
+                       if (key === 'routine-struct') {
+              if (val && typeof val === 'object' && val.weekday && val.weekend) {
                 S.routineStruct = val;
+                if (S.screen === 'routine') hydrateRoutine();
+              } else if (val && typeof val === 'object' && val.data) {
+                // Legacy shape from an older device — migrate
+                const legacyData = cloneStructure(val.data);
+                if (val.isWeekendMode) {
+                  S.routineStruct = { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData };
+                } else {
+                  S.routineStruct = { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
+                }
+                if (S.screen === 'routine') hydrateRoutine();
+              } else if (Array.isArray(val) && val.length) {
+                S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
                 if (S.screen === 'routine') hydrateRoutine();
               }
               return;
@@ -5620,12 +5632,30 @@ function getCloudSyncValue(key, value) {
           const deletedItems = await getJSON('deleted-routine-items');
           S.deletedRoutineItems = Array.isArray(deletedItems) ? deletedItems : [];
 
-// ✅ FIX: Correctly load the saved routine structure (which includes the isWeekendMode flag)
-if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
+// ✅ Load routine structure — supports new {weekday, weekend} shape,
+//    legacy {data, isWeekendMode} shape, and plain arrays.
+if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday && routineStruct.weekend) {
   S.routineStruct = routineStruct;
+} else if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
+  // Legacy shape → migrate into new weekday/weekend shape
+  const legacyData = cloneStructure(routineStruct.data);
+  if (routineStruct.isWeekendMode) {
+    S.routineStruct = {
+      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
+      weekend: legacyData
+    };
+  } else {
+    S.routineStruct = {
+      weekday: legacyData,
+      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
+    };
+  }
 } else if (Array.isArray(routineStruct) && routineStruct.length) {
-  // Fallback for older saves that were just arrays
-  S.routineStruct = { data: routineStruct, isWeekendMode: false };
+  // Very old shape: plain array → treat as weekday
+  S.routineStruct = {
+    weekday: cloneStructure(routineStruct),
+    weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
+  };
 } else {
   S.routineStruct = null;
 }
@@ -5842,9 +5872,20 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             }
           });
 
-              subscribeToKey('routine-struct', (val) => {
-            if (Array.isArray(val) && val.length) {
+                         subscribeToKey('routine-struct', (val) => {
+            if (val && typeof val === 'object' && val.weekday && val.weekend) {
               S.routineStruct = val;
+              if (S.screen === 'routine') hydrateRoutine();
+            } else if (val && typeof val === 'object' && val.data) {
+              const legacyData = cloneStructure(val.data);
+              if (val.isWeekendMode) {
+                S.routineStruct = { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData };
+              } else {
+                S.routineStruct = { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
+              }
+              if (S.screen === 'routine') hydrateRoutine();
+            } else if (Array.isArray(val) && val.length) {
+              S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
               if (S.screen === 'routine') hydrateRoutine();
             }
           });
@@ -6420,12 +6461,28 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
                   }
                 }
 
-                if (screen === 'routine') {
-                  if (!Array.isArray(S.routineStruct) || !S.routineStruct.length) {
+                             if (screen === 'routine') {
+                  const hasStruct = S.routineStruct && (
+                    (S.routineStruct.weekday && S.routineStruct.weekend) ||
+                    S.routineStruct.data ||
+                    (Array.isArray(S.routineStruct) && S.routineStruct.length)
+                  );
+                  if (!hasStruct) {
                     const fresh = await getJSON('routine-struct');
-                    if (Array.isArray(fresh) && fresh.length && S.screen === 'routine') {
-                      S.routineStruct = fresh;
-                      hydrateRoutine();
+                    if (fresh && S.screen === 'routine') {
+                      if (fresh.weekday && fresh.weekend) {
+                        S.routineStruct = fresh;
+                        hydrateRoutine();
+                      } else if (fresh.data) {
+                        const legacyData = cloneStructure(fresh.data);
+                        S.routineStruct = fresh.isWeekendMode
+                          ? { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData }
+                          : { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
+                        hydrateRoutine();
+                      } else if (Array.isArray(fresh) && fresh.length) {
+                        S.routineStruct = { weekday: cloneStructure(fresh), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
+                        hydrateRoutine();
+                      }
                     }
                   }
                 }
@@ -8175,11 +8232,11 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-           function getRoutineStruct(d) {
+      function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
-  
+
   let isHoliday;
   if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
     isHoliday = S.settings.holidayDates[dateKey];
@@ -8187,24 +8244,28 @@ function repaintRoutineFromCache(ds) {
     isHoliday = isWeekendDay;
   }
 
-  // Start with the saved routine, or default if none
+  // Pick the correct stored routine for this day type.
+  // S.routineStruct now holds BOTH: { weekday: [...], weekend: [...] }
   let baseStruct;
-  if (S.routineStruct && S.routineStruct.isWeekendMode === isHoliday) {
-    baseStruct = S.routineStruct.data;
+  if (S.routineStruct && S.routineStruct.weekday && S.routineStruct.weekend) {
+    baseStruct = isHoliday ? S.routineStruct.weekend : S.routineStruct.weekday;
   } else {
     baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
   }
 
-  // ✅ FILTER OUT DELETED ITEMS
-  // We map through sections, and filter out items that are in S.deletedRoutineItems
+  if (!Array.isArray(baseStruct)) {
+    baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
+  }
+
+  // Filter out deleted items
   return baseStruct.map(section => {
     const [secKey, secLabel, items] = section;
-    const filteredItems = items.filter(item => {
+    const filteredItems = (items || []).filter(item => {
       const itemKey = item[0];
       return !S.deletedRoutineItems.includes(itemKey);
     });
     return [secKey, secLabel, filteredItems];
-  }).filter(section => section[2].length > 0); // Optional: hide sections if they become empty
+  }).filter(section => section[2].length > 0);
 }
 
         function cloneDefaultRoutine(d) {
@@ -8237,26 +8298,38 @@ function repaintRoutineFromCache(ds) {
   );
 }
 
-     async function saveRoutineStruct(struct) {
-    const viewDate = S.routineViewDate ? new Date(S.routineViewDate + 'T12:00:00') : new Date();
-    const dateKey = dateStr(viewDate);
-    const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
-    
-    let isHoliday;
-    if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-      isHoliday = S.settings.holidayDates[dateKey];
-    } else {
-      isHoliday = isWeekendDay;
-    }
+  function cloneStructure(struct) {
+  return (struct || []).map(([k, l, items]) => [k, l, (items || []).map(([ik, il]) => [ik, il])]);
+}
 
-    const structToSave = {
-      data: struct,
-      isWeekendMode: isHoliday
-    };
+async function saveRoutineStruct(struct) {
+  const viewDate = S.routineViewDate ? new Date(S.routineViewDate + 'T12:00:00') : new Date();
+  const dateKey = dateStr(viewDate);
+  const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
 
-    S.routineStruct = structToSave;
-    await setJSON('routine-struct', structToSave);
+  let isHoliday;
+  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
+    isHoliday = S.settings.holidayDates[dateKey];
+  } else {
+    isHoliday = isWeekendDay;
   }
+
+  // Keep a stable object holding BOTH weekday and weekend structures.
+  if (!S.routineStruct || !S.routineStruct.weekday || !S.routineStruct.weekend) {
+    S.routineStruct = {
+      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
+      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
+    };
+  }
+
+  if (isHoliday) {
+    S.routineStruct.weekend = cloneStructure(struct);
+  } else {
+    S.routineStruct.weekday = cloneStructure(struct);
+  }
+
+  await setJSON('routine-struct', S.routineStruct);
+}
 
       /* Synchronous Routine body builder — reads only from S.dayCache so the very
       first paint is fully populated. hydrateRoutine() reuses this exact builder
@@ -8469,12 +8542,8 @@ function renderRoutine() {
     const ds = S.routineViewDate || dateStr(new Date());
 
  
-
 const instantUpdate = async (newStruct, successMsg) => {
   const viewDate = S.routineViewDate || dateStr(new Date());
-  const today = dateStr(new Date());
-
-  // ✅ ALLOW EDITING PAST DAYS so you never lose your data
 
   const selectedDate = new Date(viewDate + 'T12:00:00');
   const dateKey = dateStr(selectedDate);
@@ -8486,10 +8555,20 @@ const instantUpdate = async (newStruct, successMsg) => {
       ? S.settings.holidayDates[dateKey]
       : isWeekendDay;
 
-  S.routineStruct = {
-    data: newStruct,
-    isWeekendMode: isHoliday
-  };
+  // Ensure both buckets exist
+  if (!S.routineStruct || !S.routineStruct.weekday || !S.routineStruct.weekend) {
+    S.routineStruct = {
+      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
+      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
+    };
+  }
+
+  // Save only to the bucket that matches the current day type
+  if (isHoliday) {
+    S.routineStruct.weekend = cloneStructure(newStruct);
+  } else {
+    S.routineStruct.weekday = cloneStructure(newStruct);
+  }
 
   const body = document.getElementById('routine-body');
 
@@ -12467,14 +12546,15 @@ function syncNotificationUI() {
             <div class="checkrow"><span class="rowtitle" style="flex:1">Calculation method</span><span class="rowsub">${CALC_METHODS[s.calcMethod].label}</span></div>
             <div class="checkrow"><span class="rowtitle" style="flex:1">Asr method</span><span class="rowsub">${s.asrMethod === 'hanafi' ? 'Hanafi' : 'Standard'}</span></div>
             
-            <!-- NEW HOLIDAY TOGGLE -->
+                      <!-- NEW HOLIDAY TOGGLE -->
                                  <div class="checkrow">
               <span class="rowtitle" style="flex:1">Holiday Mode (Weekend Routine)</span>
               <button class="chk ${(() => {
-                const targetDate = (S.screen === 'routine' && S.routineViewDate) ? S.routineViewDate : dateStr(new Date());
-                const isWeekend = new Date(targetDate + 'T12:00:00').getDay() === 0 || new Date(targetDate + 'T12:00:00').getDay() === 6;
-                if (s.holidayDates && s.holidayDates[targetDate] !== undefined) {
-                  return s.holidayDates[targetDate] ? 'done' : '';
+                // STRICTLY LOOK AT TODAY'S REAL DATE FOR THE VISUAL TICK
+                const todayStr = dateStr(new Date());
+                const isWeekend = new Date(todayStr + 'T12:00:00').getDay() === 0 || new Date(todayStr + 'T12:00:00').getDay() === 6;
+                if (s.holidayDates && s.holidayDates[todayStr] !== undefined) {
+                  return s.holidayDates[todayStr] ? 'done' : '';
                 }
                 return isWeekend ? 'done' : '';
               })()}" data-toggle-holiday></button>
@@ -12833,7 +12913,7 @@ $$('[data-notif]').forEach(b => {
   };
 });
 
-          // ---- Auto-location toggle (instant tick, background save) ----
+                  // ---- Auto-location toggle (instant tick, background save) ----
           const autoLocToggle = $('[data-toggle-auto-loc]');
           if (autoLocToggle) {
             autoLocToggle.onclick = (e) => {
@@ -12851,6 +12931,48 @@ $$('[data-notif]').forEach(b => {
               toast(nextVal
                 ? 'Auto-update ON — location will sync automatically.'
                 : 'Auto-update OFF — using manual location.');
+            };
+          }
+
+               // ---- Holiday Mode toggle (date-specific, syncs routine) ----
+          const holidayToggle = $('[data-toggle-holiday]');
+          if (holidayToggle) {
+            holidayToggle.onclick = async (e) => {
+              e.preventDefault();
+              if (holidayToggle.dataset.busy === '1') return;
+              holidayToggle.dataset.busy = '1';
+              setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
+
+              // Toggle TODAY'S date
+              const targetDate = dateStr(new Date());
+
+              const targetDay = new Date(targetDate + 'T12:00:00');
+              const isWeekendDay =
+                targetDay.getDay() === 0 || targetDay.getDay() === 6;
+
+              let currentIsHoliday;
+              if (S.settings.holidayDates && S.settings.holidayDates[targetDate] !== undefined) {
+                currentIsHoliday = S.settings.holidayDates[targetDate];
+              } else {
+                currentIsHoliday = isWeekendDay;
+              }
+
+              const nextIsHoliday = !currentIsHoliday;
+
+              if (!S.settings.holidayDates) S.settings.holidayDates = {};
+              S.settings.holidayDates[targetDate] = nextIsHoliday;
+
+              holidayToggle.classList.toggle('done', nextIsHoliday);
+              setJSON('settings', S.settings).catch(() => {});
+
+              // If currently viewing today on Routine, re-render immediately
+              if (S.screen === 'routine' && (S.routineViewDate || dateStr(new Date())) === targetDate) {
+                render();
+              }
+
+              toast(nextIsHoliday
+                ? 'Holiday Mode ON for today.'
+                : 'Holiday Mode OFF for today.');
             };
           }
 
