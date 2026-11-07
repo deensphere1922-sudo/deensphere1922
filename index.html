@@ -3037,11 +3037,13 @@ latestVal = getCloudSyncValue(key, latestVal);
               return;
             }
 
-            if (key === 'settings') {
+                      if (key === 'settings') {
               if (val) {
                S.settings = applyDeviceNotifSettings(val);
                 applyArabicSize(val.arabicFontSize);
-                if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) render();
+                if (S.screen === 'routine' || ['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) {
+                  render();
+                }
               }
               return;
             }
@@ -5917,11 +5919,10 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
            S.settings = applyDeviceNotifSettings(val);
               applyArabicSize(val.arabicFontSize);
 
-              // Mirror the fast-broadcast handler: the Routine screen must
-              // repaint in place so the Holiday Mode / Weekend routine swap is
-              // visible instantly on the receiving device.
+                           // Full re-render so BOTH the sticky Holiday Mode toggle and the
+              // routine body reflect the remote weekday↔weekend swap.
               if (S.screen === 'routine') {
-                hydrateRoutine();
+                render();
               } else if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) {
                 render();
               }
@@ -8232,22 +8233,26 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-      function getRoutineStruct(d) {
+           function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
 
+  // Effective Holiday Mode for this specific date.
+  // - If the user has explicitly saved a value for this date, honour it.
+  // - Otherwise fall back to the natural weekday/weekend default.
+  // A weekday with no explicit entry is NEVER treated as holiday.
   let isHoliday;
   if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-    isHoliday = S.settings.holidayDates[dateKey];
+    isHoliday = S.settings.holidayDates[dateKey] === true;
   } else {
     isHoliday = isWeekendDay;
   }
 
   // Pick the correct stored routine for this day type.
-  // S.routineStruct now holds BOTH: { weekday: [...], weekend: [...] }
+  // S.routineStruct holds BOTH: { weekday: [...], weekend: [...] }
   let baseStruct;
-  if (S.routineStruct && S.routineStruct.weekday && S.routineStruct.weekend) {
+  if (S.routineStruct && Array.isArray(S.routineStruct.weekday) && Array.isArray(S.routineStruct.weekend)) {
     baseStruct = isHoliday ? S.routineStruct.weekend : S.routineStruct.weekday;
   } else {
     baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
@@ -8268,36 +8273,25 @@ function repaintRoutineFromCache(ds) {
   }).filter(section => section[2].length > 0);
 }
 
-        function cloneDefaultRoutine(d) {
+                     function cloneDefaultRoutine(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
-  
+
   let isHoliday;
   if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-    isHoliday = S.settings.holidayDates[dateKey];
+    isHoliday = S.settings.holidayDates[dateKey] === true;
   } else {
     isHoliday = isWeekendDay;
   }
-  
-  let base;
-  if (isHoliday) {
-    base = [
-      ROUTINE_STRUCT_WEEKEND[0],
-      ROUTINE_STRUCT_WEEKEND[1],
-      ROUTINE_STRUCT_WEEKEND[2],
-      ROUTINE_STRUCT_WEEKEND[3]
-    ];
-  } else {
-    base = ROUTINE_STRUCT_DEFAULT;
-  }
+
+  const base = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
 
   // Deep clone it so we don't modify the original arrays
   return base.map(([key, label, items]) =>
     [key, label, items.map(([ik, il]) => [ik, il])]
   );
 }
-
   function cloneStructure(struct) {
   return (struct || []).map(([k, l, items]) => [k, l, (items || []).map(([ik, il]) => [ik, il])]);
 }
@@ -8415,6 +8409,14 @@ function renderRoutine() {
     sessionStorage.setItem('deenSphereRoutineViewDate', viewDate);
   } catch (e) {}
 
+  // Effective Holiday Mode for the SELECTED date (independent of today's Settings checkbox).
+  const viewDateObj = new Date(viewDate + 'T12:00:00');
+  const isWeekendDay = viewDateObj.getDay() === 0 || viewDateObj.getDay() === 6;
+  const selectedDateHoliday =
+    (S.settings && S.settings.holidayDates && S.settings.holidayDates[viewDate] !== undefined)
+      ? S.settings.holidayDates[viewDate] === true
+      : isWeekendDay;
+
   const cachedDay = S.dayCache[viewDate] || null;
 
   return `
@@ -8438,8 +8440,8 @@ function renderRoutine() {
       </div>
     </div>
 
-    <div class="routine-fixed-top">
-      <div class="card" style="margin-bottom:0;">
+             <div class="routine-fixed-top">
+      <div class="card" style="margin-bottom:0; padding: 14px 16px;">
         <label class="rowsub" style="display:block;margin-bottom:6px;">
           View / edit a specific day
         </label>
@@ -8448,8 +8450,15 @@ function renderRoutine() {
           id="routine-date"
           value="${viewDate}"
           max="${today}"
-          style="width:100%;"
+          style="width:100%; margin-bottom: 6px;"
         >
+        <div class="checkrow" style="padding: 8px 0 2px 0; border-bottom:none; ${isPast && !isEditing ? 'opacity:0.55; filter:grayscale(100%); pointer-events:none;' : ''}">
+          <div style="flex:1; min-width:0;">
+            <div class="rowtitle" style="font-size:14.5px; ${isPast && !isEditing ? 'color:var(--tx2);' : ''}">Holiday Mode</div>
+            <div class="rowsub" style="margin-top:2px;">${selectedDateHoliday ? 'Weekend Routine for this date' : 'Weekday Routine for this date'}</div>
+          </div>
+          <button class="chk ${selectedDateHoliday ? 'done' : ''}" id="routine-holiday-toggle" ${isPast && !isEditing ? 'disabled' : ''}></button>
+        </div>
       </div>
     </div>
 
@@ -8507,6 +8516,63 @@ function renderRoutine() {
         };
       }
 
+            // HOLIDAY MODE TOGGLE (per selected date — independent of today's Settings checkbox)
+      const holidayToggle = $('#routine-holiday-toggle');
+          if (holidayToggle) {
+        holidayToggle.onclick = async (e) => {
+          e.preventDefault();
+          
+          // Prevent changing holiday mode if viewing a past day unless in Edit Mode
+          const isPast = (S.routineViewDate || today) < today;
+          const isEditing = S.routineEditModeDate === (S.routineViewDate || today);
+          if (isPast && !isEditing) {
+            toast('Click Edit Mode to change a past day.');
+            return;
+          }
+
+          if (holidayToggle.dataset.busy === '1') return;
+          holidayToggle.dataset.busy = '1';
+          setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
+
+          const targetDate = S.routineViewDate || dateStr(new Date());
+          const targetDay = new Date(targetDate + 'T12:00:00');
+          const isWeekendDay = targetDay.getDay() === 0 || targetDay.getDay() === 6;
+
+          let currentIsHoliday;
+          if (S.settings.holidayDates && S.settings.holidayDates[targetDate] !== undefined) {
+            currentIsHoliday = S.settings.holidayDates[targetDate] === true;
+          } else {
+            currentIsHoliday = isWeekendDay;
+          }
+
+          const nextIsHoliday = !currentIsHoliday;
+
+          if (!S.settings.holidayDates) S.settings.holidayDates = {};
+          S.settings.holidayDates[targetDate] = nextIsHoliday;
+
+          holidayToggle.classList.toggle('done', nextIsHoliday);
+
+          const sub = holidayToggle.closest('.checkrow')?.querySelector('.rowsub');
+          if (sub) sub.textContent = nextIsHoliday
+            ? 'Weekend Routine for this date'
+            : 'Weekday Routine for this date';
+
+          setJSON('settings', S.settings).catch(() => {});
+
+          // Rebuild the routine body so the correct structure shows instantly.
+          const dsNow = S.routineViewDate || dateStr(new Date());
+          const body = document.getElementById('routine-body');
+          if (body) {
+            body.innerHTML = _buildRoutineBodyHTML(dsNow, S.dayCache[dsNow] || null);
+            _bindRoutineButtons();
+          }
+
+          toast(nextIsHoliday
+            ? 'Holiday Mode ON for ' + new Date(targetDate + 'T00:00:00').toDateString()
+            : 'Holiday Mode OFF for ' + new Date(targetDate + 'T00:00:00').toDateString());
+        };
+      }
+
       // EDIT MODE / VIEW MODE BUTTON
       const editToggle = $('#routine-edit-toggle');
 
@@ -8550,20 +8616,21 @@ const instantUpdate = async (newStruct, successMsg) => {
   const isWeekendDay =
     selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
 
+  // CRITICAL FIX: Check if the date is ACTUALLY a holiday, or just a weekend.
   const isHoliday =
     S.settings?.holidayDates?.[dateKey] !== undefined
-      ? S.settings.holidayDates[dateKey]
+      ? S.settings.holidayDates[dateKey] === true
       : isWeekendDay;
 
   // Ensure both buckets exist
-  if (!S.routineStruct || !S.routineStruct.weekday || !S.routineStruct.weekend) {
+  if (!S.routineStruct || !Array.isArray(S.routineStruct.weekday) || !Array.isArray(S.routineStruct.weekend)) {
     S.routineStruct = {
       weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
       weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
     };
   }
 
-  // Save only to the bucket that matches the current day type
+  // Save ONLY to the correct bucket based on the selected date's mode
   if (isHoliday) {
     S.routineStruct.weekend = cloneStructure(newStruct);
   } else {
@@ -8759,19 +8826,27 @@ const instantUpdate = async (newStruct, successMsg) => {
       instantUpdate(st, 'Section added.');
     };
 
-    // ---- Reset routine ----
+       // ---- Reset routine ----
     const rst = $('#routine-reset');
     if (rst) rst.onclick = async (e) => {
       e.preventDefault();
       if (!confirm('Reset the routine back to the default set of sections and items?')) return;
-      
-      const st = cloneDefaultRoutine();
+
+      // Reset must use the SELECTED date's mode, not today's.
+      const viewDate = S.routineViewDate
+        ? new Date(S.routineViewDate + 'T12:00:00')
+        : new Date();
+      const st = cloneDefaultRoutine(viewDate);
       instantUpdate(st, 'Routine reset to default.');
     };
   }
 
-      function cloneRoutineStruct() {
-  const raw = getRoutineStruct();
+             function cloneRoutineStruct() {
+  // CRITICAL FIX: Clone the structure for the DATE BEING VIEWED, not today.
+  const viewDate = S.routineViewDate
+    ? new Date(S.routineViewDate + 'T12:00:00')
+    : new Date();
+  const raw = getRoutineStruct(viewDate);
   return raw.map(([k, l, items]) => [k, l, items.map(([ik, il]) => [ik, il])]);
 }
 
@@ -12547,20 +12622,7 @@ function syncNotificationUI() {
             <div class="checkrow"><span class="rowtitle" style="flex:1">Asr method</span><span class="rowsub">${s.asrMethod === 'hanafi' ? 'Hanafi' : 'Standard'}</span></div>
             
                       <!-- NEW HOLIDAY TOGGLE -->
-                                 <div class="checkrow">
-              <span class="rowtitle" style="flex:1">Holiday Mode (Weekend Routine)</span>
-              <button class="chk ${(() => {
-                // STRICTLY LOOK AT TODAY'S REAL DATE FOR THE VISUAL TICK
-                const todayStr = dateStr(new Date());
-                const isWeekend = new Date(todayStr + 'T12:00:00').getDay() === 0 || new Date(todayStr + 'T12:00:00').getDay() === 6;
-                if (s.holidayDates && s.holidayDates[todayStr] !== undefined) {
-                  return s.holidayDates[todayStr] ? 'done' : '';
-                }
-                return isWeekend ? 'done' : '';
-              })()}" data-toggle-holiday></button>
-            </div>
-
-            <button class="btn btn-ghost btn-block" style="margin-top:12px;" data-nav="setup-location">Change prayer settings</button>
+                                                                 <button class="btn btn-ghost btn-block" style="margin-top:12px;" data-nav="setup-location">Change prayer settings</button>
           </div>
         </section>
 
@@ -12934,47 +12996,7 @@ $$('[data-notif]').forEach(b => {
             };
           }
 
-               // ---- Holiday Mode toggle (date-specific, syncs routine) ----
-          const holidayToggle = $('[data-toggle-holiday]');
-          if (holidayToggle) {
-            holidayToggle.onclick = async (e) => {
-              e.preventDefault();
-              if (holidayToggle.dataset.busy === '1') return;
-              holidayToggle.dataset.busy = '1';
-              setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
-
-              // Toggle TODAY'S date
-              const targetDate = dateStr(new Date());
-
-              const targetDay = new Date(targetDate + 'T12:00:00');
-              const isWeekendDay =
-                targetDay.getDay() === 0 || targetDay.getDay() === 6;
-
-              let currentIsHoliday;
-              if (S.settings.holidayDates && S.settings.holidayDates[targetDate] !== undefined) {
-                currentIsHoliday = S.settings.holidayDates[targetDate];
-              } else {
-                currentIsHoliday = isWeekendDay;
-              }
-
-              const nextIsHoliday = !currentIsHoliday;
-
-              if (!S.settings.holidayDates) S.settings.holidayDates = {};
-              S.settings.holidayDates[targetDate] = nextIsHoliday;
-
-              holidayToggle.classList.toggle('done', nextIsHoliday);
-              setJSON('settings', S.settings).catch(() => {});
-
-              // If currently viewing today on Routine, re-render immediately
-              if (S.screen === 'routine' && (S.routineViewDate || dateStr(new Date())) === targetDate) {
-                render();
-              }
-
-              toast(nextIsHoliday
-                ? 'Holiday Mode ON for today.'
-                : 'Holiday Mode OFF for today.');
-            };
-          }
+            
 
           // ---- Arabic font size buttons (instant, no re-render) ----
           $$('[data-fontsz]').forEach(b => {
