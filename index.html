@@ -13107,20 +13107,18 @@ if (autoLocToggle) {
       console.warn('Could not save auto-location setting:', err);
     });
 
-  if (nextVal) {
+if (nextVal) {
   // Turning auto-update ON → clear the once-per-session flag so GPS can
   // run one time now, show one toast, then stay silent for the rest of
-  // the session.
+  // the session. Fires immediately (0 s), not after 3 s.
   try {
     sessionStorage.removeItem('__gpsRunDone');
     sessionStorage.removeItem('__gpsToastShown');
   } catch (e) {}
 
-  setTimeout(() => {
-    if (S.settings.autoLocation === true) {
-      autoUpdateLocation();
-    }
-  }, 3000);
+  if (S.settings.autoLocation === true) {
+    autoUpdateLocation();
+  }
 } else {
   toast('Auto-update OFF — using manual location.');
 }
@@ -13711,11 +13709,14 @@ if (autoLocToggle) {
         /* ============================= SCREEN ACTION BINDER ============================= */
         function bindScreenActions(s) {
           try {
-        if (s === 'home') {
+      if (s === 'home') {
   subscribeToCurrentDay();
   hydrateHome();
-  // GPS no longer re-fires on every Home mount. It runs once per app
-  // session from startup; the sessionStorage guard prevents repeats.
+
+  // Run GPS IMMEDIATELY on Home mount — no 3-second delay.
+  if (S.settings?.autoLocation === true) {
+    autoUpdateLocation();
+  }
 }
             else if (s === 'salah') { subscribeToCurrentDay(); hydrateSalahPage(); }
             else if (s === 'routine') { subscribeToCurrentDay(); hydrateRoutine(); }
