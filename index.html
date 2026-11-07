@@ -2231,7 +2231,19 @@
           s -= m * 60; 
           return pad(h) + ':' + pad(m) + ':' + pad(s); 
         }
-        function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
+      function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
+
+// Show a toast at most ONCE EVER on this device (per account).
+// After the first call, every future call is a no-op.
+function toastOnceEver(key, msg) {
+  const uid = (window.sb && window.__sbUid) || 'guest';
+  const storageKey = 'toastOnce:' + uid + ':' + key;
+  try {
+    if (localStorage.getItem(storageKey) === '1') return;
+    localStorage.setItem(storageKey, '1');
+  } catch (e) {}
+  toast(msg);
+}
         function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
         function togglePass(id, btn) {
@@ -7181,24 +7193,21 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
   }
 }
 
-let autoLocationTimer = null;
-let autoLocationRequestId = 0;
           
 // --- AUTO LOCATION UPDATER ---
-async function autoUpdateLocation(showToast = false, requestId = null) {
-  if (!S.settings || S.settings.autoLocation !== true) return;
-  if (!S.settings.setupDone || !S.profile) return;
+// GPS + location sync runs normally every time it is called.
+// The confirmation toast is shown ONCE EVER on this device (per account),
+// then never again. Location / prayer times still update silently forever.
+async function autoUpdateLocation() {
+  // OFF means absolutely no GPS access.
+  if (!S.settings || !S.settings.setupDone || !S.profile) return;
+  if (S.settings.autoLocation !== true) return;
   if (!navigator.geolocation) return;
-
-  const requestIsValid = () =>
-    S.settings?.autoLocation === true &&
-    (requestId === null || requestId === autoLocationRequestId);
-
-  if (!requestIsValid()) return;
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
-      if (!requestIsValid()) return;
+      // Check again in case the user switched it OFF while GPS was running.
+      if (!S.settings || S.settings.autoLocation !== true) return;
 
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
@@ -7209,13 +7218,12 @@ async function autoUpdateLocation(showToast = false, requestId = null) {
           { headers: { 'Accept-Language': 'en' } }
         );
 
-        if (!resp.ok || !requestIsValid()) return;
+        if (!resp.ok) return;
 
         const data = await resp.json();
-        if (!data?.address || !requestIsValid()) return;
+        if (!data || !data.address) return;
 
         const address = data.address;
-
         const city =
           address.city ||
           address.town ||
@@ -7226,11 +7234,39 @@ async function autoUpdateLocation(showToast = false, requestId = null) {
 
         if (!city) return;
 
+        // Check the switch again before saving.
+        if (!S.settings || S.settings.autoLocation !== true) return;
+
+        const currentLocation = S.settings.location || {};
+        const currentCity = (currentLocation.city || currentLocation.label || '')
+          .split(',')[0]
+          .trim();
+
         const country = address.country || '';
         const locationLabel = [city, country].filter(Boolean).join(', ');
-        const currentLocation = S.settings.location || {};
 
-        // Save the latest GPS location, even if the city is unchanged.
+        // If the city has not changed, quietly keep the saved coordinates fresh.
+        if (city.toLowerCase() === currentCity.toLowerCase()) {
+          S.settings.location = {
+            ...currentLocation,
+            lat,
+            lng,
+            city,
+            label: locationLabel
+          };
+
+          await setJSON('settings', S.settings);
+          syncPrayerTimesToSW();
+
+          if (S.screen === 'home') {
+            hydrateHome();
+          } else if (S.screen === 'settings') {
+            render();
+          }
+          return;
+        }
+
+        // City actually changed → update, repaint, and confirm (once ever).
         S.settings.location = {
           ...currentLocation,
           lat,
@@ -7239,14 +7275,13 @@ async function autoUpdateLocation(showToast = false, requestId = null) {
           label: locationLabel
         };
 
-        if (!requestIsValid()) return;
-
         await setJSON('settings', S.settings);
-
-        if (!requestIsValid()) return;
-
-        // Update prayer calculations and service worker.
         syncPrayerTimesToSW();
+
+        const homeLocation = document.getElementById('home-location');
+        if (homeLocation) {
+          homeLocation.textContent = locationLabel;
+        }
 
         if (S.screen === 'home') {
           hydrateHome();
@@ -7254,11 +7289,11 @@ async function autoUpdateLocation(showToast = false, requestId = null) {
           render();
         }
 
-        // Only the explicit ON action can show this toast.
-        if (showToast) {
-          toast(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
-        }
-
+        // 🔒 Toast appears ONCE EVER on this device (per account).
+        toastOnceEver(
+          'gps-location-synced',
+          `📍 GPS Synced: Your location is now set to ${locationLabel}`
+        );
       } catch (err) {
         console.warn('Auto location fetch failed:', err);
       }
@@ -7384,10 +7419,7 @@ async function autoUpdateLocation(showToast = false, requestId = null) {
   await setJSON('settings', S.settings);
   syncPrayerTimesToSW();             
   
-  // SHOW A DIFFERENT TOAST FOR MANUAL CHANGES
-  if (locationChanged) {
-      toast(`📍 Location manually updated to ${label}`);
-  }
+  // Manual location changes are silent — no toast.
 
   // Direct the user back to the correct screen
   if (S.settings.setupDone) {
@@ -7581,7 +7613,17 @@ async function autoUpdateLocation(showToast = false, requestId = null) {
               const k = localStorage.key(i);
               if (k && (k.startsWith(prefix) || k === 'profile')) rm.push(k);
             }
-            rm.forEach(k => localStorage.removeItem(k));
+          rm.forEach(k => localStorage.removeItem(k));
+
+// Reset one-time toast flags so the next login gets its own single GPS toast.
+try {
+  const onceKeys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith('toastOnce:')) onceKeys.push(k);
+  }
+  onceKeys.forEach(k => localStorage.removeItem(k));
+} catch (e) {}
           } catch (e) { }
 
           // Clear the in-session "last screen" tracker so a fresh app launch
@@ -13041,7 +13083,6 @@ $$('[data-notif]').forEach(b => {
 
             // ---- Auto-location toggle ----
 // ---- Auto-location toggle ----
-// ---- Auto-location toggle ----
 const autoLocToggle = $('[data-toggle-auto-loc]');
 
 if (autoLocToggle) {
@@ -13057,38 +13098,24 @@ if (autoLocToggle) {
     }, 300);
 
     const nextVal = S.settings.autoLocation !== true;
-
     S.settings.autoLocation = nextVal;
+
     autoLocToggle.classList.toggle('done', nextVal);
-
-    // Cancel any previously scheduled GPS lookup.
-    clearTimeout(autoLocationTimer);
-    autoLocationTimer = null;
-
-    // Invalidate any previous GPS request.
-    autoLocationRequestId++;
 
     setJSON('settings', S.settings).catch(err => {
       console.warn('Could not save auto-location setting:', err);
     });
 
-    if (!nextVal) {
-      // OFF: retain manual location and do not start GPS.
+    if (nextVal) {
+      // Start GPS automatically after 3 seconds.
+      setTimeout(() => {
+        if (S.settings.autoLocation === true) {
+          autoUpdateLocation();
+        }
+      }, 3000);
+    } else {
       toast('Auto-update OFF — using manual location.');
-      return;
     }
-
-    // ON: start one GPS lookup after 3 seconds.
-    const requestId = autoLocationRequestId;
-
-    autoLocationTimer = setTimeout(() => {
-      if (
-        S.settings.autoLocation === true &&
-        requestId === autoLocationRequestId
-      ) {
-        autoUpdateLocation(true, requestId);
-      }
-    }, 3000);
   };
 }
 
@@ -13676,16 +13703,10 @@ if (autoLocToggle) {
         /* ============================= SCREEN ACTION BINDER ============================= */
         function bindScreenActions(s) {
           try {
-           if (s === 'home') {
+         if (s === 'home') {
   subscribeToCurrentDay();
   hydrateHome();
-
-  // Run GPS auto-update within 3 seconds of opening Home.
-  setTimeout(() => {
-    if (S.screen === 'home' && S.settings?.autoLocation === true) {
-      autoUpdateLocation();
-    }
-  }, 3000);
+  // GPS no longer re-fires on every Home mount — startup handles it once.
 }
             else if (s === 'salah') { subscribeToCurrentDay(); hydrateSalahPage(); }
             else if (s === 'routine') { subscribeToCurrentDay(); hydrateRoutine(); }
