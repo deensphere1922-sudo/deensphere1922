@@ -7213,7 +7213,7 @@ async function autoUpdateLocation() {
         // No update or toast if the city has not changed.
         if (city.toLowerCase() === currentCity.toLowerCase()) return;
 
-       const country = address.country || '';
+    const country = address.country || '';
 const locationLabel = [city, country].filter(Boolean).join(', ');
 
 S.settings.location = {
@@ -7224,17 +7224,22 @@ S.settings.location = {
   label: locationLabel
 };
 
-        await setJSON('settings', S.settings);
-        syncPrayerTimesToSW();
+await setJSON('settings', S.settings);
+syncPrayerTimesToSW();
 
-        // Refresh the visible screen immediately.
-        if (S.screen === 'home') {
-          hydrateHome();
-        } else if (S.screen === 'settings') {
-          render();
-        }
+// Update the location text immediately on Home.
+const homeLocation = document.getElementById('home-location');
+if (homeLocation) {
+  homeLocation.textContent = locationLabel;
+}
 
-       toast(`📍 GPS Synced: Your location is now set to ${city}, India`);
+if (S.screen === 'home') {
+  hydrateHome();
+} else if (S.screen === 'settings') {
+  render();
+}
+
+toast(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
 
       } catch (err) {
         console.warn('Auto location fetch failed:', err);
@@ -7924,7 +7929,7 @@ function _calculateQuranReadStats(targetDateStr) {
               <div class="divider"></div>
               <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx3);gap:8px;">
                 <span style="white-space:nowrap;">Previous: ${info.prev ? info.prev.label : '\u2014'}</span>
-                <span style="flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(S.settings.location.label)}</span>
+              <span id="home-location" style="flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(S.settings.location.label)}</span>
                 <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;text-align:right;">${CALC_METHODS[S.settings.calcMethod].label}</span>
               </div>
               </div>
