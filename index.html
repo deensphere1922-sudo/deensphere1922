@@ -13980,41 +13980,56 @@ if (nextVal) {
             subscribeToCurrentDay(true);
           }
 
-                        if (user && S.settings && S.settings.setupDone) {
-            const restored = readLastScreen();
-            // Pre-load today's day + the full week BEFORE the very first render
-            // so the Home/Tracker screens appear fully populated with no blank
-            // period and no "0%" flash.
-            try {
-              const ds = dateStr(new Date());
-              const now = new Date();
-              const dayOfWeek = now.getDay();
-              const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-              const monday = new Date(now);
-              monday.setDate(now.getDate() + mondayOffset);
-              monday.setHours(0, 0, 0, 0);
-              const toLoad = [];
-              for (let i = 0; i < 7; i++) {
-                const d = new Date(monday);
-                d.setDate(monday.getDate() + i);
-                const key = dateStr(d);
-                if (!S.dayCache[key]) {
-                  toLoad.push(getJSON('day:' + key).then(r => { if (r) S.dayCache[key] = r; }));
-                }
-              }
-              if (toLoad.length) await Promise.all(toLoad);
-            } catch (e) {
-              console.warn('Startup pre-fetch failed; continuing:', e);
-            }
-                                  go(restored.screen || 'home', restored.arg);
-            syncPrayerTimesToSW();           // ← ADD THIS
-          
-            autoUpdateLocation();
-          } else if (user) {
-            go('setup-location');
-          } else {
-            go('auth');
-          }
+                     if (user && S.settings && S.settings.setupDone) {
+  const restored = readLastScreen();
+  // Pre-load today's day + the full week BEFORE the very first render
+  // so the Home/Tracker screens appear fully populated with no blank
+  // period and no "0%" flash.
+  try {
+    const ds = dateStr(new Date());
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    const toLoad = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      const key = dateStr(d);
+      if (!S.dayCache[key]) {
+        toLoad.push(getJSON('day:' + key).then(r => { if (r) S.dayCache[key] = r; }));
+      }
+    }
+    if (toLoad.length) await Promise.all(toLoad);
+  } catch (e) {
+    console.warn('Startup pre-fetch failed; continuing:', e);
+  }
+
+  go(restored.screen || 'home', restored.arg);
+  syncPrayerTimesToSW();
+
+  // 🔒 FIRST OPEN OF THIS SESSION — clear the guards and run GPS once,
+  // no matter which screen the user lands on. This is what guarantees
+  // the toast on every fresh open / refresh.
+  try {
+    sessionStorage.removeItem('__gpsRunDone');
+    sessionStorage.removeItem('__gpsToastShown');
+  } catch (e) {}
+
+  // Small safety: wait until the first render() has actually painted,
+  // so the toast lands on a real screen.
+  setTimeout(() => {
+    if (S.settings && S.settings.autoLocation === true) {
+      autoUpdateLocation();
+    }
+  }, 0);
+} else if (user) {
+  go('setup-location');
+} else {
+  go('auth');
+}
 
           try {
         window.sb.supabase.auth.onAuthStateChange(async (event, session) => {
