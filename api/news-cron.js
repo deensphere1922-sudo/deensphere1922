@@ -280,8 +280,8 @@ export default async function handler(req, res) {
           await send({ title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) }, `evening-adhkar-${today}`);
         }
 
-                      if (hit(22 * 60 + 44) && allowed('quran')) {
-          const exactMin = getExactHitMinute(22 * 60 + 44);
+                             if (hit(22 * 60 + 51) && allowed('quran')) {
+          const exactMin = getExactHitMinute(22 * 60 + 51);
           await send({ title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(exactMin) }, `quran-${today}`);
         }
 
