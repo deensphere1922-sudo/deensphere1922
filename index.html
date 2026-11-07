@@ -7165,10 +7165,10 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
   }
 }
             // --- AUTO LOCATION UPDATER ---
-      async function autoUpdateLocation() {
-  // 1. Only run if the user is logged in, setup is complete, and they haven't turned it off
+    async function autoUpdateLocation() {
+  // 1. Only run if logged in, setup is done, and Auto-Update is TICKED (prevents toast if unticked)
   if (!S.settings || !S.settings.setupDone || !S.profile) return;
-  if (S.settings.autoLocation === false) return; // <--- PREVENTS GPS IF UNTICKED
+  if (S.settings.autoLocation === false) return; 
   if (!navigator.geolocation) return;
 
   navigator.geolocation.getCurrentPosition(
@@ -7178,7 +7178,7 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
       const currentLat = S.settings.location.lat;
       const currentLng = S.settings.location.lng;
 
-      // 2. Check distance to avoid unnecessary API calls (approx 11km threshold)
+      // 2. Check distance (approx 11km threshold) to avoid unnecessary API calls
       const dist = Math.sqrt(Math.pow(lat - currentLat, 2) + Math.pow(lng - currentLng, 2));
       if (dist < 0.1) return;
 
@@ -7200,16 +7200,15 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
             S.settings.location = { lat, lng, label: short };
             await setJSON('settings', S.settings);
             syncPrayerTimesToSW();           
-            autoUpdateLocation(); // Ensure SW gets the new time
             
-            // 5. THE SINGLE LINE TOAST
+            // 5. THE SINGLE LINE TOAST YOU REQUESTED
             toast(`📍 GPS automatically updated to ${short}`);
             
-            // 6. FORCE THE UI TO UPDATE SO THE TEXT CHANGES ON SCREEN
+            // 6. FORCE THE UI TO UPDATE SO THE TEXT CHANGES FROM MANDYA TO CHENNAI INSTANTLY
             if (S.screen === 'home') {
-              hydrateHome(); // Updates the Home screen location text
+              hydrateHome(); 
             } else if (S.screen === 'settings') {
-              render(); // Re-draws the settings screen to show the new city text
+              render(); 
             }
           }
         }
@@ -7218,7 +7217,7 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
       }
     },
     (err) => console.warn('Auto geolocation error:', err),
-    { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 } // 10 min cache
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 }
   );
 }
 
@@ -7312,24 +7311,36 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
             );
           };
 
-           $('#loc-next').onclick = async () => {
+         $('#loc-next').onclick = async () => {
   const lat = parseFloat($('#lat-in').value), lng = parseFloat($('#lng-in').value);
   if (isNaN(lat) || isNaN(lng)) { toast('Enter a valid latitude and longitude.'); return; }
   const label = labelEl.textContent || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
   
-  // 1. Try to get the timezone saved from the city search
-  // 2. If using GPS, guess the timezone based on longitude (fallback)
+  // Check if the location is actually changing before showing a toast
+  const locationChanged = S.settings.location.label !== label;
+
   let tz = S.settings.location.timezone;
   if (!tz) {
-      if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; // India
-      else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; // UK
-      else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback to device
+      if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; 
+      else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; 
+      else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; 
   }
 
-   S.settings.location = { lat, lng, label, timezone: tz }; // <-- Saves the exact timezone
+  S.settings.location = { lat, lng, label, timezone: tz }; 
   await setJSON('settings', S.settings);
-  syncPrayerTimesToSW();             // ← ADD THIS
-  go('setup-calc');
+  syncPrayerTimesToSW();             
+  
+  // SHOW A DIFFERENT TOAST FOR MANUAL CHANGES
+  if (locationChanged) {
+      toast(`📍 Location manually updated to ${label}`);
+  }
+
+  // Direct the user back to the correct screen
+  if (S.settings.setupDone) {
+      go('home'); // If they were just changing it in settings, send them to home
+  } else {
+      go('setup-calc'); // If this is initial setup, move to the next step
+  }
 };
         }
 
