@@ -233,8 +233,8 @@ export default async function handler(req, res) {
           const exactMin = getExactHitMinute(userMin.dhuhr);
           payload = { title: '🕌 Dhuhr Prayer', body: 'Time for Dhuhr. Take a break and reconnect with Allah.', prayer: 'dhuhr', kind: 'time', targetTime: getTargetTime(exactMin) };
           notificationKey = `dhuhr-${today}`;
-              } else if (hit(19 * 50 + 2) && allowed('asr')) {
-          const exactMin = getExactHitMinute(19 * 60 + 10);
+              } else if (hit(18 * 50 + 2) && allowed('asr')) {
+          const exactMin = getExactHitMinute(18 * 50 + 4);
           payload = { title: '🕌 Asr Prayer', body: 'Time for Asr. Pause your day to remember Him.', prayer: 'asr', kind: 'time', targetTime: getTargetTime(exactMin) };
           notificationKey = `asr-${today}`;
         } else if (hit(userMin.maghrib) && allowed('maghrib')) {
