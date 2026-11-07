@@ -1209,7 +1209,7 @@ export default async function handler(req, res) {
         }
 
         // Evening Adhkar: Server hits at 08:23, phone shows exactly at 08:24
-        if (!payload && hit(9 * 60 - 1) && allowed('adhkar')) {
+        if (!payload && hit(9 * 60 + 3 - 1) && allowed('adhkar')) {
           payload = { title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(8 * 60 + 24) };
           notificationKey = `evening-adhkar-${today}`;
         }
