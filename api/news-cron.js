@@ -104,7 +104,7 @@ async function sendUserNotification(userId, payload, notificationKey) {
       await webpush.sendNotification(
         row.subscription, 
         JSON.stringify(finalPayload), 
-        { TTL: 3600 } // <--- CHANGED TO 3600
+        { TTL: 3600 }
       );
       delivered = true;
     } catch (error) {
@@ -232,43 +232,58 @@ export default async function handler(req, res) {
         // ==========================================
         // 3. FIVE PRAYERS
         // ==========================================
-        let prayerFired = null; 
-        let prayerTarget = null;
-
         if (hit(userMin.fajr) && allowed('fajr')) {
-          prayerFired = 'fajr'; prayerTarget = userMin.fajr;
           const exactMin = getExactHitMinute(userMin.fajr);
           await send({ title: '🕌 Fajr Prayer', body: 'Time for Fajr. Begin your day with prayer.', prayer: 'fajr', kind: 'time', targetTime: getTargetTime(exactMin) }, `fajr-${today}`);
         }
         if (hit(userMin.dhuhr) && allowed('dhuhr')) {
-          prayerFired = 'dhuhr'; prayerTarget = userMin.dhuhr;
           const exactMin = getExactHitMinute(userMin.dhuhr);
           await send({ title: '🕌 Dhuhr Prayer', body: 'Time for Dhuhr. Take a break and reconnect with Allah.', prayer: 'dhuhr', kind: 'time', targetTime: getTargetTime(exactMin) }, `dhuhr-${today}`);
         }
         if (hit(userMin.asr) && allowed('asr')) {
-          prayerFired = 'asr'; prayerTarget = userMin.asr;
           const exactMin = getExactHitMinute(userMin.asr);
           await send({ title: '🕌 Asr Prayer', body: 'Time for Asr. Pause your day to remember Him.', prayer: 'asr', kind: 'time', targetTime: getTargetTime(exactMin) }, `asr-${today}`);
         }
         if (hit(userMin.maghrib) && allowed('maghrib')) {
-          prayerFired = 'maghrib'; prayerTarget = userMin.maghrib;
           const exactMin = getExactHitMinute(userMin.maghrib);
           await send({ title: '🕌 Maghrib Prayer', body: 'Time for Maghrib. The sun has set, time to pray.', prayer: 'maghrib', kind: 'time', targetTime: getTargetTime(exactMin) }, `maghrib-${today}`);
         }
         if (hit(userMin.isha) && allowed('isha')) {
-          prayerFired = 'isha'; prayerTarget = userMin.isha;
           const exactMin = getExactHitMinute(userMin.isha);
           await send({ title: '🕌 Isha Prayer', body: 'Time for Isha. End your day with prayer and peace.', prayer: 'isha', kind: 'time', targetTime: getTargetTime(exactMin) }, `isha-${today}`);
         }
 
         // ==========================================
-        // 4. CHECKS (Shifts if prayer was late)
+        // 4. CHECKS (Exactly 30 mins after Prayer)
         // ==========================================
-        if (prayerFired && prayerTarget !== null) {
-          const checkTarget = (prayerTarget + 30) % 1440; 
-          const checkKey = `${prayerFired}-check-${today}`;
-          const exactMin = getExactHitMinute(checkTarget);
-          await send({ title: `🕌 ${prayerFired.charAt(0).toUpperCase() + prayerFired.slice(1)} Check`, body: `Did you offer ${prayerFired}? Tap to log your prayer now.`, prayer: prayerFired, kind: 'check', targetTime: getTargetTime(exactMin) }, checkKey);
+        const fajrCheckMin = (userMin.fajr + 30) % 1440;
+        if (hit(fajrCheckMin) && allowed('fajr')) {
+          const exactMin = getExactHitMinute(fajrCheckMin);
+          await send({ title: '🕌 Fajr Check', body: 'Did you offer Fajr? Tap to log your prayer now.', prayer: 'fajr', kind: 'check', targetTime: getTargetTime(exactMin) }, `fajr-check-${today}`);
+        }
+        
+        const dhuhrCheckMin = (userMin.dhuhr + 30) % 1440;
+        if (hit(dhuhrCheckMin) && allowed('dhuhr')) {
+          const exactMin = getExactHitMinute(dhuhrCheckMin);
+          await send({ title: '🕌 Dhuhr Check', body: 'Did you offer Dhuhr? Tap to log your prayer now.', prayer: 'dhuhr', kind: 'check', targetTime: getTargetTime(exactMin) }, `dhuhr-check-${today}`);
+        }
+        
+        const asrCheckMin = (userMin.asr + 30) % 1440;
+        if (hit(asrCheckMin) && allowed('asr')) {
+          const exactMin = getExactHitMinute(asrCheckMin);
+          await send({ title: '🕌 Asr Check', body: 'Did you offer Asr? Tap to log your prayer now.', prayer: 'asr', kind: 'check', targetTime: getTargetTime(exactMin) }, `asr-check-${today}`);
+        }
+        
+        const maghribCheckMin = (userMin.maghrib + 30) % 1440;
+        if (hit(maghribCheckMin) && allowed('maghrib')) {
+          const exactMin = getExactHitMinute(maghribCheckMin);
+          await send({ title: '🕌 Maghrib Check', body: 'Did you offer Maghrib? Tap to log your prayer now.', prayer: 'maghrib', kind: 'check', targetTime: getTargetTime(exactMin) }, `maghrib-check-${today}`);
+        }
+        
+        const ishaCheckMin = (userMin.isha + 30) % 1440;
+        if (hit(ishaCheckMin) && allowed('isha')) {
+          const exactMin = getExactHitMinute(ishaCheckMin);
+          await send({ title: '🕌 Isha Check', body: 'Did you offer Isha? Tap to log your prayer now.', prayer: 'isha', kind: 'check', targetTime: getTargetTime(exactMin) }, `isha-check-${today}`);
         }
 
         // ==========================================
@@ -284,7 +299,7 @@ export default async function handler(req, res) {
           await send({ title: '🌇 Evening Adhkar', body: 'Take a moment to remember Allah before the day ends.', targetTime: getTargetTime(exactMin) }, `evening-adhkar-${today}`);
         }
 
-                            if (hit(20 * 60) && allowed('quran')) {
+        if (hit(20 * 60) && allowed('quran')) {
           const exactMin = getExactHitMinute(20 * 60);
           await send({ title: '📖 Qur\'an Reminder', body: 'A moment with the Qur\'an brings peace.', targetTime: getTargetTime(exactMin) }, `quran-${today}`);
         }
