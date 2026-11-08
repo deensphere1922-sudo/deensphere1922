@@ -9540,53 +9540,88 @@ if (dsNow < todayDate && !isEditingPastDay) {
 
           setTimeout(saveIfChanged, 1500);
         }
-          function bindQuranReader(num) {
-                   $$('[data-bm]').forEach(b => b.onclick = async () => {
-              const v = parseInt(b.dataset.bm);
-              const idx = S.bookmarks.findIndex(x => x.surah === num && x.verse === v);
+               function bindQuranReader(num) {
+          $$('[data-bm]').forEach(b => b.onclick = async () => {
+            const v = parseInt(b.dataset.bm);
+            const idx = S.bookmarks.findIndex(x => x.surah === num && x.verse === v);
 
-              if (idx > -1) {
-                S.bookmarks.splice(idx, 1);
-              } else {
-                S.bookmarks.push({
-                  surah: num,
-                  verse: v,
-                  arName: SURAHS.find(s => s.num === num).arName,
-                  translit: SURAHS.find(s => s.num === num).translit,
-                  date: new Date().toISOString(),
-                  ar: (FULL_TEXT[num] && FULL_TEXT[num].verses[v - 1]) || ''
-                });
-              }
+            if (idx > -1) {
+              S.bookmarks.splice(idx, 1);
+            } else {
+              S.bookmarks.push({
+                surah: num,
+                verse: v,
+                arName: SURAHS.find(s => s.num === num).arName,
+                translit: SURAHS.find(s => s.num === num).translit,
+                date: new Date().toISOString(),
+                ar: (FULL_TEXT[num] && FULL_TEXT[num].verses[v - 1]) || ''
+              });
 
-              // Bookmarking persists ONLY the bookmarks list. It must NEVER move
-              // the "Continue reading" pointer, the Qur'an progress, or audio state.
-              await setJSON('bookmarks', S.bookmarks);
-
-              b.textContent = idx > -1 ? '☆ Bookmark' : '★ Bookmarked';
-              toast(idx > -1 ? 'Bookmark removed' : 'Verse bookmarked');
+              // --- AUTO-TICK ROUTINE QURAN ITEMS ---
+              const dsNow = dateStr(new Date());
+              const day = S.dayCache[dsNow] || await getDay(dsNow);
               
-              // Instantly refresh the Home screen counter
-              if (S.screen === 'home') {
-                repaintHomeFromCache(dateStr(new Date()));
+              if (!day.routine) day.routine = {};
+              
+              // 1. Tick the default routine IDs (WITH the r_ prefix)
+              day.routine['r_mquran'] = true; 
+              day.routine['r_nquran'] = true;
+
+              // 2. Find ANY custom/renamed routine item that has "Qur'an" or "Quran" in the title
+              const activeStruct = getRoutineStruct(new Date()); 
+              activeStruct.forEach(section => {
+                section[2].forEach(item => {
+                  const itemKey = item[0];
+                  const itemLabel = item[1].toLowerCase();
+                  if (itemLabel.includes("qur'an") || itemLabel.includes("quran")) {
+                    day.routine[itemKey] = true;
+                  }
+                });
+              });
+
+              // 3. Save to memory and cloud so the Routine screen updates
+              S.dayCache[dsNow] = day;
+              saveDay(dsNow, day).catch(console.error);
+              // -------------------------------------------
+
+              // INSTANT UI UPDATE (if you are looking at the Routine tab on another monitor/device)
+              if (S.screen === 'routine') {
+                const body = document.getElementById('routine-body');
+                if (body) {
+                  body.innerHTML = _buildRoutineBodyHTML(dsNow, day);
+                  _bindRoutineButtons();
+                }
               }
-            });
+            }
 
-            const mr = $('#mark-read');
-            if (mr) mr.onclick = async () => {
-              const meta = SURAHS.find(x => x.num === num);
-              const totalVerses = meta ? meta.verses : 1;
-              await trackQuranVerses(num, totalVerses);
+            // Bookmarking persists ONLY the bookmarks list. 
+            await setJSON('bookmarks', S.bookmarks);
 
-              if (!S.completedSurahs.includes(num)) {
-                S.completedSurahs.push(num);
-                await setJSON('completed-surahs', S.completedSurahs);
-              }
+            b.textContent = idx > -1 ? '☆ Bookmark' : '★ Bookmarked';
+            toast(idx > -1 ? 'Bookmark removed' : 'Verse bookmarked');
+            
+            // Refresh Home screen if visible
+            if (S.screen === 'home') {
+              repaintHomeFromCache(dateStr(new Date()));
+            }
+          });
 
-              toast('Marked ' + meta.translit + ' as read ✔');
-            };
+          const mr = $('#mark-read');
+          if (mr) mr.onclick = async () => {
+            const meta = SURAHS.find(x => x.num === num);
+            const totalVerses = meta ? meta.verses : 1;
+            await trackQuranVerses(num, totalVerses);
 
-            attachQuranScrollProgress(num);
-          }
+            if (!S.completedSurahs.includes(num)) {
+              S.completedSurahs.push(num);
+              await setJSON('completed-surahs', S.completedSurahs);
+            }
+
+            toast('Marked ' + meta.translit + ' as read ✔');
+          };
+
+          attachQuranScrollProgress(num);
+        }
 
         /* ============================= ADHKAR ============================= */
     /* Synchronous Adhkar list builder — reads only from the static ADHKAR array
