@@ -9488,7 +9488,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
       }
     }
 
-             function attachQuranScrollProgress(surahNum) {
+        function attachQuranScrollProgress(surahNum) {
           const content = document.querySelector('.content');
           if (!content) return;
 
@@ -9501,28 +9501,55 @@ if (dsNow < todayDate && !isEditingPastDay) {
             window._quranScrollTimer = null;
           }
 
-          // FIX: Completely disable scroll-based progress saving.
-          // Progress (S.quranProgress) is ONLY controlled by the audio player.
+          let lastSaved = -1;
+          let sawScroll = false;
+
+          const computeLastVisibleVerse = () => {
+            const playButtons = [...document.querySelectorAll('[data-play]')];
+            if (!playButtons.length) return null;
+
+            let lastVerse = null;
+            const mid = window.innerHeight * 0.95;
+            for (const btn of playButtons) {
+              const rect = btn.getBoundingClientRect();
+              if (rect.top <= mid) {
+                const parts = btn.dataset.play.split(':');
+                lastVerse = parseInt(parts[1], 10);
+              } else {
+                break;
+              }
+            }
+            return lastVerse;
+          };
+
+                // Qur'an reading position is controlled exclusively by full-surah audio.
+          // Scrolling, opening verses, bookmarks, and Saved Ayahs must never move it.
           const saveIfChanged = async () => {
             return;
           };
 
           window._quranScrollHandler = () => {
             if (_autoScrolling) return;
+
+            sawScroll = true;
             if (window._quranScrollTimer) clearTimeout(window._quranScrollTimer);
             window._quranScrollTimer = setTimeout(saveIfChanged, 150);
           };
 
           window.addEventListener('scroll', window._quranScrollHandler, { passive: true, capture: true });
+
+          setTimeout(saveIfChanged, 1500);
         }
-                       function bindQuranReader(num) {
+                   function bindQuranReader(num) {
           $$('[data-bm]').forEach(b => b.onclick = async () => {
             const v = parseInt(b.dataset.bm);
             const idx = S.bookmarks.findIndex(x => x.surah === num && x.verse === v);
 
             if (idx > -1) {
+              // Removing bookmark
               S.bookmarks.splice(idx, 1);
             } else {
+              // Adding bookmark
               S.bookmarks.push({
                 surah: num,
                 verse: v,
@@ -9531,46 +9558,54 @@ if (dsNow < todayDate && !isEditingPastDay) {
                 date: new Date().toISOString(),
                 ar: (FULL_TEXT[num] && FULL_TEXT[num].verses[v - 1]) || ''
               });
-
-              // --- AUTO-TICK ROUTINE QURAN ITEMS ---
-              const dsNow = dateStr(new Date());
-              const day = S.dayCache[dsNow] || await getDay(dsNow);
-              
-              if (!day.routine) day.routine = {};
-              
-              // 1. Tick the default routine IDs (WITH the r_ prefix)
-              day.routine['r_mquran'] = true; 
-              day.routine['r_nquran'] = true;
-
-              // 2. Find ANY custom/renamed routine item that has "Qur'an" or "Quran" in the title
-              const activeStruct = getRoutineStruct(new Date()); 
-              activeStruct.forEach(section => {
-                section[2].forEach(item => {
-                  const itemKey = item[0];
-                  const itemLabel = item[1].toLowerCase();
-                  if (itemLabel.includes("qur'an") || itemLabel.includes("quran")) {
-                    day.routine[itemKey] = true;
-                  }
-                });
-              });
-
-              // 3. Save to memory and cloud so the Routine screen updates
-              S.dayCache[dsNow] = day;
-              saveDay(dsNow, day).catch(console.error);
-              // -------------------------------------------
-
-              // INSTANT UI UPDATE (if you are looking at the Routine tab on another monitor/device)
-              if (S.screen === 'routine') {
-                const body = document.getElementById('routine-body');
-                if (body) {
-                  body.innerHTML = _buildRoutineBodyHTML(dsNow, day);
-                  _bindRoutineButtons();
-                }
-              }
             }
 
+            // --- SYNC ROUTINE WITH TODAY'S BOOKMARK COUNT ---
+            const dsNow = dateStr(new Date());
+            const day = S.dayCache[dsNow] || await getDay(dsNow);
+            
+            if (!day.routine) day.routine = {};
+
+            // Count bookmarks that belong to TODAY
+            const todayBookmarks = S.bookmarks.filter(bm => {
+              if (!bm || !bm.date) return false;
+              return bm.date.startsWith(dsNow);
+            });
+
+            // Tick if there is at least 1 bookmark today, untick if 0
+            const shouldTick = todayBookmarks.length > 0;
+
+            // 1. Set default routine IDs
+            day.routine['r_mquran'] = shouldTick; 
+            day.routine['r_nquran'] = shouldTick;
+
+            // 2. Find ANY custom/renamed routine item that has "Qur'an" or "Quran" in the title
+            const activeStruct = getRoutineStruct(new Date()); 
+            activeStruct.forEach(section => {
+              section[2].forEach(item => {
+                const itemKey = item[0];
+                const itemLabel = item[1].toLowerCase();
+                if (itemLabel.includes("qur'an") || itemLabel.includes("quran")) {
+                  day.routine[itemKey] = shouldTick;
+                }
+              });
+            });
+
+            // 3. Save to memory and cloud
+            S.dayCache[dsNow] = day;
+            saveDay(dsNow, day).catch(console.error);
+
+            // INSTANT UI UPDATE (if looking at the Routine tab)
+            if (S.screen === 'routine') {
+              const body = document.getElementById('routine-body');
+              if (body) {
+                body.innerHTML = _buildRoutineBodyHTML(dsNow, day);
+                _bindRoutineButtons();
+              }
+            }
+            // -------------------------------------------------
+
             // Bookmarking persists ONLY the bookmarks list. 
-            // It does NOT touch S.quranProgress or the profile card anymore.
             await setJSON('bookmarks', S.bookmarks);
 
             b.textContent = idx > -1 ? '☆ Bookmark' : '★ Bookmarked';
