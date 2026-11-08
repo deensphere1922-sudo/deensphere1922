@@ -4081,42 +4081,34 @@ _currentSurahNum = null;
             ? _lastPlaybackPos
             : null;
 
-          _fetchVerseTimings(num).then((timings) => {
-            if (_qAudio !== a) return;
-            if (savedPos && timings && timings.length) {
-              const target = timings.find(t => t.verse === savedPos.verse);
-              if (target) {
-                try {
-                  a.currentTime = target.start;
-                } catch (e) { }
-              }
-            }
-            if (!timings || !timings.length) return;
-            if (a.currentTime <= 0) return;
-            const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
-            if (dur <= 0) return;
-            const v = _estimateVerseFromTime(num, a.currentTime, dur);
-            if (!v) return;
-                       _abSetSub('Yasser Al-Dosari \u2014 Verse ' + v);
-            _applyVerseHighlight(num, v);
-            if (_qAudio === a && !a.paused && _isPlayingFullSurah) {
-              _scheduleVerseHighlight(a, num);
-            }
-          });
+        
+// Update verse information without changing the saved audio position.
+_fetchVerseTimings(num).then((timings) => {
+  if (_qAudio !== a || !timings || !timings.length) return;
 
-                 a.addEventListener('loadedmetadata', () => {
-            if (!savedPos) return;
-            const timings = _verseTimingsCache[num];
-            if (timings && timings.length) {
-              const target = timings.find(t => t.verse === savedPos.verse);
-              if (target) {
-                try { a.currentTime = target.start; } catch (e) { }
-              }
-            }
-            if (_isPlayingFullSurah && _currentSurahNum === num) {
-              _scheduleVerseHighlight(a, num);
-            }
-          }, { once: true });
+  const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
+  if (dur <= 0) return;
+
+  const v = _estimateVerseFromTime(num, a.currentTime || 0, dur);
+
+  if (v) {
+    _abSetSub('Yasser Al-Dosari — Verse ' + v);
+    _applyVerseHighlight(num, v);
+
+    if (!a.paused && _isPlayingFullSurah) {
+      _scheduleVerseHighlight(a, num);
+    }
+  }
+});
+
+a.addEventListener('loadedmetadata', () => {
+  if (_qAudio !== a) return;
+
+  if (_isPlayingFullSurah && _currentSurahNum === num) {
+    _scheduleVerseHighlight(a, num);
+  }
+}, { once: true });
+
 
         
 const wholeBtn = document.querySelector('#play-whole-surah');
@@ -4192,12 +4184,96 @@ a.addEventListener('ended', updateSurahButtons);
             }
           });
 
-          a.addEventListener('canplay', () => {
-            a.play().then(() => {
-              _abSyncStatus(true);
-              if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
-            }).catch(err => { console.warn('play rejected:', err); toast('Tap once more to play.'); });
-          });
+        // Restore the exact saved timestamp BEFORE allowing playback.
+let resumeStarted = false;
+
+const startSurahFromSavedPosition = async () => {
+  if (resumeStarted || _qAudio !== a) return;
+
+  if (a.readyState < HTMLMediaElement.HAVE_METADATA) return;
+
+  resumeStarted = true;
+
+  try {
+    const savedSeconds =
+      savedPos && Number.isFinite(Number(savedPos.seconds))
+        ? Math.max(0, Number(savedPos.seconds))
+        : 0;
+
+    // Use the exact saved timestamp, not the beginning of the verse.
+    const targetTime = Math.min(
+      savedSeconds,
+      Math.max(0, (a.duration || 0) - 0.25)
+    );
+
+    if (targetTime > 0) {
+      a.currentTime = targetTime;
+
+      // Wait until the browser finishes seeking.
+      if (a.seeking) {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error('Audio seek timed out'));
+          }, 8000);
+
+          const cleanup = () => {
+            clearTimeout(timeout);
+            a.removeEventListener('seeked', onSeeked);
+            a.removeEventListener('error', onError);
+          };
+
+          const onSeeked = () => {
+            cleanup();
+            resolve();
+          };
+
+          const onError = () => {
+            cleanup();
+            reject(new Error('Audio seek failed'));
+          };
+
+          a.addEventListener('seeked', onSeeked, { once: true });
+          a.addEventListener('error', onError, { once: true });
+        });
+      }
+    }
+
+    // Do not start if another audio action replaced this player.
+    if (_qAudio !== a) return;
+
+    const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
+    const currentVerse = dur
+      ? _estimateVerseFromTime(num, a.currentTime, dur)
+      : savedPos?.verse;
+
+    if (currentVerse) {
+      _abSetSub('Yasser Al-Dosari — Verse ' + currentVerse);
+      _applyVerseHighlight(num, currentVerse);
+    }
+
+    await a.play();
+
+    if (_qAudio === a) {
+      _abSyncStatus(true);
+
+      if (wholeBtn) {
+        wholeBtn.innerHTML =
+          `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
+      }
+    }
+  } catch (err) {
+    console.warn('Surah resume failed:', err);
+    resumeStarted = false;
+
+    if (_qAudio === a) {
+      toast('Unable to resume. Tap Play Surah to retry.');
+    }
+  }
+};
+
+a.addEventListener('canplay', startSurahFromSavedPosition);
+a.addEventListener('loadedmetadata', startSurahFromSavedPosition);
 
           a.addEventListener('error', () => {
             console.error('Surah error:', url);
