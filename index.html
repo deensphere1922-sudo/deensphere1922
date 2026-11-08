@@ -4413,16 +4413,8 @@ syncSurahButtons();
               b.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/></svg> Loading…`;
             _abShow(meta.translit + ' (' + surah + ') \u2014 Verse ' + verse, 'Yasser Al-Dosari');
 
-              if (!fullSurahWasActive) {
-                S.quranProgress = { surah: surah, verse: verse };
-                setJSON('quran-progress', S.quranProgress).catch(() => { });
-                _refreshContinueReadingBox();
-                const profEl = document.getElementById('profile-quran-progress');
-                if (profEl) {
-                  const surMeta = SURAHS.find(s => s.num === surah);
-                if (surMeta) profEl.textContent = `Surah ${surah}:${verse} \u2014 ${surMeta.translit}`;
-                }
-              }
+             // Individual verse playback must NEVER update Qur'an progress.
+// Progress is controlled only by full-surah audio playback.
 
               _tryPlayVerse(b, primaryUrl, 'Yasser Al-Dosari', fallbackUrl);
             };
@@ -9379,17 +9371,8 @@ if (dsNow < todayDate && !isEditingPastDay) {
           }
 
           // Update Continue Reading pointer
-          if (!_fullSurahOwnsPointer) {
-            S.quranProgress = { surah: targetSurah, verse: verseToScrollTo };
-            setJSON('quran-progress', S.quranProgress).catch(() => { });
-            _refreshContinueReadingBox();
-
-            const profEl = document.getElementById('profile-quran-progress');
-            if (profEl) {
-              const surMeta = SURAHS.find(s => s.num === targetSurah);
-              if (surMeta) profEl.textContent = `Surah ${targetSurah}:${verseToScrollTo} \u2014 ${surMeta.translit}`;
-            }
-          }
+       // Bookmark navigation must NEVER update Qur'an progress.
+// Keep the last full-surah audio pause position unchanged.
 
         
           // FIX MOBILE AND DESKTOP BOOKMARK VERSE POSITION
