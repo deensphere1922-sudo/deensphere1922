@@ -6431,6 +6431,11 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
 
         /* ============================= RENDER: SHELL ============================= */
                 function go(screen, arg, verseArg) {
+
+                  // Prevent an older navigation request from opening the wrong screen
+const _navigationRequestId =
+  window.__deenNavigationRequest =
+  (window.__deenNavigationRequest || 0) + 1;
       // Islamic Videos and News are desktop-only. On mobile, silently redirect to Home.
       if ((screen === 'videos' || screen === 'news') && window.matchMedia('(max-width: 880px)').matches) {
         screen = 'home';
@@ -6652,7 +6657,8 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
             })();
           };
 
-          doNavigation();
+      // TRACKER: Open immediately; refresh data in the background.
+doNavigation();
         }
         function goBack() {
           const s = S.screen;
@@ -11454,27 +11460,39 @@ if (dsNow < todayDate && !isEditingPastDay) {
       modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
 
-      // 4. FETCH DATA IN BACKGROUND
-      let rec = S.dayCache[ds];
-      
-      if (!rec) {
-        try {
-          const freshData = await getDay(ds); 
-          if (freshData) {
-            rec = freshData;
-            S.dayCache[ds] = freshData; 
-          }
-        } catch (e) {
-          console.warn("Failed to fetch tracker day:", e);
-        }
-      }
+     // 4. FETCH THE LATEST DATA FROM CLOUD
+// Keep the spinner visible until the latest record is received.
 
-      // Fallback if empty
-      if (!rec) {
-        rec = {
-          salah: {}, routine: {}, adhkar: {}, quranVerses: 0, quranVersesRead: {}
-        };
-      }
+let rec = null;
+
+try {
+  const freshData = await getJSON('day:' + ds);
+
+  if (freshData) {
+    rec = freshData;
+    S.dayCache[ds] = freshData;
+  } else {
+    rec = S.dayCache[ds] || null;
+  }
+
+} catch (error) {
+  console.warn('Tracker day cloud fetch failed:', error);
+  rec = S.dayCache[ds] || null;
+}
+
+// Stop if the user closed the popup while data was loading
+if (!modal.isConnected) return;
+
+// Use an empty record only if no saved data is available
+if (!rec) {
+  rec = {
+    salah: {},
+    routine: {},
+    adhkar: {},
+    quranVerses: 0,
+    quranVersesRead: {}
+  };
+}
 
       // 5. BUILD THE ACTUAL CONTENT
       const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
