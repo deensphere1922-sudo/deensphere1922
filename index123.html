@@ -386,8 +386,26 @@
           font-weight: 500; text-align: left; width: 100%;
           transition: background .15s, color .15s;
         }
-        @media (hover: hover) { .navitem:hover { background: var(--card); color: var(--tx); } }
-        .navitem.active { background: var(--green-dim); color: var(--green-l); font-weight: 600; }
+               @media (hover: hover) { 
+          .navitem:hover { 
+            background: var(--card); 
+            color: var(--tx); 
+          } 
+          /* Keep the hover color on the active tab so it doesn't flicker */
+          .navitem.active:hover {
+            background: var(--green-dim); 
+            color: var(--green-l); 
+          }
+        }
+        .navitem.active { 
+          background: var(--green-dim); 
+          color: var(--green-l); 
+          font-weight: 600; 
+        }
+        /* Force the click state to match the active state immediately */
+        .navitem:active {
+          background: var(--green-dim) !important;
+        }
         .navitem svg { flex-shrink: 0; opacity: .9; }
         .navfoot { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 8px; }
         .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -6062,8 +6080,11 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
               }
             } catch (_) {}
 
-            // ✅ PAINT NOW from whatever is already in memory.
-            render();
+                        // ✅ PAINT NOW from whatever is already in memory.
+            // BUT if we are going to the tracker, wait for the cloud data first so it doesn't flicker 9% -> 21%
+            if (screen !== 'tracker') {
+              render();
+            }
 
             // ✅ Refresh from the cloud in the background. Each branch repaints
             // only if the user is still on the same screen when it resolves.
@@ -6331,9 +6352,21 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
 
     
 
-        function bindGlobalNav() {
-          $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
-          const lo = $('[data-action="logout"]'); if (lo) lo.onclick = doLogout;
+               function bindGlobalNav() {
+          $$('[data-nav]').forEach(b => {
+            // Remove the old listener before adding a new one to prevent double-click glitches
+            b.onclick = null; 
+            b.onclick = (e) => {
+              // If the button is already active, do nothing (prevents the on/off flashing)
+              if (b.classList.contains('active') && b.dataset.nav === S.screen) {
+                return;
+              }
+              go(b.dataset.nav);
+            };
+          });
+          
+          const lo = $('[data-action="logout"]'); 
+          if (lo) lo.onclick = doLogout;
 
           $$('[data-back]').forEach(b => b.onclick = (e) => {
             e.preventDefault();
