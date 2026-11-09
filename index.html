@@ -6082,9 +6082,8 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
 
                         // ✅ PAINT NOW from whatever is already in memory.
             // BUT if we are going to the tracker, wait for the cloud data first so it doesn't flicker 9% -> 21%
-            if (screen !== 'tracker') {
-              render();
-            }
+                       // ✅ PAINT NOW instantly!
+            render();
 
             // ✅ Refresh from the cloud in the background. Each branch repaints
             // only if the user is still on the same screen when it resolves.
@@ -6108,7 +6107,7 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
                   }
                 }
 
-                if (screen === 'home' || screen === 'tracker') {
+                                   if (screen === 'home' || screen === 'tracker') {
                   const now = new Date();
                   const dayOfWeek = now.getDay();
                   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -10741,7 +10740,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
           }
         }
 
-           async function showTrackerDay(ds) {
+                     async function showTrackerDay(ds) {
       const todayStr = dateStr(new Date());
       
       // 1. Check if the clicked day is in the future
@@ -10813,19 +10812,21 @@ if (dsNow < todayDate && !isEditingPastDay) {
       modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
 
-      // 4. FETCH DATA IN BACKGROUND
-      let rec = S.dayCache[ds];
+      // 4. FETCH DATA FROM CLOUD (Force Sync)
+      // We fetch directly from the cloud to ensure mobile and desktop are exactly the same.
+      let rec = null;
       
-      if (!rec) {
-        try {
-          const freshData = await getDay(ds); 
-          if (freshData) {
-            rec = freshData;
-            S.dayCache[ds] = freshData; 
-          }
-        } catch (e) {
-          console.warn("Failed to fetch tracker day:", e);
+      try {
+        // Force fetch from cloud so we get the latest cross-device updates
+        const freshData = await getDay(ds); 
+        if (freshData) {
+          rec = freshData;
+          S.dayCache[ds] = freshData; // Update local memory with the synced data
         }
+      } catch (e) {
+        console.warn("Failed to fetch tracker day from cloud, using local cache:", e);
+        // Fallback to local cache only if network fails
+        rec = S.dayCache[ds]; 
       }
 
       // Fallback if empty
@@ -13150,6 +13151,8 @@ if (bdayBtn) bdayBtn.onclick = async () => {
         /* ============================= SCREEN ACTION BINDER ============================= */
         function bindScreenActions(s) {
           try {
+
+                        bindGlobalNav(); 
             if (s === 'home') { subscribeToCurrentDay(); hydrateHome(); }
             else if (s === 'salah') { subscribeToCurrentDay(); hydrateSalahPage(); }
             else if (s === 'routine') { subscribeToCurrentDay(); hydrateRoutine(); }
