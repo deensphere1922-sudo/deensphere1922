@@ -13948,7 +13948,19 @@ if (nextVal) {
             else if (s === 'tawhid') { bindTawhid(); }
             else if (s === 'ramadan') { bindRamadan(); hydrateRamadanCalendar(); }
             else if (s === 'reflection') { bindReflection(); }
-            else if (s === 'tracker') { subscribeToCurrentDay(); hydrateTracker(); }
+           else if (s === 'tracker') { 
+  subscribeToCurrentDay(); 
+  
+  // ✅ CRITICAL FIX: Force a fresh fetch of the routine structure 
+  // from the cloud before calculating the tracker stats. 
+  // This ensures mobile and desktop use the exact same routine length.
+  getJSON('routine-struct').then(fresh => {
+    if (fresh && fresh.weekday && fresh.weekend) {
+      S.routineStruct = fresh;
+    }
+    hydrateTracker(); 
+  }).catch(() => hydrateTracker());
+}
             else if (s === 'profile') { bindProfile(); }
             else if (s === 'settings') {
               bindSettings();
