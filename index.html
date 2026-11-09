@@ -8409,9 +8409,29 @@ function repaintRoutineFromCache(ds) {
           });
         }
 
-        function repaintTrackerFromCache() {
-          if (S.screen === 'tracker') hydrateTracker();
-        }
+           function repaintTrackerFromCache() {
+  if (S.screen !== 'tracker') return;
+
+  const range = S.trackerRange || 'week';
+
+  // 1. Update the Overall % card
+  const overall = document.getElementById('tracker-overall');
+  if (overall) overall.innerHTML = _buildTrackerOverallHTML(range);
+
+  // 2. Update the Day by day Grid (The squares)
+  const grid = document.getElementById('tracker-grid');
+  if (grid) {
+    grid.innerHTML = _buildTrackerGridHTML(range);
+    // Re-bind the click events for the new squares
+    document.querySelectorAll('[data-tracker-day]').forEach(b => {
+      b.onclick = () => showTrackerDay(b.dataset.trackerDay);
+    });
+  }
+
+  // 3. Update the Category Totals
+  const cats = document.getElementById('tracker-cats');
+  if (cats) cats.innerHTML = _buildTrackerCatsHTML(range);
+}
 
                const ROUTINE_STRUCT_DEFAULT = [
           ['morning', 'Fajr & Early Morning', [
@@ -11135,6 +11155,15 @@ if (dsNow < todayDate && !isEditingPastDay) {
           if (!allRecords) {
             allRecords = days.map(dd => S.dayCache[dateStr(dd)] || null);
           }
+
+                           // ✅ CRITICAL: Save fetched records to S.dayCache so the
+          // real-time broadcast path can redraw the grid squares accurately.
+          days.forEach((dd, index) => {
+            const ds = dateStr(dd);
+            if (allRecords[index]) {
+              S.dayCache[ds] = allRecords[index];
+            }
+          });
 
           const emptyDay = () => ({
             salah: {}, routine: {}, adhkar: {},
