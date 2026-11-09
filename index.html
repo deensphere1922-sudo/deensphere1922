@@ -386,26 +386,8 @@
           font-weight: 500; text-align: left; width: 100%;
           transition: background .15s, color .15s;
         }
-               @media (hover: hover) { 
-          .navitem:hover { 
-            background: var(--card); 
-            color: var(--tx); 
-          } 
-          /* Keep the hover color on the active tab so it doesn't flicker */
-          .navitem.active:hover {
-            background: var(--green-dim); 
-            color: var(--green-l); 
-          }
-        }
-        .navitem.active { 
-          background: var(--green-dim); 
-          color: var(--green-l); 
-          font-weight: 600; 
-        }
-        /* Force the click state to match the active state immediately */
-        .navitem:active {
-          background: var(--green-dim) !important;
-        }
+        @media (hover: hover) { .navitem:hover { background: var(--card); color: var(--tx); } }
+        .navitem.active { background: var(--green-dim); color: var(--green-l); font-weight: 600; }
         .navitem svg { flex-shrink: 0; opacity: .9; }
         .navfoot { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 8px; }
         .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -2223,7 +2205,16 @@
         function pad(n) { return String(n).padStart(2, '0'); }
         function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
       function fmtTime(d) { if (!d) return '--:--'; const c = new Date(d.getTime()); c.setSeconds(0, 0); c.setMinutes(c.getMinutes() + (d.getSeconds() >= 30 ? 1 : 0)); let h = c.getHours(), m = c.getMinutes(); let ap = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12; if (h12 === 0) h12 = 12; return h12 + ':' + pad(m) + ' ' + ap; }
-        function fmtDur(ms) { if (ms < 0) ms = 0; let s = Math.floor(ms / 1000); let h = Math.floor(s / 3600); s -= h * 3600; let m = Math.floor(s / 60); s -= m * 60; return pad(h) + ':' + pad(m) + ':' + pad(s); }
+             function fmtDur(ms) { 
+          if (ms < 0) ms = 0; 
+          // FIX: Use Math.ceil to round up partial seconds to the next whole second
+          let s = Math.ceil(ms / 1000); 
+          let h = Math.floor(s / 3600); 
+          s -= h * 3600; 
+          let m = Math.floor(s / 60); 
+          s -= m * 60; 
+          return pad(h) + ':' + pad(m) + ':' + pad(s); 
+        }
         function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
         function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -2555,7 +2546,7 @@
 
                     if (key === 'settings') {
               if (val) {
-                S.settings = val;
+             S.settings = applyDeviceNotifSettings(val);
                 applyArabicSize(val.arabicFontSize);
 
                 // The Routine screen renders from S.settings.holidayMode via
@@ -2742,17 +2733,20 @@
             val = { ...val, updatedAt: Date.now() };
           }
 
-          const serialized = JSON.stringify(val);
+       const serialized = JSON.stringify(val);
+const cloudVal = getCloudSyncValue(key, val);
           // Record the local edit before broadcasting or starting the network write.
           // Delayed database events must not roll a freshly ticked prayer back to its
           // previous value while this device's newest value is still being persisted.
           _localWriteAt[key] = Date.now();
           try { localStorage.setItem(_lsKey(key), serialized); } catch (e) {}
-          _markLocalWrite(key, val);
+        _markLocalWrite(key, cloudVal);
 
                 // Fire the low-latency broadcast immediately — the DB write below
           // still runs and remains the authoritative record.
-          if (typeof _sbBroadcastWrite === 'function') _sbBroadcastWrite(key, val);
+      if (typeof _sbBroadcastWrite === 'function') {
+  _sbBroadcastWrite(key, cloudVal);
+}
 
           const uid = getCloudUid();
           if (!uid) return true;
@@ -2767,7 +2761,11 @@
             let latestVal = val;
             try {
               const raw = localStorage.getItem(_lsKey(key));
-              if (raw !== null) latestVal = JSON.parse(raw);
+            if (raw !== null) {
+  latestVal = JSON.parse(raw);
+}
+
+latestVal = getCloudSyncValue(key, latestVal);
             } catch (e) {}
                   if (window.sb?.supabase) {
               const { error } = await window.sb.supabase.from('user_sync').upsert({
@@ -3029,7 +3027,7 @@
 
             if (key === 'settings') {
               if (val) {
-                S.settings = val;
+               S.settings = applyDeviceNotifSettings(val);
                 applyArabicSize(val.arabicFontSize);
                 if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) render();
               }
@@ -5247,6 +5245,86 @@ async function syncPrayerTimesToSW() {
   videoCat: 'Featured', videoQuery: '', videoBlocked: false
 };
 
+// ==========================================
+// DEVICE-SPECIFIC NOTIFICATION PREFERENCES
+// ==========================================
+
+const DEVICE_NOTIF_KEYS = [
+  'fajr', 'dhuhr', 'asr', 'maghrib', 'isha',
+  'quran', 'adhkar', 'news', 'birthday'
+];
+
+function getDeviceNotifStorageKey() {
+  const uid = getCloudUid() || 'guest';
+  return 'u:' + uid + ':device-notifications';
+}
+
+function getDeviceNotifSettings(fallback = {}) {
+  try {
+    const raw = localStorage.getItem(getDeviceNotifStorageKey());
+
+    if (raw) {
+      return {
+        ...fallback,
+        ...JSON.parse(raw)
+      };
+    }
+
+    const initial = {};
+
+    DEVICE_NOTIF_KEYS.forEach(k => {
+      initial[k] = typeof fallback[k] === 'boolean'
+        ? fallback[k]
+        : true;
+    });
+
+    localStorage.setItem(
+      getDeviceNotifStorageKey(),
+      JSON.stringify(initial)
+    );
+
+    return initial;
+  } catch (e) {
+    return { ...fallback };
+  }
+}
+
+function saveDeviceNotifSettings(notif) {
+  const clean = {};
+
+  DEVICE_NOTIF_KEYS.forEach(k => {
+    clean[k] = notif[k] === true;
+  });
+
+  try {
+    localStorage.setItem(
+      getDeviceNotifStorageKey(),
+      JSON.stringify(clean)
+    );
+  } catch (e) {
+    console.warn('Could not save device notification settings:', e);
+  }
+}
+
+function applyDeviceNotifSettings(settings) {
+  if (!settings) return settings;
+
+  settings.notif = getDeviceNotifSettings(settings.notif || {});
+  return settings;
+}
+
+// Never include device-specific notification preferences in cloud sync.
+function getCloudSyncValue(key, value) {
+  if (key !== 'settings' || !value || typeof value !== 'object') {
+    return value;
+  }
+
+  const cloudSettings = { ...value };
+  delete cloudSettings.notif;
+
+  return cloudSettings;
+}
+
         function defaultSettings() {
       return {
         name: '',
@@ -5364,7 +5442,9 @@ async function syncPrayerTimesToSW() {
           }
           // --- FIX END ---
 
-              S.settings = settings || defaultSettings();
+            S.settings = applyDeviceNotifSettings(
+  settings || defaultSettings()
+);
 
                 if (S.settings) {
             S.settings.timezoneOffset = -new Date().getTimezoneOffset() / 60;
@@ -5655,7 +5735,7 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
 
               subscribeToKey('settings', (val) => {
             if (val) {
-              S.settings = val;
+           S.settings = applyDeviceNotifSettings(val);
               applyArabicSize(val.arabicFontSize);
 
               // Mirror the fast-broadcast handler: the Routine screen must
@@ -6023,6 +6103,8 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
 
         /* ============================= RENDER: SHELL ============================= */
                 function go(screen, arg, verseArg) {
+  const _trackerNavId = window.__trackerNavId =
+    (window.__trackerNavId || 0) + 1;
       // Islamic Videos and News are desktop-only. On mobile, silently redirect to Home.
       if ((screen === 'videos' || screen === 'news') && window.matchMedia('(max-width: 880px)').matches) {
         screen = 'home';
@@ -6080,9 +6162,7 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
               }
             } catch (_) {}
 
-                        // ✅ PAINT NOW from whatever is already in memory.
-            // BUT if we are going to the tracker, wait for the cloud data first so it doesn't flicker 9% -> 21%
-                       // ✅ PAINT NOW instantly!
+            // ✅ PAINT NOW from whatever is already in memory.
             render();
 
             // ✅ Refresh from the cloud in the background. Each branch repaints
@@ -6107,7 +6187,7 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
                   }
                 }
 
-                                   if (screen === 'home' || screen === 'tracker') {
+                if (screen === 'home' || screen === 'tracker') {
                   const now = new Date();
                   const dayOfWeek = now.getDay();
                   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
@@ -6230,7 +6310,9 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
             })();
           };
 
-          doNavigation();
+                  // Open the selected screen immediately.
+// Any cloud refresh must happen after the screen is rendered.
+doNavigation();
         }
         function goBack() {
           const s = S.screen;
@@ -6351,21 +6433,9 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
 
     
 
-               function bindGlobalNav() {
-          $$('[data-nav]').forEach(b => {
-            // Remove the old listener before adding a new one to prevent double-click glitches
-            b.onclick = null; 
-            b.onclick = (e) => {
-              // If the button is already active, do nothing (prevents the on/off flashing)
-              if (b.classList.contains('active') && b.dataset.nav === S.screen) {
-                return;
-              }
-              go(b.dataset.nav);
-            };
-          });
-          
-          const lo = $('[data-action="logout"]'); 
-          if (lo) lo.onclick = doLogout;
+        function bindGlobalNav() {
+          $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
+          const lo = $('[data-action="logout"]'); if (lo) lo.onclick = doLogout;
 
           $$('[data-back]').forEach(b => b.onclick = (e) => {
             e.preventDefault();
@@ -8854,7 +8924,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
             }
           }
 
-       
+        
           // FIX MOBILE AND DESKTOP BOOKMARK VERSE POSITION
 
           const scrollContainer = document.querySelector('.content');
@@ -10740,7 +10810,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
           }
         }
 
-                     async function showTrackerDay(ds) {
+           async function showTrackerDay(ds) {
       const todayStr = dateStr(new Date());
       
       // 1. Check if the clicked day is in the future
@@ -10812,29 +10882,27 @@ if (dsNow < todayDate && !isEditingPastDay) {
       modal.onclick = (e) => { if (e.target === modal) closeModal(); };
 
 
-      // 4. FETCH DATA FROM CLOUD (Force Sync)
-      // We fetch directly from the cloud to ensure mobile and desktop are exactly the same.
-      let rec = null;
-      
-      try {
-        // Force fetch from cloud so we get the latest cross-device updates
-        const freshData = await getDay(ds); 
-        if (freshData) {
-          rec = freshData;
-          S.dayCache[ds] = freshData; // Update local memory with the synced data
-        }
-      } catch (e) {
-        console.warn("Failed to fetch tracker day from cloud, using local cache:", e);
-        // Fallback to local cache only if network fails
-        rec = S.dayCache[ds]; 
-      }
+        // 4. FETCH DATA IN BACKGROUND
+let rec = S.dayCache[ds];
 
-      // Fallback if empty
-      if (!rec) {
-        rec = {
-          salah: {}, routine: {}, adhkar: {}, quranVerses: 0, quranVersesRead: {}
-        };
-      }
+if (!rec) {
+  try {
+    const freshData = await getDay(ds);
+    if (freshData) {
+      rec = freshData;
+      S.dayCache[ds] = freshData;
+    }
+  } catch (e) {
+    console.warn("Failed to fetch tracker day:", e);
+  }
+}
+
+// Fallback if empty
+if (!rec) {
+  rec = {
+    salah: {}, routine: {}, adhkar: {}, quranVerses: 0, quranVersesRead: {}
+  };
+}
 
       // 5. BUILD THE ACTUAL CONTENT
       const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
@@ -12191,15 +12259,43 @@ if (dsNow < todayDate && !isEditingPastDay) {
           else if (mq.addListener) mq.addListener(handler);
         })();
 
-      function syncNotificationUI() {
-  // Never reset notification preferences automatically.
-  // Only the user's manual action may change a saved preference.
-  if (!S || !S.settings || !S.settings.notif) return;
+  
+function syncNotificationUI() {
+  if (S.screen !== 'settings' || !S.settings) return;
+
+  const isSupported = ('Notification' in window);
+  const isDenied = !isSupported || Notification.permission === 'denied';
+
+  const warning = document.getElementById('notif-permission-warning');
+
+  // Show warning only when notifications are blocked or unsupported
+  if (warning) {
+    warning.style.display = isDenied ? 'flex' : 'none';
+  }
+
+  const deviceNotif = getDeviceNotifSettings(S.settings.notif || {});
+
+  document.querySelectorAll('[data-notif]').forEach(button => {
+    const key = button.dataset.notif;
+
+    // ✅ FORCE UNTICK: The tick should ONLY show if the browser allows it AND it's turned on.
+    const isOn = !isDenied && deviceNotif[key] === true;
+
+    button.classList.toggle('done', isOn);
+
+    button.disabled = isDenied;
+    button.style.opacity = isDenied ? '0.45' : '1';
+    button.style.cursor = isDenied ? 'not-allowed' : 'pointer';
+  });
 }
 
-        /* ============================= SETTINGS ============================= */
-                function renderSettings() {
+
+                   function renderSettings() {
           const s = S.settings;
+          
+          // Check if the browser's real toggle is OFF or blocked
+          const browserBlocked = typeof Notification === 'undefined' || Notification.permission === 'denied';
+          
           return `
         <div class="settings-page">
         <div class="pg-head" style="margin-bottom: 0; padding-bottom: 10px;">
@@ -12239,23 +12335,78 @@ if (dsNow < todayDate && !isEditingPastDay) {
           </div>
         </section>
 
-        <section class="settings-section">
-          <div class="settings-fixed-top">
-            <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">Notifications</div>
+    <section class="settings-section">
+      <div class="settings-fixed-top">
+        <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">
+          Notifications
+        </div>
+      </div>
+
+      <!-- Notification permission warning -->
+      <div
+        id="notif-permission-warning"
+        style="
+          display:none;
+          align-items:flex-start;
+          gap:12px;
+          padding:16px;
+          margin-bottom:12px;
+          border:1px solid rgba(239, 68, 68, 0.25);
+          border-radius:14px;
+          background:rgba(239, 68, 68, 0.07);
+        "
+      >
+        <div style="
+          width:38px;
+          height:38px;
+          min-width:38px;
+          border-radius:50%;
+          display:flex;
+          align-items:center;
+          justify-content:center;
+          background:rgba(239, 68, 68, 0.12);
+          color:#ef4444;
+          font-size:19px;
+        ">
+          <span>!</span>
+        </div>
+
+        <div style="flex:1;">
+          <div style="font-weight:700; font-size:14px; color:var(--tx); margin-bottom:5px;">
+            Notifications are blocked
           </div>
-              <div class="card" style="margin-bottom:16px;">
-             ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
-              // Check if the browser itself allows notifications
-            const isOn = s.notif[k] === true;
-              return `<div class="checkrow">
-                <span class="rowtitle" style="flex:1; display: flex; align-items: center;">
-                  ${k[0].toUpperCase() + k.slice(1)} reminder
-                </span>
-                <button class="chk ${isOn ? 'done' : ''}" data-notif="${k}"></button>
-              </div>`;
-            }).join('')}
+          <div style="font-size:13px; line-height:1.6; color:var(--tx); opacity:0.75;">
+            Your browser is blocking notifications. Allow notifications in your browser settings to receive your reminders.
           </div>
-        </section>
+          <div style="font-size:12px; line-height:1.5; margin-top:9px; color:var(--amber);">
+            After allowing notifications, return here. Your notification settings will become available again.
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px;">
+        ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
+          
+          // ✅ SIMPLE FIX: If browser is blocked, isOn is strictly false (no tick).
+          const isOn = browserBlocked ? false : (s.notif && s.notif[k] === true);
+
+          return `
+            <div class="checkrow">
+              <span class="rowtitle" style="flex:1;">
+                ${k[0].toUpperCase() + k.slice(1)} reminder
+              </span>
+
+              <button
+                class="chk ${isOn ? 'done' : ''}"
+                data-notif="${k}"
+                ${browserBlocked ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                type="button">
+              </button>
+            </div>
+          `;
+        }).join('')}
+      </div>
+</section>
 
         <section class="settings-section">
           <div class="settings-fixed-top">
@@ -12430,121 +12581,108 @@ if (dsNow < todayDate && !isEditingPastDay) {
           content.addEventListener('scroll', onScroll, { passive: true });
         }
 
-                                        function bindSettings() {
+                                           function bindSettings() {
           
-            // (Adhan preview logic removed - notification plays automatically)
+        // ---- Device-specific notification toggles ----
 
-          // ---- Notifications toggles (instant tick, background save) ----
+$$('[data-notif]').forEach(b => {
+  b.onclick = async (e) => {
+    e.preventDefault();
 
-              // ---- Notifications toggles (instant tick, background save) ----
-          $$('[data-notif]').forEach(b => {
-            b.onclick = async (e) => {
-              e.preventDefault();
+    const k = b.dataset.notif;
 
-              // 1. CHECK BROWSER PERMISSION FIRST
-              // If the browser has blocked notifications, don't let them tick it.
-              if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
-                toast('Please enable notifications in your browser/phone settings first.');
-                
-                // If they haven't been asked yet, trigger the prompt now
-                if (Notification.permission === 'default') {
-                  await setupPushNotifications();
-                }
-                return; // Stop the function here so the box doesn't tick
-              }
+    if (b.dataset.busy === '1') return;
 
-              // 2. NORMAL TOGGLE LOGIC
-              if (b.dataset.busy === '1') return;
-              b.dataset.busy = '1';
-              setTimeout(() => { try { delete b.dataset.busy; } catch (_) {} }, 300);
+    if (typeof Notification === 'undefined') {
+      toast('Notifications are not supported in this browser.');
+      syncNotificationUI();
+      return;
+    }
 
-              const k = b.dataset.notif;
-              const nextVal = !S.settings.notif[k];
-              S.settings.notif[k] = nextVal;
+   if (Notification.permission === 'denied') {
+  syncNotificationUI();
+  toast("Notifications are blocked. Please allow them in your browser settings.");
+  return;
+}
 
-                        // Paint the tick NOW — same frame as the tap.
-              b.classList.toggle('done', nextVal);
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
 
-              // 👇 ADDED FIX: Force an INSTANT local save before the cloud sync
-              try { 
-                  const uid = getCloudUid() || 'guest';
-                  localStorage.setItem('u:' + uid + ':settings', JSON.stringify(S.settings)); 
-              } catch (err) {}
+      if (permission !== 'granted') {
+        toast('Please allow notifications in your browser settings.');
+        syncNotificationUI();
+        return;
+      }
+    }
 
-              // Persist in the background — never block the UI.
-              setJSON('settings', S.settings).catch(() => {});
+    b.dataset.busy = '1';
 
-                         // If they just turned a notification ON, request permission
-              if (nextVal) {
-                setupPushNotifications().catch(() => {});
-              }
+    setTimeout(() => {
+      delete b.dataset.busy;
+    }, 300);
 
-              syncPrayerTimesToSW();           // ← ADD THIS
-              
-              // Turning OFF any prayer reminder stops the adhan preview.
-              if (!nextVal && window._activeAdhanKey === k) {
-                if (_globalAdhanPlayer) {
-                  _globalAdhanPlayer.pause();
-                  _globalAdhanPlayer.currentTime = 0;
-                  _globalAdhanPlayer = null;
-                }
-                window._activeAdhanKey = null;
-              }
-              
-              // Update ONLY the speaker icon in place — no full render, no scroll jump
-              const row = b.closest('.checkrow');
-              if (row) {
-                const oldIcon = row.querySelector('[data-adhan-icon]');
-                if (oldIcon) oldIcon.remove();
+    // Read this device's notification preferences.
+    const deviceNotif = getDeviceNotifSettings(
+      S.settings.notif || {}
+    );
 
-                if (nextVal && window._activeAdhanKey === k) {
-                  const icon = document.createElement('span');
-                  icon.setAttribute('data-adhan-icon', '1');
-                  icon.style.cssText = 'margin-right:8px;display:inline-flex;align-items:center;color:var(--green-l);';
-                  icon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
-                  const title = row.querySelector('.rowtitle');
-                  if (title) title.prepend(icon);
-                }
-              }
-            }
-          });
+    const nextVal = deviceNotif[k] !== true;
 
-                   const holidayToggle = $('[data-toggle-holiday]');
-          if (holidayToggle) {
-            holidayToggle.onclick = (e) => {
-              e.preventDefault();
-              if (holidayToggle.dataset.busy === '1') return;
-              holidayToggle.dataset.busy = '1';
-              setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
+    deviceNotif[k] = nextVal;
 
-              const targetDate = (S.screen === 'routine' && S.routineViewDate) ? S.routineViewDate : dateStr(new Date());
-              const isWeekendDay = new Date(targetDate + 'T12:00:00').getDay() === 0 || new Date(targetDate + 'T12:00:00').getDay() === 6;
-              
-              let currentlyHoliday = isWeekendDay;
-              if (S.settings.holidayDates && S.settings.holidayDates[targetDate] !== undefined) {
-                currentlyHoliday = S.settings.holidayDates[targetDate];
-              }
-              
-              const nextVal = !currentlyHoliday;
-              
-              if (!S.settings.holidayDates) S.settings.holidayDates = {};
-              S.settings.holidayDates[targetDate] = nextVal;
+    // Update this device's UI.
+    b.classList.toggle('done', nextVal);
 
-              holidayToggle.classList.toggle('done', nextVal);
-              setJSON('settings', S.settings).catch(() => {});
+    // Save only to this device.
+    saveDeviceNotifSettings(deviceNotif);
 
-              toast(nextVal
-                ? 'Holiday Mode ON — Weekend routine loaded.'
-                : 'Holiday Mode OFF — Workday routine loaded.');
+    S.settings.notif = deviceNotif;
 
-              // ✅ If you are on the routine screen, redraw it immediately
-              if (S.screen === 'routine') {
-                hydrateRoutine();
-              } else {
-                render();
-              }
-            };
-          }
+    // Keep existing notification integration.
+    syncPrayerTimesToSW();
+
+    // Keep existing push subscription behaviour.
+    if (nextVal) {
+      setupPushNotifications().catch(() => {});
+    }
+
+    // Keep existing Adhan stop behaviour.
+    if (!nextVal && window._activeAdhanKey === k) {
+      if (_globalAdhanPlayer) {
+        _globalAdhanPlayer.pause();
+        _globalAdhanPlayer.currentTime = 0;
+        _globalAdhanPlayer = null;
+      }
+
+      window._activeAdhanKey = null;
+    }
+
+    // Keep existing speaker icon update.
+    const row = b.closest('.checkrow');
+
+    if (row) {
+      const oldIcon = row.querySelector('[data-adhan-icon]');
+
+      if (oldIcon) oldIcon.remove();
+
+      if (nextVal && window._activeAdhanKey === k) {
+        const icon = document.createElement('span');
+
+        icon.setAttribute('data-adhan-icon', '1');
+
+        icon.style.cssText =
+          'margin-right:8px;display:inline-flex;align-items:center;color:var(--green-l);';
+
+        icon.innerHTML =
+          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
+
+        const title = row.querySelector('.rowtitle');
+
+        if (title) title.prepend(icon);
+      }
+    }
+  };
+});
 
           // ---- Auto-location toggle (instant tick, background save) ----
           const autoLocToggle = $('[data-toggle-auto-loc]');
@@ -12581,23 +12719,21 @@ if (dsNow < todayDate && !isEditingPastDay) {
                 x.classList.toggle('btn-ghost', !active);
               });
 
-              // Persist in the background — no need to wait.
               setJSON('settings', S.settings).catch(() => {});
             };
           });
 
-          // ---- Birthday save (this one is a deliberate Save button, so a
-          //      short delay before feedback is fine — but we still don't want
-          //      to block the UI. It's a one-off action anyway.) ----
-                  const bdayBtn = $('#birthday-save');
-if (bdayBtn) bdayBtn.onclick = async () => {
-  const val = $('#birthday-input').value;
-  S.settings.birthday = val || null;
-  setJSON('settings', S.settings).catch(() => {});
-  syncPrayerTimesToSW();
-  toast(val ? 'Birthday saved. We\u2019ll remind you each year.' : 'Birthday cleared.');
-};
+          // ---- Birthday save ----
+          const bdayBtn = $('#birthday-save');
+          if (bdayBtn) bdayBtn.onclick = async () => {
+            const val = $('#birthday-input').value;
+            S.settings.birthday = val || null;
+            setJSON('settings', S.settings).catch(() => {});
+            syncPrayerTimesToSW();
+            toast(val ? 'Birthday saved. We\u2019ll remind you each year.' : 'Birthday cleared.');
+          };
 
+          // ---- Delete Account Logic ----
           const del = $('#delete-acct');
           if (del) del.onclick = async () => {
             if (!confirm('This will permanently erase your worship data — prayers, routine, Qur\'an progress, bookmarks, adhkar, reflections and chat history.\n\nYour login, profile, profile picture, birthday, prayer settings, Arabic font size, notification preferences, and all other Settings will be kept.\n\nContinue?')) return;
@@ -12771,7 +12907,7 @@ if (bdayBtn) bdayBtn.onclick = async () => {
               }
             } catch (e) { console.warn('Cloud erase failed:', e); }
 
-                  unsubscribeAllCloudListeners();
+            unsubscribeAllCloudListeners();
             _subscribedDayKey = null;
             _globalKeysSubscribed = false;
             subscribeToGlobalKeys();
@@ -13151,8 +13287,6 @@ if (bdayBtn) bdayBtn.onclick = async () => {
         /* ============================= SCREEN ACTION BINDER ============================= */
         function bindScreenActions(s) {
           try {
-
-                        bindGlobalNav(); 
             if (s === 'home') { subscribeToCurrentDay(); hydrateHome(); }
             else if (s === 'salah') { subscribeToCurrentDay(); hydrateSalahPage(); }
             else if (s === 'routine') { subscribeToCurrentDay(); hydrateRoutine(); }
@@ -13610,7 +13744,7 @@ if (bdayBtn) bdayBtn.onclick = async () => {
     setTimeout(consumePendingChecks, 400);
     
     // SILENTLY TRIGGER NEWS CHECK WHEN APP OPENS
-    fetch('/api/notify').catch(() => {}); 
+  fetch('/api/news-cron').catch(() => {});
             const uid = window.__sbUid || S?._lastUid || S?.profile?.uid;
             if (uid && typeof _sbEnsureBroadcast === 'function') {
               _sbEnsureBroadcast(uid);
@@ -13620,7 +13754,7 @@ if (bdayBtn) bdayBtn.onclick = async () => {
           }
         });
 
-                window.addEventListener('focus', () => {
+                     window.addEventListener('focus', () => {
           checkAutoTheme();
           syncNotificationUI();
           setTimeout(consumePendingChecks, 400);
@@ -13629,6 +13763,20 @@ if (bdayBtn) bdayBtn.onclick = async () => {
             _sbEnsureBroadcast(uid);
           }
         });
+
+        // --- ADD THESE TWO BLOCKS ---
+        // 1. Checks permission whenever you click anywhere on the page
+        document.addEventListener('click', () => {
+          if (S.screen === 'settings') syncNotificationUI();
+        });
+        
+        // 2. Checks permission the moment you switch back to the tab
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible' && S.screen === 'settings') {
+            syncNotificationUI();
+          }
+        });
+        // ----------------------------
 
         /* ============================= NOTIFICATION SCHEDULER ============================= */
         
@@ -13783,6 +13931,8 @@ if (bdayBtn) bdayBtn.onclick = async () => {
         return false;
       }
     }
+
+    
 
     // Call this function when the user logs in or finishes setup
     // For example, inside your `bindSetupNotif` or `performLogin` functions.
