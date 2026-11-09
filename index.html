@@ -386,8 +386,26 @@
           font-weight: 500; text-align: left; width: 100%;
           transition: background .15s, color .15s;
         }
-        @media (hover: hover) { .navitem:hover { background: var(--card); color: var(--tx); } }
-        .navitem.active { background: var(--green-dim); color: var(--green-l); font-weight: 600; }
+               @media (hover: hover) { 
+          .navitem:hover { 
+            background: var(--card); 
+            color: var(--tx); 
+          } 
+          /* Keep the hover color on the active tab so it doesn't flicker */
+          .navitem.active:hover {
+            background: var(--green-dim); 
+            color: var(--green-l); 
+          }
+        }
+        .navitem.active { 
+          background: var(--green-dim); 
+          color: var(--green-l); 
+          font-weight: 600; 
+        }
+        /* Force the click state to match the active state immediately */
+        .navitem:active {
+          background: var(--green-dim) !important;
+        }
         .navitem svg { flex-shrink: 0; opacity: .9; }
         .navfoot { border-top: 1px solid var(--border); padding-top: 10px; margin-top: 8px; }
         .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -1134,28 +1152,12 @@
 
         .empty { text-align: center; padding: 40px 20px; color: var(--tx3); }
 
-       .toast {
-  position: fixed;
-  bottom: 90px;
-  left: 50vw;
-  transform: translateX(-50%);
-  width: max-content;
-  max-width: calc(100vw - 32px);
-  box-sizing: border-box;
-  background: var(--card-el);
-  border: 1px solid var(--border);
-  padding: 10px 18px;
-  border-radius: 30px;
-  font-size: 13px;
-  z-index: 99999;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  text-align: center;
-  opacity: 0;
-  transition: opacity .25s;
-}
+        .toast {
+          position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+          background: var(--card-el); border: 1px solid var(--border);
+          padding: 10px 18px; border-radius: 30px; font-size: 13px; z-index: 100;
+          display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity .25s;
+        }
         .toast.show { opacity: 1; }
         @media (min-width:881px) { .toast { bottom: 24px; } }
 
@@ -1229,52 +1231,13 @@
         }
         .audio-bar .ab-time.right { text-align: center; }
 
-       
-/* AUDIO SEEK BAR — HAND CURSOR + DRAG SUPPORT */
-.audio-bar .ab-seek {
-  flex: 1 1 0;
-  min-width: 0;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  position: relative;
-
-  cursor: pointer !important;
-  user-select: none !important;
-  -webkit-user-select: none !important;
-  -webkit-touch-callout: none;
-  -webkit-tap-highlight-color: transparent;
-
-  touch-action: none;
-  overflow: visible;
-}
-
-/* Keep the hand cursor over the entire progress track */
-.audio-bar .ab-seek,
-.audio-bar .ab-seek *,
-.audio-bar .ab-seek .ab-track,
-.audio-bar .ab-seek .ab-fill {
-  cursor: pointer !important;
-}
-
-/* Smoothly enlarge the handle while hovering */
-@media (hover: hover) {
-  .audio-bar .ab-seek:hover .ab-thumb {
-    transform: translate(-50%, -50%) scale(1.25);
-  }
-}
-
-/* Show dragging state */
-.audio-bar .ab-seek.dragging,
-.audio-bar .ab-seek.dragging * {
-  cursor: grabbing !important;
-}
-
-.audio-bar .ab-seek.dragging .ab-thumb {
-  transition: none !important;
-  transform: translate(-50%, -50%) scale(1.35);
-}
-
+        .audio-bar .ab-seek {
+          flex: 1 1 0; min-width: 0; height: 28px;
+          display: flex; align-items: center; cursor: pointer; position: relative;
+          -webkit-tap-highlight-color: transparent; touch-action: none;
+          user-select: none; -webkit-user-select: none;
+          -webkit-touch-callout: none; overflow: visible;
+        }
         .audio-bar .ab-track {
           width: 100%; height: 4px; background: var(--card-el);
           border-radius: 4px; position: relative; overflow: visible;
@@ -2010,21 +1973,6 @@
           }
         }
 
-          
-/* FINAL AUDIO PLAYER CURSOR OVERRIDE */
-#audio-bar #ab-seek,
-#audio-bar #ab-seek *,
-#audio-bar #ab-seek .ab-track,
-#audio-bar #ab-seek .ab-fill {
-  cursor: pointer !important;
-}
-
-#audio-bar #ab-seek.dragging,
-#audio-bar #ab-seek.dragging * {
-  cursor: grabbing !important;
-}
-
-
       </style>
     </head>
 
@@ -2275,27 +2223,8 @@
         function pad(n) { return String(n).padStart(2, '0'); }
         function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
       function fmtTime(d) { if (!d) return '--:--'; const c = new Date(d.getTime()); c.setSeconds(0, 0); c.setMinutes(c.getMinutes() + (d.getSeconds() >= 30 ? 1 : 0)); let h = c.getHours(), m = c.getMinutes(); let ap = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12; if (h12 === 0) h12 = 12; return h12 + ':' + pad(m) + ' ' + ap; }
-             function fmtDur(ms) { 
-          if (ms < 0) ms = 0; 
-          // FIX: Use Math.ceil to round up partial seconds to the next whole second
-          let s = Math.ceil(ms / 1000); 
-          let h = Math.floor(s / 3600); 
-          s -= h * 3600; 
-          let m = Math.floor(s / 60); 
-          s -= m * 60; 
-          return pad(h) + ':' + pad(m) + ':' + pad(s); 
-        }
-       function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
-
-// Show the GPS confirmation toast ONCE PER APP SESSION (refresh resets it).
-// It appears on whichever screen the user is on when GPS resolves.
-function toastGpsOnce(msg) {
-  try {
-    if (sessionStorage.getItem('__gpsToastShown') === '1') return;
-    sessionStorage.setItem('__gpsToastShown', '1');
-  } catch (e) {}
-  toast(msg);
-}
+        function fmtDur(ms) { if (ms < 0) ms = 0; let s = Math.floor(ms / 1000); let h = Math.floor(s / 3600); s -= h * 3600; let m = Math.floor(s / 60); s -= m * 60; return pad(h) + ':' + pad(m) + ':' + pad(s); }
+        function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
         function esc(s) { return (s || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
         function togglePass(id, btn) {
@@ -2594,21 +2523,9 @@ function toastGpsOnce(msg) {
               return;
             }
 
-                       if (key === 'routine-struct') {
-              if (val && typeof val === 'object' && val.weekday && val.weekend) {
+            if (key === 'routine-struct') {
+              if (Array.isArray(val) && val.length) {
                 S.routineStruct = val;
-                if (S.screen === 'routine') hydrateRoutine();
-              } else if (val && typeof val === 'object' && val.data) {
-                // Legacy shape from an older device — migrate
-                const legacyData = cloneStructure(val.data);
-                if (val.isWeekendMode) {
-                  S.routineStruct = { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData };
-                } else {
-                  S.routineStruct = { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
-                }
-                if (S.screen === 'routine') hydrateRoutine();
-              } else if (Array.isArray(val) && val.length) {
-                S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
                 if (S.screen === 'routine') hydrateRoutine();
               }
               return;
@@ -2638,7 +2555,7 @@ function toastGpsOnce(msg) {
 
                     if (key === 'settings') {
               if (val) {
-             S.settings = applyDeviceNotifSettings(val);
+                S.settings = val;
                 applyArabicSize(val.arabicFontSize);
 
                 // The Routine screen renders from S.settings.holidayMode via
@@ -2825,20 +2742,17 @@ function toastGpsOnce(msg) {
             val = { ...val, updatedAt: Date.now() };
           }
 
-       const serialized = JSON.stringify(val);
-const cloudVal = getCloudSyncValue(key, val);
+          const serialized = JSON.stringify(val);
           // Record the local edit before broadcasting or starting the network write.
           // Delayed database events must not roll a freshly ticked prayer back to its
           // previous value while this device's newest value is still being persisted.
           _localWriteAt[key] = Date.now();
           try { localStorage.setItem(_lsKey(key), serialized); } catch (e) {}
-        _markLocalWrite(key, cloudVal);
+          _markLocalWrite(key, val);
 
                 // Fire the low-latency broadcast immediately — the DB write below
           // still runs and remains the authoritative record.
-      if (typeof _sbBroadcastWrite === 'function') {
-  _sbBroadcastWrite(key, cloudVal);
-}
+          if (typeof _sbBroadcastWrite === 'function') _sbBroadcastWrite(key, val);
 
           const uid = getCloudUid();
           if (!uid) return true;
@@ -2853,11 +2767,7 @@ const cloudVal = getCloudSyncValue(key, val);
             let latestVal = val;
             try {
               const raw = localStorage.getItem(_lsKey(key));
-            if (raw !== null) {
-  latestVal = JSON.parse(raw);
-}
-
-latestVal = getCloudSyncValue(key, latestVal);
+              if (raw !== null) latestVal = JSON.parse(raw);
             } catch (e) {}
                   if (window.sb?.supabase) {
               const { error } = await window.sb.supabase.from('user_sync').upsert({
@@ -3117,13 +3027,11 @@ latestVal = getCloudSyncValue(key, latestVal);
               return;
             }
 
-                      if (key === 'settings') {
+            if (key === 'settings') {
               if (val) {
-               S.settings = applyDeviceNotifSettings(val);
+                S.settings = val;
                 applyArabicSize(val.arabicFontSize);
-                if (S.screen === 'routine' || ['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) {
-                  render();
-                }
+                if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) render();
               }
               return;
             }
@@ -3437,19 +3345,11 @@ async function syncPrayerTimesToSW() {
         const _QURAN_CUM = [0, 0, 7, 293, 493, 669, 789, 954, 1160, 1235, 1364, 1473, 1596, 1707, 1750, 1802, 1901, 2029, 2140, 2250, 2348, 2483, 2595, 2673, 2791, 2855, 2932, 3159, 3252, 3340, 3409, 3443, 3473, 3506, 3581, 3634, 3679, 3724, 3798, 3881, 3931, 4006, 4049, 4101, 4131, 4181, 4228, 4259, 4296, 4330, 4360, 4394, 4437, 4487, 4549, 4590, 4671, 4767, 4796, 4818, 4841, 4871, 4896, 4928, 4955, 4992, 5018, 5046, 5085, 5112, 5137, 5172, 5209, 5243, 5275, 5290, 5303, 5325, 5342, 5365, 5390, 5413, 5442, 5475, 5512, 5550, 5576, 5601, 5624, 5655, 5682, 5706, 5731, 5754, 5776, 5798, 5818, 5838, 5857, 5877, 5896, 5915, 5935, 5952, 5968, 5982, 5995, 6008, 6019, 6029, 6039, 6049, 6059, 6069, 6077, 6085, 6091, 6097, 6103, 6108, 6113, 6118, 6123, 6128, 6133, 6138, 6143, 6148, 6153, 6157, 6161, 6165, 6169, 6173, 6177, 6180, 6183, 6186, 6189, 6192, 6195, 6198, 6201, 6204, 6207, 6210, 6213, 6216, 6219, 6222, 6225, 6228, 6231, 6234];
 
         function _qGlobalAyah(surah, verse) { return _QURAN_CUM[surah] + verse; }
-       
-function _qPlayBtnHTML(isPlaying) {
-  if (_isPlayingFullSurah) {
-    return isPlaying
-      ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`
-      : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-  }
-
-  return isPlaying
-    ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`
-    : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play`;
-}
-
+        function _qPlayBtnHTML(isPlaying) {
+          return isPlaying
+            ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`
+            : `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play`;
+        }
         function _fmtSec(sec) {
           if (!isFinite(sec) || sec < 0) sec = 0;
           sec = Math.floor(sec);
@@ -3632,99 +3532,6 @@ function _qPlayBtnHTML(isPlaying) {
             ? `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg>`
             : `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>`;
         }
-           
-                     // ============================================================
-        // VERSE-HIGHLIGHT SCHEDULER
-        // Fires once at the exact timestamp of each upcoming verse
-        // boundary. Uses setTimeout armed from currentTime, so it does
-        // NOT depend on the browser's ~250ms timeupdate cadence.
-        // ============================================================
-        function _scheduleVerseHighlight(a, surahNum) {
-          if (!a) return;
-          clearTimeout(a.__verseTimer);
-          a.__verseTimer = null;
-
-          if (a.paused) return;
-          const timings = _verseTimingsCache[surahNum];
-          if (!timings || !timings.length) return;
-
-          const cur = a.currentTime || 0;
-
-          let next = null;
-          for (let i = 0; i < timings.length; i++) {
-            if (timings[i].start > cur + 0.001) { next = timings[i]; break; }
-          }
-          if (!next) return;
-
-          // Arm the timer to fire exactly at the boundary, minus a
-          // 60ms head-start so the DOM class-swap has time to paint
-          // before the reciter's first syllable is audible.
-          const delayMs = Math.max(0, (next.start - cur) * 1000 - 60);
-
-          a.__verseTimer = setTimeout(() => {
-            if (_qAudio !== a || a.paused) return;
-            _applyVerseHighlight(surahNum, next.verse);
-            _scheduleVerseHighlight(a, surahNum);
-          }, delayMs);
-        }
-
-        function _applyVerseHighlight(surahNum, verseNow) {
-          if (S.screen === 'quran-reader' && S.arg === surahNum) {
-            let activeVerseEl = null;
-            document.querySelectorAll('.card[data-verse-num]').forEach(card => {
-              const cardVerse = parseInt(card.dataset.verseNum, 10);
-              if (cardVerse === verseNow) {
-                card.classList.add('verse-playing');
-                activeVerseEl = card;
-              } else {
-                card.classList.remove('verse-playing');
-                if (card.dataset.scrolledFor) delete card.dataset.scrolledFor;
-              }
-            });
-
-            if (activeVerseEl) {
-              const rect = activeVerseEl.getBoundingClientRect();
-              const viewportH = window.innerHeight || document.documentElement.clientHeight;
-              const isVisible = (rect.top >= 100 && rect.bottom <= viewportH - 100);
-              if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
-                activeVerseEl.dataset.scrolledFor = String(verseNow);
-                _autoScrolling = true;
-                requestAnimationFrame(() => requestAnimationFrame(() => {
-                  const cardRect = activeVerseEl.getBoundingClientRect();
-                  const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
-                  const cardTopInPage = cardRect.top + scrollTop;
-                  let stickyTop = 0;
-                  const stickyHead = document.querySelector('.quran-reader-sticky-head');
-                  if (stickyHead) stickyTop = Math.max(0, stickyHead.getBoundingClientRect().bottom);
-                  else stickyTop = 140;
-                  const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
-                  window.scrollTo({ top: targetY, behavior: 'smooth' });
-                  clearTimeout(window.__autoScrollTimer);
-                  window.__autoScrollTimer = setTimeout(() => { _autoScrolling = false; }, 1200);
-                }));
-              }
-            }
-          }
-
-          _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
-
-          if (S.quranProgress?.surah !== surahNum || S.quranProgress?.verse !== verseNow) {
-            if (!_fullSurahOwnsPointer) return;
-            S.quranProgress = { surah: surahNum, verse: verseNow };
-            _refreshContinueReadingBox();
-            const profEl = document.getElementById('profile-quran-progress');
-            if (profEl) {
-              const surMeta = SURAHS.find(s => s.num === surahNum);
-              if (surMeta) profEl.textContent = `Surah ${surahNum}:${verseNow} \u2014 ${surMeta.translit}`;
-            }
-            const now = Date.now();
-            _lastQuranSaveAt = now;
-            _lastPlaybackPos = { surahNum, verse: verseNow, seconds: Math.max(0, _qAudio?.currentTime || 0), clientUpdatedAt: now };
-            setJSON('quran-progress', { surah: surahNum, verse: verseNow, clientUpdatedAt: now }).catch(() => {});
-            setJSON('audio-position', _lastPlaybackPos).catch(() => {});
-          }
-        }
-
         function _abSetProgressUI(current, duration, percent) {
           const fill = $('#ab-fill');
           const thumb = $('#ab-thumb');
@@ -3786,49 +3593,16 @@ function _qPlayBtnHTML(isPlaying) {
           }
         }
 
-             function _qStopAudio(finalizePointer = true) {
+        function _qStopAudio(finalizePointer = true) {
           if (_qAudio && _isPlayingFullSurah && _currentSurahNum && finalizePointer && !_fullSurahPointerFrozen) {
             _freezeFullSurahPointer();
           }
 
-          // Kill any pending verse-transition timer before dropping the reference.
-          if (_qAudio) {
-            clearTimeout(_qAudio.__verseTimer);
-            _qAudio.__verseTimer = null;
-          }
-
-        
-const stoppedSurahHTML =
-  `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-
-if (_qAudio) {
-  try { _qAudio.pause(); } catch (e) {}
-  _qAudio = null;
-}
-
-// Reset BOTH desktop and mobile Surah buttons.
-const desktopSurahBtn = document.getElementById('play-whole-surah');
-const mobileSurahBtn = document.getElementById('play-whole-surah-mobile');
-
-if (_isPlayingFullSurah) {
-  if (desktopSurahBtn) {
-    desktopSurahBtn.innerHTML = stoppedSurahHTML;
-  }
-
-  if (mobileSurahBtn) {
-    mobileSurahBtn.innerHTML = stoppedSurahHTML;
-  }
-}
-
-if (_qAudioBtn) {
-  _qAudioBtn.innerHTML = _qPlayBtnHTML(false);
-  _qAudioBtn = null;
-}
-
-_autoPlayNextSurah = false;
-_isPlayingFullSurah = false;
-_currentSurahNum = null;
-
+          if (_qAudio) { try { _qAudio.pause(); } catch (e) { } _qAudio = null; }
+          if (_qAudioBtn) { _qAudioBtn.innerHTML = _qPlayBtnHTML(false); _qAudioBtn = null; }
+          _autoPlayNextSurah = false;
+          _isPlayingFullSurah = false;
+          _currentSurahNum = null;
           _isSeeking = false;
           _abSetPlaying(false);
           _hideMiniPill();
@@ -3889,12 +3663,105 @@ _currentSurahNum = null;
             const pct = dur ? (cur / dur) * 100 : 0;
             _abSetProgressUI(cur, dur, pct);
 
-                      // Verse highlight is driven by _scheduleVerseHighlight (precise setTimeout),
-            // NOT by timeupdate. Here we only repaint the current verse so a fresh
-            // play or a seek shows the correct verse immediately.
             if (_isPlayingFullSurah && _currentSurahNum && dur > 0) {
               const verseNow = _estimateVerseFromTime(_currentSurahNum, cur, dur);
-              if (verseNow) _applyVerseHighlight(_currentSurahNum, verseNow);
+              if (!verseNow) return;
+
+              _abSetSub('Yasser Al-Dosari \u2014 Verse ' + verseNow);
+
+              if (S.screen === 'quran-reader' && S.arg === _currentSurahNum) {
+                let activeVerseEl = null;
+                document.querySelectorAll('.card[data-verse-num]').forEach(card => {
+                  const cardVerse = parseInt(card.dataset.verseNum, 10);
+                  if (cardVerse === verseNow) {
+                    card.classList.add('verse-playing');
+                    activeVerseEl = card;
+                  } else {
+                    card.classList.remove('verse-playing');
+                    if (card.dataset.scrolledFor) {
+                      delete card.dataset.scrolledFor;
+                    }
+                  }
+                });
+
+                        if (activeVerseEl) {
+                  const rect = activeVerseEl.getBoundingClientRect();
+                  const viewportH = window.innerHeight || document.documentElement.clientHeight;
+                  const isVisible = (rect.top >= 100 && rect.bottom <= viewportH - 100);
+
+                  if (!isVisible && activeVerseEl.dataset.scrolledFor !== String(verseNow)) {
+                    activeVerseEl.dataset.scrolledFor = String(verseNow);
+                    _autoScrolling = true;
+
+                    requestAnimationFrame(() => requestAnimationFrame(() => {
+                      const cardRect = activeVerseEl.getBoundingClientRect();
+                      const scrollTop = window.pageYOffset || document.documentElement.scrollTop || 0;
+                      const cardTopInPage = cardRect.top + scrollTop;
+
+                      // Measure how much of the top of the viewport is covered by the
+                      // sticky reader header (Bismillah card + Reciter card). Query
+                      // the actual sticky header element so this adapts automatically
+                      // to any screen size.
+                      let stickyTop = 0;
+                      const stickyHead = document.querySelector('.quran-reader-sticky-head');
+                      if (stickyHead) {
+                        const sr = stickyHead.getBoundingClientRect();
+                        stickyTop = Math.max(0, sr.bottom);
+                      } else {
+                        stickyTop = 140; // fallback estimate
+                      }
+
+                      // Add 20px breathing room below the sticky header.
+                      const targetY = Math.max(0, cardTopInPage - stickyTop - 20);
+
+                      window.scrollTo({
+                        top: targetY,
+                        behavior: 'smooth'
+                      });
+
+                      clearTimeout(window.__autoScrollTimer);
+                      window.__autoScrollTimer = setTimeout(() => {
+                        _autoScrolling = false;
+                      }, 1200);
+                    }));
+                  }
+                }
+              }
+
+              const now = Date.now();
+              if (S.quranProgress?.surah !== _currentSurahNum ||
+                S.quranProgress?.verse !== verseNow) {
+
+                if (!_fullSurahOwnsPointer) return;
+
+                S.quranProgress = { surah: _currentSurahNum, verse: verseNow };
+
+                _refreshContinueReadingBox();
+
+                const profEl = document.getElementById('profile-quran-progress');
+                if (profEl) {
+                  const surMeta = SURAHS.find(s => s.num === _currentSurahNum);
+              if (surMeta) profEl.textContent = `Surah ${_currentSurahNum}:${verseNow} \u2014 ${surMeta.translit}`;
+                }
+
+                // The visible UI is updated synchronously above. Persist every verse
+                // transition immediately so both devices receive the latest pointer.
+                // Audio position is saved with the same verse/time for exact resume.
+                _lastQuranSaveAt = now;
+                _lastPlaybackPos = {
+                  surahNum: _currentSurahNum,
+                  verse: verseNow,
+                  seconds: Math.max(0, cur),
+                  clientUpdatedAt: now
+                };
+                const progressToSave = {
+                  surah: _currentSurahNum,
+                  verse: verseNow,
+                  clientUpdatedAt: now
+                };
+                setJSON('quran-progress', progressToSave).catch(() => {});
+                setJSON('audio-position', _lastPlaybackPos).catch(() => {});
+              }
             }
           };
           const tick = () => {
@@ -3911,7 +3778,7 @@ _currentSurahNum = null;
           a.addEventListener('durationchange', updateUI);
           a.addEventListener('timeupdate', updateUI);
 
-                   a.addEventListener('play', () => {
+          a.addEventListener('play', () => {
             try { a.playbackRate = _playbackRate; } catch (e) { }
             if (_isPlayingFullSurah && _qAudio === a) {
               _fullSurahPointerFrozen = false;
@@ -3921,35 +3788,9 @@ _currentSurahNum = null;
             _abSyncStatus(true);
             _syncMiniPillLabel();
             requestAnimationFrame(tick);
-            // Arm the precise verse-boundary scheduler.
-            if (_isPlayingFullSurah && _currentSurahNum) {
-              _scheduleVerseHighlight(a, _currentSurahNum);
-            }
           });
 
-          a.addEventListener('seeking', () => {
-            if (_isPlayingFullSurah && _currentSurahNum) {
-              const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
-              if (dur > 0) {
-                const v = _estimateVerseFromTime(_currentSurahNum, a.currentTime || 0, dur);
-                if (v) _applyVerseHighlight(_currentSurahNum, v);
-              }
-              _scheduleVerseHighlight(a, _currentSurahNum);
-            }
-          });
-
-          a.addEventListener('seeked', () => {
-            if (_isPlayingFullSurah && _currentSurahNum) {
-              _scheduleVerseHighlight(a, _currentSurahNum);
-            }
-          });
-
-                   a.addEventListener('pause', () => {
-            // Kill the pending verse-transition timer — nothing should fire
-            // while the player is paused.
-            clearTimeout(a.__verseTimer);
-            a.__verseTimer = null;
-
+          a.addEventListener('pause', () => {
             if (_isPlayingFullSurah && _qAudio === a && !_fullSurahPointerFrozen) {
               _freezeFullSurahPointer();
             }
@@ -4081,68 +3922,48 @@ _currentSurahNum = null;
             ? _lastPlaybackPos
             : null;
 
-        
-// Update verse information without changing the saved audio position.
-_fetchVerseTimings(num).then((timings) => {
-  if (_qAudio !== a || !timings || !timings.length) return;
+          _fetchVerseTimings(num).then((timings) => {
+            if (_qAudio !== a) return;
+            if (savedPos && timings && timings.length) {
+              const target = timings.find(t => t.verse === savedPos.verse);
+              if (target) {
+                try {
+                  a.currentTime = target.start;
+                } catch (e) { }
+              }
+            }
+            if (!timings || !timings.length) return;
+            if (a.currentTime <= 0) return;
+            const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
+            if (dur <= 0) return;
+            const v = _estimateVerseFromTime(num, a.currentTime, dur);
+            if (!v) return;
+            _abSetSub('Yasser Al-Dosari \u2014 Verse ' + v);
+            if (S.screen === 'quran-reader' && S.arg === num) {
+              document.querySelectorAll('.card[data-verse-num]').forEach(card => {
+                const cardVerse = parseInt(card.dataset.verseNum, 10);
+                if (cardVerse === v) card.classList.add('verse-playing');
+                else card.classList.remove('verse-playing');
+              });
+            }
+          });
 
-  const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
-  if (dur <= 0) return;
+          a.addEventListener('loadedmetadata', () => {
+            if (!savedPos) return;
+            const timings = _verseTimingsCache[num];
+            if (timings && timings.length) {
+              const target = timings.find(t => t.verse === savedPos.verse);
+              if (target) {
+                try { a.currentTime = target.start; } catch (e) { }
+              }
+            }
+          }, { once: true });
 
-  const v = _estimateVerseFromTime(num, a.currentTime || 0, dur);
-
-  if (v) {
-    _abSetSub('Yasser Al-Dosari — Verse ' + v);
-    _applyVerseHighlight(num, v);
-
-    if (!a.paused && _isPlayingFullSurah) {
-      _scheduleVerseHighlight(a, num);
-    }
-  }
-});
-
-a.addEventListener('loadedmetadata', () => {
-  if (_qAudio !== a) return;
-
-  if (_isPlayingFullSurah && _currentSurahNum === num) {
-    _scheduleVerseHighlight(a, num);
-  }
-}, { once: true });
-
-
-        
-const wholeBtn = document.querySelector('#play-whole-surah');
-const mobileBtn = document.querySelector('#play-whole-surah-mobile');
-
-const playSurahHTML =
-  `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-
-const pauseSurahHTML =
-  `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
-
-const updateSurahButtons = () => {
-  const isPlaying =
-    _qAudio === a &&
-    _isPlayingFullSurah &&
-    !a.paused;
-
-  const label = isPlaying ? pauseSurahHTML : playSurahHTML;
-
-  if (wholeBtn) wholeBtn.innerHTML = label;
-  if (mobileBtn) mobileBtn.innerHTML = label;
-};
-
-if (wholeBtn) {
-  _qAudioBtn = wholeBtn;
-}
-
-updateSurahButtons();
-
-a.addEventListener('play', updateSurahButtons);
-a.addEventListener('playing', updateSurahButtons);
-a.addEventListener('pause', updateSurahButtons);
-a.addEventListener('ended', updateSurahButtons);
-
+          const wholeBtn = document.querySelector('#play-whole-surah');
+          if (wholeBtn) {
+            _qAudioBtn = wholeBtn;
+            wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
+          }
 
         // ---- MOBILE: scroll ONCE to the saved/resume verse, then never touch scroll again ----
     try {
@@ -4184,96 +4005,12 @@ a.addEventListener('ended', updateSurahButtons);
             }
           });
 
-        // Restore the exact saved timestamp BEFORE allowing playback.
-let resumeStarted = false;
-
-const startSurahFromSavedPosition = async () => {
-  if (resumeStarted || _qAudio !== a) return;
-
-  if (a.readyState < HTMLMediaElement.HAVE_METADATA) return;
-
-  resumeStarted = true;
-
-  try {
-    const savedSeconds =
-      savedPos && Number.isFinite(Number(savedPos.seconds))
-        ? Math.max(0, Number(savedPos.seconds))
-        : 0;
-
-    // Use the exact saved timestamp, not the beginning of the verse.
-    const targetTime = Math.min(
-      savedSeconds,
-      Math.max(0, (a.duration || 0) - 0.25)
-    );
-
-    if (targetTime > 0) {
-      a.currentTime = targetTime;
-
-      // Wait until the browser finishes seeking.
-      if (a.seeking) {
-        await new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => {
-            cleanup();
-            reject(new Error('Audio seek timed out'));
-          }, 8000);
-
-          const cleanup = () => {
-            clearTimeout(timeout);
-            a.removeEventListener('seeked', onSeeked);
-            a.removeEventListener('error', onError);
-          };
-
-          const onSeeked = () => {
-            cleanup();
-            resolve();
-          };
-
-          const onError = () => {
-            cleanup();
-            reject(new Error('Audio seek failed'));
-          };
-
-          a.addEventListener('seeked', onSeeked, { once: true });
-          a.addEventListener('error', onError, { once: true });
-        });
-      }
-    }
-
-    // Do not start if another audio action replaced this player.
-    if (_qAudio !== a) return;
-
-    const dur = a.duration && isFinite(a.duration) ? a.duration : 0;
-    const currentVerse = dur
-      ? _estimateVerseFromTime(num, a.currentTime, dur)
-      : savedPos?.verse;
-
-    if (currentVerse) {
-      _abSetSub('Yasser Al-Dosari — Verse ' + currentVerse);
-      _applyVerseHighlight(num, currentVerse);
-    }
-
-    await a.play();
-
-    if (_qAudio === a) {
-      _abSyncStatus(true);
-
-      if (wholeBtn) {
-        wholeBtn.innerHTML =
-          `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
-      }
-    }
-  } catch (err) {
-    console.warn('Surah resume failed:', err);
-    resumeStarted = false;
-
-    if (_qAudio === a) {
-      toast('Unable to resume. Tap Play Surah to retry.');
-    }
-  }
-};
-
-a.addEventListener('canplay', startSurahFromSavedPosition);
-a.addEventListener('loadedmetadata', startSurahFromSavedPosition);
+          a.addEventListener('canplay', () => {
+            a.play().then(() => {
+              _abSyncStatus(true);
+              if (wholeBtn) wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
+            }).catch(err => { console.warn('play rejected:', err); toast('Tap once more to play.'); });
+          });
 
           a.addEventListener('error', () => {
             console.error('Surah error:', url);
@@ -4390,66 +4127,23 @@ a.addEventListener('loadedmetadata', startSurahFromSavedPosition);
           });
         }
         function bindQuranAudio(num, meta) {
-        
-const wholeBtn = $('#play-whole-surah');
-const mobileBtn = $('#play-whole-surah-mobile');
-
-const playSurahHTML =
-  `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
-
-const pauseSurahHTML =
-  `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`;
-
-const syncSurahButtons = () => {
-  const playing =
-    _qAudio &&
-    _isPlayingFullSurah &&
-    Number(_currentSurahNum) === Number(num) &&
-    !_qAudio.paused;
-
-  if (wholeBtn) {
-    wholeBtn.innerHTML = playing ? pauseSurahHTML : playSurahHTML;
-  }
-
-  if (mobileBtn) {
-    mobileBtn.innerHTML = playing ? pauseSurahHTML : playSurahHTML;
-  }
-};
-
-if (wholeBtn) {
-  wholeBtn.onclick = () => {
-    if (
-      _qAudio &&
-      _isPlayingFullSurah &&
-      Number(_currentSurahNum) === Number(num)
-    ) {
-      if (_qAudio.paused) {
-        _qAudio.play().catch(() => {});
-      } else {
-        _qAudio.pause();
-      }
-
-      syncSurahButtons();
-      return;
-    }
-
-    _playSurahAudio(num, true);
-  };
-}
-
-if (mobileBtn) {
-  mobileBtn.onclick = () => {
-    if (wholeBtn) wholeBtn.click();
-  };
-}
-
-if (_qAudio) {
-  _qAudio.addEventListener('play', syncSurahButtons);
-  _qAudio.addEventListener('pause', syncSurahButtons);
-}
-
-syncSurahButtons();
-
+          const wholeBtn = $('#play-whole-surah');
+          if (wholeBtn) {
+            wholeBtn.onclick = () => {
+              if (_qAudio && _isPlayingFullSurah && _currentSurahNum === num) {
+                _qAudioBtn = wholeBtn;
+                if (!_qAudio.paused) {
+                  _qAudio.pause();
+                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`;
+                } else {
+                  _qAudio.play().catch(() => { });
+                  wholeBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`;
+                }
+                return;
+              }
+              _playSurahAudio(num, true);
+            };
+          }
 
           $$('[data-play]').forEach(b => {
             b.onclick = () => {
@@ -4489,8 +4183,16 @@ syncSurahButtons();
               b.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="3"/></svg> Loading…`;
             _abShow(meta.translit + ' (' + surah + ') \u2014 Verse ' + verse, 'Yasser Al-Dosari');
 
-             // Individual verse playback must NEVER update Qur'an progress.
-// Progress is controlled only by full-surah audio playback.
+              if (!fullSurahWasActive) {
+                S.quranProgress = { surah: surah, verse: verse };
+                setJSON('quran-progress', S.quranProgress).catch(() => { });
+                _refreshContinueReadingBox();
+                const profEl = document.getElementById('profile-quran-progress');
+                if (profEl) {
+                  const surMeta = SURAHS.find(s => s.num === surah);
+                if (surMeta) profEl.textContent = `Surah ${surah}:${verse} \u2014 ${surMeta.translit}`;
+                }
+              }
 
               _tryPlayVerse(b, primaryUrl, 'Yasser Al-Dosari', fallbackUrl);
             };
@@ -5545,86 +5247,6 @@ syncSurahButtons();
   videoCat: 'Featured', videoQuery: '', videoBlocked: false
 };
 
-// ==========================================
-// DEVICE-SPECIFIC NOTIFICATION PREFERENCES
-// ==========================================
-
-const DEVICE_NOTIF_KEYS = [
-  'fajr', 'dhuhr', 'asr', 'maghrib', 'isha',
-  'quran', 'adhkar', 'news', 'birthday'
-];
-
-function getDeviceNotifStorageKey() {
-  const uid = getCloudUid() || 'guest';
-  return 'u:' + uid + ':device-notifications';
-}
-
-function getDeviceNotifSettings(fallback = {}) {
-  try {
-    const raw = localStorage.getItem(getDeviceNotifStorageKey());
-
-    if (raw) {
-      return {
-        ...fallback,
-        ...JSON.parse(raw)
-      };
-    }
-
-    const initial = {};
-
-    DEVICE_NOTIF_KEYS.forEach(k => {
-      initial[k] = typeof fallback[k] === 'boolean'
-        ? fallback[k]
-        : true;
-    });
-
-    localStorage.setItem(
-      getDeviceNotifStorageKey(),
-      JSON.stringify(initial)
-    );
-
-    return initial;
-  } catch (e) {
-    return { ...fallback };
-  }
-}
-
-function saveDeviceNotifSettings(notif) {
-  const clean = {};
-
-  DEVICE_NOTIF_KEYS.forEach(k => {
-    clean[k] = notif[k] === true;
-  });
-
-  try {
-    localStorage.setItem(
-      getDeviceNotifStorageKey(),
-      JSON.stringify(clean)
-    );
-  } catch (e) {
-    console.warn('Could not save device notification settings:', e);
-  }
-}
-
-function applyDeviceNotifSettings(settings) {
-  if (!settings) return settings;
-
-  settings.notif = getDeviceNotifSettings(settings.notif || {});
-  return settings;
-}
-
-// Never include device-specific notification preferences in cloud sync.
-function getCloudSyncValue(key, value) {
-  if (key !== 'settings' || !value || typeof value !== 'object') {
-    return value;
-  }
-
-  const cloudSettings = { ...value };
-  delete cloudSettings.notif;
-
-  return cloudSettings;
-}
-
         function defaultSettings() {
       return {
         name: '',
@@ -5742,9 +5364,7 @@ function getCloudSyncValue(key, value) {
           }
           // --- FIX END ---
 
-            S.settings = applyDeviceNotifSettings(
-  settings || defaultSettings()
-);
+              S.settings = settings || defaultSettings();
 
                 if (S.settings) {
             S.settings.timezoneOffset = -new Date().getTimezoneOffset() / 60;
@@ -5782,30 +5402,12 @@ function getCloudSyncValue(key, value) {
           const deletedItems = await getJSON('deleted-routine-items');
           S.deletedRoutineItems = Array.isArray(deletedItems) ? deletedItems : [];
 
-// ✅ Load routine structure — supports new {weekday, weekend} shape,
-//    legacy {data, isWeekendMode} shape, and plain arrays.
-if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday && routineStruct.weekend) {
+// ✅ FIX: Correctly load the saved routine structure (which includes the isWeekendMode flag)
+if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
   S.routineStruct = routineStruct;
-} else if (routineStruct && typeof routineStruct === 'object' && routineStruct.data) {
-  // Legacy shape → migrate into new weekday/weekend shape
-  const legacyData = cloneStructure(routineStruct.data);
-  if (routineStruct.isWeekendMode) {
-    S.routineStruct = {
-      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
-      weekend: legacyData
-    };
-  } else {
-    S.routineStruct = {
-      weekday: legacyData,
-      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
-    };
-  }
 } else if (Array.isArray(routineStruct) && routineStruct.length) {
-  // Very old shape: plain array → treat as weekday
-  S.routineStruct = {
-    weekday: cloneStructure(routineStruct),
-    weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
-  };
+  // Fallback for older saves that were just arrays
+  S.routineStruct = { data: routineStruct, isWeekendMode: false };
 } else {
   S.routineStruct = null;
 }
@@ -6022,20 +5624,9 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
             }
           });
 
-                         subscribeToKey('routine-struct', (val) => {
-            if (val && typeof val === 'object' && val.weekday && val.weekend) {
+              subscribeToKey('routine-struct', (val) => {
+            if (Array.isArray(val) && val.length) {
               S.routineStruct = val;
-              if (S.screen === 'routine') hydrateRoutine();
-            } else if (val && typeof val === 'object' && val.data) {
-              const legacyData = cloneStructure(val.data);
-              if (val.isWeekendMode) {
-                S.routineStruct = { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData };
-              } else {
-                S.routineStruct = { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
-              }
-              if (S.screen === 'routine') hydrateRoutine();
-            } else if (Array.isArray(val) && val.length) {
-              S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
               if (S.screen === 'routine') hydrateRoutine();
             }
           });
@@ -6064,13 +5655,14 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
 
               subscribeToKey('settings', (val) => {
             if (val) {
-           S.settings = applyDeviceNotifSettings(val);
+              S.settings = val;
               applyArabicSize(val.arabicFontSize);
 
-                           // Full re-render so BOTH the sticky Holiday Mode toggle and the
-              // routine body reflect the remote weekday↔weekend swap.
+              // Mirror the fast-broadcast handler: the Routine screen must
+              // repaint in place so the Holiday Mode / Weekend routine swap is
+              // visible instantly on the receiving device.
               if (S.screen === 'routine') {
-                render();
+                hydrateRoutine();
               } else if (['home', 'salah', 'settings', 'ramadan'].includes(S.screen)) {
                 render();
               }
@@ -6488,8 +6080,11 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
               }
             } catch (_) {}
 
-            // ✅ PAINT NOW from whatever is already in memory.
-            render();
+                        // ✅ PAINT NOW from whatever is already in memory.
+            // BUT if we are going to the tracker, wait for the cloud data first so it doesn't flicker 9% -> 21%
+            if (screen !== 'tracker') {
+              render();
+            }
 
             // ✅ Refresh from the cloud in the background. Each branch repaints
             // only if the user is still on the same screen when it resolves.
@@ -6610,28 +6205,12 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
                   }
                 }
 
-                             if (screen === 'routine') {
-                  const hasStruct = S.routineStruct && (
-                    (S.routineStruct.weekday && S.routineStruct.weekend) ||
-                    S.routineStruct.data ||
-                    (Array.isArray(S.routineStruct) && S.routineStruct.length)
-                  );
-                  if (!hasStruct) {
+                if (screen === 'routine') {
+                  if (!Array.isArray(S.routineStruct) || !S.routineStruct.length) {
                     const fresh = await getJSON('routine-struct');
-                    if (fresh && S.screen === 'routine') {
-                      if (fresh.weekday && fresh.weekend) {
-                        S.routineStruct = fresh;
-                        hydrateRoutine();
-                      } else if (fresh.data) {
-                        const legacyData = cloneStructure(fresh.data);
-                        S.routineStruct = fresh.isWeekendMode
-                          ? { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData }
-                          : { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
-                        hydrateRoutine();
-                      } else if (Array.isArray(fresh) && fresh.length) {
-                        S.routineStruct = { weekday: cloneStructure(fresh), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
-                        hydrateRoutine();
-                      }
+                    if (Array.isArray(fresh) && fresh.length && S.screen === 'routine') {
+                      S.routineStruct = fresh;
+                      hydrateRoutine();
                     }
                   }
                 }
@@ -6766,19 +6345,28 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
                   ${bottomNavHtml(activeNavId)}
                 </div>`;
           }
-                   bindGlobalNav();
+          bindGlobalNav();
           bindScreenActions(s);
           if (s === 'home') startCountdown(); else stopCountdown();
-
-          // Flush the GPS toast immediately onto whichever screen is active
-          try { _flushGpsToast(); } catch (_) {}
         }
 
     
 
-        function bindGlobalNav() {
-          $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
-          const lo = $('[data-action="logout"]'); if (lo) lo.onclick = doLogout;
+               function bindGlobalNav() {
+          $$('[data-nav]').forEach(b => {
+            // Remove the old listener before adding a new one to prevent double-click glitches
+            b.onclick = null; 
+            b.onclick = (e) => {
+              // If the button is already active, do nothing (prevents the on/off flashing)
+              if (b.classList.contains('active') && b.dataset.nav === S.screen) {
+                return;
+              }
+              go(b.dataset.nav);
+            };
+          });
+          
+          const lo = $('[data-action="logout"]'); 
+          if (lo) lo.onclick = doLogout;
 
           $$('[data-back]').forEach(b => b.onclick = (e) => {
             e.preventDefault();
@@ -7315,128 +6903,64 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
     return [];
   }
 }
+            // --- AUTO LOCATION UPDATER ---
+        async function autoUpdateLocation() {
+          // 1. Only run if the user is logged in, setup is complete, and they haven't turned it off
+          if (!S.settings || !S.settings.setupDone || !S.profile) return;
+          if (S.settings.autoLocation === false) return;
+          if (!navigator.geolocation) return;
 
-          
-// --- AUTO LOCATION UPDATER ---
-// --- AUTO LOCATION UPDATER ---
-// Runs GPS + reverse-geocode. On genuine change (or first resolve of the
-// session) it updates the saved location, syncs prayer times, and shows
-// the confirmation toast ONCE PER APP SESSION on whatever screen the user
-// is on. Never fires in a repeating loop.
-async function autoUpdateLocation() {
-  // OFF means absolutely no GPS access.
-  if (!S.settings || !S.settings.setupDone || !S.profile) return;
-  if (S.settings.autoLocation !== true) return;
-  if (!navigator.geolocation) return;
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              const currentLat = S.settings.location.lat;
+              const currentLng = S.settings.location.lng;
 
-  // 🚦 SESSION GUARD: only one GPS run per app session.
-  try {
-    if (sessionStorage.getItem('__gpsRunDone') === '1') return;
-  } catch (e) {}
+              // 2. Check distance to avoid unnecessary API calls (approx 11km threshold)
+              const dist = Math.sqrt(Math.pow(lat - currentLat, 2) + Math.pow(lng - currentLng, 2));
+              if (dist < 0.1) return;
 
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      if (!S.settings || S.settings.autoLocation !== true) return;
-
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-
-      try {
-        const resp = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`,
-          { headers: { 'Accept-Language': 'en' } }
-        );
-
-        if (!resp.ok) return;
-
-        const data = await resp.json();
-        if (!data || !data.address) return;
-
-        const address = data.address;
-        const city =
-          address.city ||
-          address.town ||
-          address.village ||
-          address.municipality ||
-          address.county ||
-          address.state;
-
-        if (!city) return;
-
-        if (!S.settings || S.settings.autoLocation !== true) return;
-
-        // 🚦 Mark this session as "GPS already ran" — no future repeat.
-        try { sessionStorage.setItem('__gpsRunDone', '1'); } catch (e) {}
-
-        const currentLocation = S.settings.location || {};
-        const currentCity = (currentLocation.city || currentLocation.label || '')
-          .split(',')[0]
-          .trim();
-
-        const country = address.country || '';
-        const locationLabel = [city, country].filter(Boolean).join(', ');
-
-        // No city change → silent background refresh, no toast.
-        if (city.toLowerCase() === currentCity.toLowerCase()) {
-          S.settings.location = {
-            ...currentLocation,
-            lat,
-            lng,
-            city,
-            label: locationLabel
-          };
-
-          await setJSON('settings', S.settings);
-          syncPrayerTimesToSW();
-
-          if (S.screen === 'home') {
-            hydrateHome();
-          } else if (S.screen === 'settings') {
-            render();
-          }
-          return;
+              try {
+                // 3. Reverse Geocode to get the city name
+                const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`, {
+                  headers: { 'Accept-Language': 'en' }
+                });
+                const data = await resp.json();
+                
+                if (data && data.display_name) {
+                  const parts = data.display_name.split(',');
+                  const short = parts.slice(0, 2).join(',').trim(); // e.g., "Bangalore, India"
+                  
+                  // 4. Only update if the city actually changed
+                                  if (short && short !== S.settings.location.label) {
+                    S.settings.location = { lat, lng, label: short };
+                    await setJSON('settings', S.settings);
+                    syncPrayerTimesToSW();           // ← ADD THIS
+                    
+                    // 5. Unique toast messages
+                    const msgs = [
+                      `📍 Location synced: Welcome to ${short}!`,
+                      `✈️ GPS updated: You are now in ${short}.`,
+                      `🌍 Location changed: Prayer times updated for ${short}.`,
+                      `✅ Auto-detected: ${short}`
+                    ];
+                    const randomMsg = msgs[Math.floor(Math.random() * msgs.length)];
+                    toast(randomMsg);
+                    
+                    // 6. Refresh the UI if they are on relevant screens
+                    if (S.screen === 'home') hydrateHome();
+                    else if (S.screen === 'settings') render();
+                  }
+                }
+              } catch (e) {
+                console.warn('Auto location fetch failed:', e);
+              }
+            },
+            (err) => console.warn('Auto geolocation error:', err),
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 600000 } // 10 min cache
+          );
         }
-
-        // City actually changed → update, repaint, confirm (once/session).
-        S.settings.location = {
-          ...currentLocation,
-          lat,
-          lng,
-          city,
-          label: locationLabel
-        };
-
-        await setJSON('settings', S.settings);
-        syncPrayerTimesToSW();
-
-        const homeLocation = document.getElementById('home-location');
-        if (homeLocation) {
-          homeLocation.textContent = locationLabel;
-        }
-
-        if (S.screen === 'home') {
-          hydrateHome();
-        } else if (S.screen === 'settings') {
-          render();
-        }
-
-        // 🔒 One-time toast this session — on ANY screen (Qur'an, Tracker, etc.)
-        toastGpsOnce(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
-      } catch (err) {
-        console.warn('Auto location fetch failed:', err);
-      }
-    },
-    (err) => {
-      console.warn('Auto geolocation error:', err);
-    },
-    {
-      enableHighAccuracy: true,
-      timeout: 10000,
-      maximumAge: 600000
-    }
-  );
-}
-
 
         function renderSetupLocation() {
           const loc = S.settings.location;
@@ -7528,41 +7052,24 @@ async function autoUpdateLocation() {
             );
           };
 
-         $('#loc-next').onclick = async () => {
+           $('#loc-next').onclick = async () => {
   const lat = parseFloat($('#lat-in').value), lng = parseFloat($('#lng-in').value);
   if (isNaN(lat) || isNaN(lng)) { toast('Enter a valid latitude and longitude.'); return; }
   const label = labelEl.textContent || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
   
-  // Check if the location is actually changing before showing a toast
-  const locationChanged = S.settings.location.label !== label;
-
+  // 1. Try to get the timezone saved from the city search
+  // 2. If using GPS, guess the timezone based on longitude (fallback)
   let tz = S.settings.location.timezone;
   if (!tz) {
-      if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; 
-      else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; 
-      else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; 
+      if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; // India
+      else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; // UK
+      else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; // Fallback to device
   }
 
-  S.settings.location = { lat, lng, label, timezone: tz }; 
+   S.settings.location = { lat, lng, label, timezone: tz }; // <-- Saves the exact timezone
   await setJSON('settings', S.settings);
-  syncPrayerTimesToSW();             
-  
- // A manual change also re-arms the one-shot GPS toast for this session,
-// so if the user just lands on Home and immediately navigates away,
-// they still get one confirmation.
-try {
-  sessionStorage.removeItem('__gpsRunDone');
-  sessionStorage.removeItem('__gpsToastShown');
-} catch (e) {}
-
-// No manual toast — the GPS confirmation covers it.
-
-// Direct the user back to the correct screen
-if (S.settings.setupDone) {
-  go('home'); // If they were just changing it in settings, send them to home
-} else {
-  go('setup-calc'); // If this is initial setup, move to the next step
-}
+  syncPrayerTimesToSW();             // ← ADD THIS
+  go('setup-calc');
 };
         }
 
@@ -8000,6 +7507,7 @@ function _routineStats(day) {
 function _calculateQuranReadStats(targetDateStr) {
   let versesRead = 0;
   let lastBookmark = null;
+  let yesterdayLast = null;
 
   if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
     const sorted = [...S.bookmarks]
@@ -8009,37 +7517,34 @@ function _calculateQuranReadStats(targetDateStr) {
     const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
     const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
 
-    let todayBookmarks = [];
-    let yesterdayLast = null;
-
-    // Separate today's bookmarks from yesterday's
-    sorted.forEach(b => {
-      const bTime = new Date(b.date).getTime();
+    // Yesterday's (or earlier) last bookmark
+    for (let i = 0; i < sorted.length; i++) {
+      const bTime = new Date(sorted[i].date).getTime();
       if (bTime < targetStart) {
-        yesterdayLast = b;
-      } else if (bTime >= targetStart && bTime <= targetEnd) {
-        todayBookmarks.push(b);
+        yesterdayLast = sorted[i];
+      } else {
+        break;
       }
-    });
+    }
 
-    if (todayBookmarks.length > 0) {
-      lastBookmark = todayBookmarks[todayBookmarks.length - 1];
-      
-      // Start from yesterday's last bookmark, or 0 (absolute beginning) if none
-      let startGlobal = yesterdayLast 
-        ? _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse) 
-        : 0;
+    // Today's last bookmark
+    for (let i = 0; i < sorted.length; i++) {
+      const bTime = new Date(sorted[i].date).getTime();
+      if (bTime >= targetStart && bTime <= targetEnd) {
+        lastBookmark = sorted[i];
+      }
+    }
 
-      // Calculate total read today (Global position of today's last bookmark minus start point)
-      const endGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
-      versesRead = endGlobal - startGlobal;
-      
-      // Safety check just in case
+    // Only calculate verses read if BOTH exist
+    if (lastBookmark && yesterdayLast) {
+      const todayGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
+      const startGlobal = _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse);
+      versesRead = todayGlobal - startGlobal;
       if (versesRead < 0) versesRead = 0;
     }
   }
 
-  return { versesRead, lastBookmark };
+  return { versesRead, lastBookmark, yesterdayLast };
 }
 
       function _buildHomeProgressSummaryHTML(day) {
@@ -8052,29 +7557,29 @@ function _calculateQuranReadStats(targetDateStr) {
         const completed = order.filter(([k]) => salah[k] === 'completed').length;
         const routineStats = _routineStatsForDate(day, new Date());
 
-                    // --- QUR'AN LOGIC ---
-        let quranBlock = '';
-        const todayStr = dateStr(new Date());
-        const quranStats = _calculateQuranReadStats(todayStr);
+              // --- QUR'AN LOGIC ---
+      // --- QUR'AN LOGIC ---
+let quranBlock = '';
+const todayStr = dateStr(new Date());
+const quranStats = _calculateQuranReadStats(todayStr);
 
-        if (quranStats.lastBookmark && quranStats.versesRead > 0) {
-          const last = quranStats.lastBookmark;
-          
-          quranBlock = `
-          <div class="checkrow" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center; width:100%;" data-quran-jump="${last.surah}" data-quran-verse="${last.verse}">
-            <div class="rowtitle" style="display:block !important;">Qur’an</div>
-            <div style="font-weight:700; text-align:right; white-space:nowrap;">
-              ${last.surah}:${last.verse} <br>
-              <span style="font-size:12px; color:var(--tx2); font-weight:500;">— read ${quranStats.versesRead} verse${quranStats.versesRead !== 1 ? 's' : ''}</span>
-            </div>
-          </div>`;
-        } else {
-          quranBlock = `
-          <div class="checkrow" style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-            <div class="rowtitle" style="display:block !important;">Qur’an</div>
-            <div style="font-weight:700; display:block !important;">Not yet</div>
-          </div>`;
-        }
+if (quranStats.lastBookmark && quranStats.versesRead > 0) {
+  const lastToday = quranStats.lastBookmark;
+  const surMeta = SURAHS.find(x => x.num === lastToday.surah);
+  
+  quranBlock = `
+  <div class="checkrow" style="cursor:pointer; display:flex; width:100%; box-sizing:border-box;" data-quran-jump="${lastToday.surah}" data-quran-verse="${lastToday.verse}">
+    <div class="rowtitle" style="flex:1; text-align:left; min-width:0; padding-right:10px;">
+      ${surMeta ? surMeta.translit : 'Surah'}
+    </div>
+    <div style="font-weight:700; text-align:right; white-space:nowrap;">
+      Surah ${lastToday.surah}:${lastToday.verse} <br>
+      <span style="font-size:12px; color:var(--tx2); font-weight:500;">— read ${quranStats.versesRead} verse${quranStats.versesRead !== 1 ? 's' : ''}</span>
+    </div>
+  </div>`;
+} else {
+  quranBlock = `<div class="checkrow"><div class="rowtitle" style="flex:1">Qur’an</div><div style="font-weight:700">Not yet</div></div>`;
+}
 
         const adhkar = (day && day.adhkar) || {};
         const adhkarText = (adhkar.morning ? 'Morning ✓ ' : '') + (adhkar.evening ? 'Evening ✓' : '') || (!adhkar.morning ? 'Not yet' : '');
@@ -8115,7 +7620,7 @@ function _calculateQuranReadStats(targetDateStr) {
               <div class="divider"></div>
               <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--tx3);gap:8px;">
                 <span style="white-space:nowrap;">Previous: ${info.prev ? info.prev.label : '\u2014'}</span>
-               <span id="home-location" style="flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(S.settings.location.label)}</span>
+                <span style="flex:1;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(S.settings.location.label)}</span>
                 <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:120px;text-align:right;">${CALC_METHODS[S.settings.calcMethod].label}</span>
               </div>
               </div>
@@ -8258,22 +7763,9 @@ function _calculateQuranReadStats(targetDateStr) {
         routine: { ...(day.routine || {}) },
         adhkar:  { ...(day.adhkar  || {}) }
       };
-     fresh.salah[k] = nowDone ? 'completed' : 'pending';
-fresh.routine['r_' + k] = nowDone;
-
-S.dayCache[dsNow] = fresh;
-
-// Refresh Home progress immediately
-if (S.screen === 'home') {
-  repaintHomeFromCache(dsNow);
-}
-
-saveDay(dsNow, fresh).catch(console.error);
-
-// Immediately update Home → Today's progress
-if (S.screen === 'home') {
-  repaintHomeFromCache(dsNow);
-}
+      fresh.salah[k] = nowDone ? 'completed' : 'pending';
+      fresh.routine[k] = nowDone; // Sync with Routine
+      S.dayCache[dsNow] = fresh;
     saveDay(dsNow, fresh)
   .then(() => {
     S.dayCache[dsNow] = fresh;
@@ -8469,70 +7961,7 @@ function repaintRoutineFromCache(ds) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
-
-  // Effective Holiday Mode for this specific date.
-  // - If the user has explicitly saved a value for this date, honour it.
-  // - Otherwise fall back to the natural weekday/weekend default.
-  // A weekday with no explicit entry is NEVER treated as holiday.
-  let isHoliday;
-  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-    isHoliday = S.settings.holidayDates[dateKey] === true;
-  } else {
-    isHoliday = isWeekendDay;
-  }
-
-  // Pick the correct stored routine for this day type.
-  // S.routineStruct holds BOTH: { weekday: [...], weekend: [...] }
-  let baseStruct;
-  if (S.routineStruct && Array.isArray(S.routineStruct.weekday) && Array.isArray(S.routineStruct.weekend)) {
-    baseStruct = isHoliday ? S.routineStruct.weekend : S.routineStruct.weekday;
-  } else {
-    baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
-  }
-
-  if (!Array.isArray(baseStruct)) {
-    baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
-  }
-
-  // Filter out deleted items
-  return baseStruct.map(section => {
-    const [secKey, secLabel, items] = section;
-    const filteredItems = (items || []).filter(item => {
-      const itemKey = item[0];
-      return !S.deletedRoutineItems.includes(itemKey);
-    });
-    return [secKey, secLabel, filteredItems];
-  }).filter(section => section[2].length > 0);
-}
-
-                     function cloneDefaultRoutine(d) {
-  const dateToCheck = d || new Date();
-  const dateKey = dateStr(dateToCheck);
-  const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
-
-  let isHoliday;
-  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
-    isHoliday = S.settings.holidayDates[dateKey] === true;
-  } else {
-    isHoliday = isWeekendDay;
-  }
-
-  const base = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
-
-  // Deep clone it so we don't modify the original arrays
-  return base.map(([key, label, items]) =>
-    [key, label, items.map(([ik, il]) => [ik, il])]
-  );
-}
-  function cloneStructure(struct) {
-  return (struct || []).map(([k, l, items]) => [k, l, (items || []).map(([ik, il]) => [ik, il])]);
-}
-
-async function saveRoutineStruct(struct) {
-  const viewDate = S.routineViewDate ? new Date(S.routineViewDate + 'T12:00:00') : new Date();
-  const dateKey = dateStr(viewDate);
-  const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
-
+  
   let isHoliday;
   if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
     isHoliday = S.settings.holidayDates[dateKey];
@@ -8540,22 +7969,76 @@ async function saveRoutineStruct(struct) {
     isHoliday = isWeekendDay;
   }
 
-  // Keep a stable object holding BOTH weekday and weekend structures.
-  if (!S.routineStruct || !S.routineStruct.weekday || !S.routineStruct.weekend) {
-    S.routineStruct = {
-      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
-      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
-    };
-  }
-
-  if (isHoliday) {
-    S.routineStruct.weekend = cloneStructure(struct);
+  // Start with the saved routine, or default if none
+  let baseStruct;
+  if (S.routineStruct && S.routineStruct.isWeekendMode === isHoliday) {
+    baseStruct = S.routineStruct.data;
   } else {
-    S.routineStruct.weekday = cloneStructure(struct);
+    baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
   }
 
-  await setJSON('routine-struct', S.routineStruct);
+  // ✅ FILTER OUT DELETED ITEMS
+  // We map through sections, and filter out items that are in S.deletedRoutineItems
+  return baseStruct.map(section => {
+    const [secKey, secLabel, items] = section;
+    const filteredItems = items.filter(item => {
+      const itemKey = item[0];
+      return !S.deletedRoutineItems.includes(itemKey);
+    });
+    return [secKey, secLabel, filteredItems];
+  }).filter(section => section[2].length > 0); // Optional: hide sections if they become empty
 }
+
+        function cloneDefaultRoutine(d) {
+  const dateToCheck = d || new Date();
+  const dateKey = dateStr(dateToCheck);
+  const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
+  
+  let isHoliday;
+  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
+    isHoliday = S.settings.holidayDates[dateKey];
+  } else {
+    isHoliday = isWeekendDay;
+  }
+  
+  let base;
+  if (isHoliday) {
+    base = [
+      ROUTINE_STRUCT_WEEKEND[0],
+      ROUTINE_STRUCT_WEEKEND[1],
+      ROUTINE_STRUCT_WEEKEND[2],
+      ROUTINE_STRUCT_WEEKEND[3]
+    ];
+  } else {
+    base = ROUTINE_STRUCT_DEFAULT;
+  }
+
+  // Deep clone it so we don't modify the original arrays
+  return base.map(([key, label, items]) =>
+    [key, label, items.map(([ik, il]) => [ik, il])]
+  );
+}
+
+     async function saveRoutineStruct(struct) {
+    const viewDate = S.routineViewDate ? new Date(S.routineViewDate + 'T12:00:00') : new Date();
+    const dateKey = dateStr(viewDate);
+    const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
+    
+    let isHoliday;
+    if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
+      isHoliday = S.settings.holidayDates[dateKey];
+    } else {
+      isHoliday = isWeekendDay;
+    }
+
+    const structToSave = {
+      data: struct,
+      isWeekendMode: isHoliday
+    };
+
+    S.routineStruct = structToSave;
+    await setJSON('routine-struct', structToSave);
+  }
 
       /* Synchronous Routine body builder — reads only from S.dayCache so the very
       first paint is fully populated. hydrateRoutine() reuses this exact builder
@@ -8641,14 +8124,6 @@ function renderRoutine() {
     sessionStorage.setItem('deenSphereRoutineViewDate', viewDate);
   } catch (e) {}
 
-  // Effective Holiday Mode for the SELECTED date (independent of today's Settings checkbox).
-  const viewDateObj = new Date(viewDate + 'T12:00:00');
-  const isWeekendDay = viewDateObj.getDay() === 0 || viewDateObj.getDay() === 6;
-  const selectedDateHoliday =
-    (S.settings && S.settings.holidayDates && S.settings.holidayDates[viewDate] !== undefined)
-      ? S.settings.holidayDates[viewDate] === true
-      : isWeekendDay;
-
   const cachedDay = S.dayCache[viewDate] || null;
 
   return `
@@ -8672,8 +8147,8 @@ function renderRoutine() {
       </div>
     </div>
 
-             <div class="routine-fixed-top">
-      <div class="card" style="margin-bottom:0; padding: 14px 16px;">
+    <div class="routine-fixed-top">
+      <div class="card" style="margin-bottom:0;">
         <label class="rowsub" style="display:block;margin-bottom:6px;">
           View / edit a specific day
         </label>
@@ -8682,15 +8157,8 @@ function renderRoutine() {
           id="routine-date"
           value="${viewDate}"
           max="${today}"
-          style="width:100%; margin-bottom: 6px;"
+          style="width:100%;"
         >
-        <div class="checkrow" style="padding: 8px 0 2px 0; border-bottom:none; ${isPast && !isEditing ? 'opacity:0.55; filter:grayscale(100%); pointer-events:none;' : ''}">
-          <div style="flex:1; min-width:0;">
-            <div class="rowtitle" style="font-size:14.5px; ${isPast && !isEditing ? 'color:var(--tx2);' : ''}">Holiday Mode</div>
-            <div class="rowsub" style="margin-top:2px;">${selectedDateHoliday ? 'Weekend Routine for this date' : 'Weekday Routine for this date'}</div>
-          </div>
-          <button class="chk ${selectedDateHoliday ? 'done' : ''}" id="routine-holiday-toggle" ${isPast && !isEditing ? 'disabled' : ''}></button>
-        </div>
       </div>
     </div>
 
@@ -8748,63 +8216,6 @@ function renderRoutine() {
         };
       }
 
-            // HOLIDAY MODE TOGGLE (per selected date — independent of today's Settings checkbox)
-      const holidayToggle = $('#routine-holiday-toggle');
-          if (holidayToggle) {
-        holidayToggle.onclick = async (e) => {
-          e.preventDefault();
-          
-          // Prevent changing holiday mode if viewing a past day unless in Edit Mode
-          const isPast = (S.routineViewDate || today) < today;
-          const isEditing = S.routineEditModeDate === (S.routineViewDate || today);
-          if (isPast && !isEditing) {
-            toast('Click Edit Mode to change a past day.');
-            return;
-          }
-
-          if (holidayToggle.dataset.busy === '1') return;
-          holidayToggle.dataset.busy = '1';
-          setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
-
-          const targetDate = S.routineViewDate || dateStr(new Date());
-          const targetDay = new Date(targetDate + 'T12:00:00');
-          const isWeekendDay = targetDay.getDay() === 0 || targetDay.getDay() === 6;
-
-          let currentIsHoliday;
-          if (S.settings.holidayDates && S.settings.holidayDates[targetDate] !== undefined) {
-            currentIsHoliday = S.settings.holidayDates[targetDate] === true;
-          } else {
-            currentIsHoliday = isWeekendDay;
-          }
-
-          const nextIsHoliday = !currentIsHoliday;
-
-          if (!S.settings.holidayDates) S.settings.holidayDates = {};
-          S.settings.holidayDates[targetDate] = nextIsHoliday;
-
-          holidayToggle.classList.toggle('done', nextIsHoliday);
-
-          const sub = holidayToggle.closest('.checkrow')?.querySelector('.rowsub');
-          if (sub) sub.textContent = nextIsHoliday
-            ? 'Weekend Routine for this date'
-            : 'Weekday Routine for this date';
-
-          setJSON('settings', S.settings).catch(() => {});
-
-          // Rebuild the routine body so the correct structure shows instantly.
-          const dsNow = S.routineViewDate || dateStr(new Date());
-          const body = document.getElementById('routine-body');
-          if (body) {
-            body.innerHTML = _buildRoutineBodyHTML(dsNow, S.dayCache[dsNow] || null);
-            _bindRoutineButtons();
-          }
-
-          toast(nextIsHoliday
-            ? 'Holiday Mode ON for ' + new Date(targetDate + 'T00:00:00').toDateString()
-            : 'Holiday Mode OFF for ' + new Date(targetDate + 'T00:00:00').toDateString());
-        };
-      }
-
       // EDIT MODE / VIEW MODE BUTTON
       const editToggle = $('#routine-edit-toggle');
 
@@ -8840,34 +8251,27 @@ function renderRoutine() {
     const ds = S.routineViewDate || dateStr(new Date());
 
  
+
 const instantUpdate = async (newStruct, successMsg) => {
   const viewDate = S.routineViewDate || dateStr(new Date());
+  const today = dateStr(new Date());
+
+  // ✅ ALLOW EDITING PAST DAYS so you never lose your data
 
   const selectedDate = new Date(viewDate + 'T12:00:00');
   const dateKey = dateStr(selectedDate);
   const isWeekendDay =
     selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
 
-  // CRITICAL FIX: Check if the date is ACTUALLY a holiday, or just a weekend.
   const isHoliday =
     S.settings?.holidayDates?.[dateKey] !== undefined
-      ? S.settings.holidayDates[dateKey] === true
+      ? S.settings.holidayDates[dateKey]
       : isWeekendDay;
 
-  // Ensure both buckets exist
-  if (!S.routineStruct || !Array.isArray(S.routineStruct.weekday) || !Array.isArray(S.routineStruct.weekend)) {
-    S.routineStruct = {
-      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
-      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
-    };
-  }
-
-  // Save ONLY to the correct bucket based on the selected date's mode
-  if (isHoliday) {
-    S.routineStruct.weekend = cloneStructure(newStruct);
-  } else {
-    S.routineStruct.weekday = cloneStructure(newStruct);
-  }
+  S.routineStruct = {
+    data: newStruct,
+    isWeekendMode: isHoliday
+  };
 
   const body = document.getElementById('routine-body');
 
@@ -9058,27 +8462,19 @@ const instantUpdate = async (newStruct, successMsg) => {
       instantUpdate(st, 'Section added.');
     };
 
-       // ---- Reset routine ----
+    // ---- Reset routine ----
     const rst = $('#routine-reset');
     if (rst) rst.onclick = async (e) => {
       e.preventDefault();
       if (!confirm('Reset the routine back to the default set of sections and items?')) return;
-
-      // Reset must use the SELECTED date's mode, not today's.
-      const viewDate = S.routineViewDate
-        ? new Date(S.routineViewDate + 'T12:00:00')
-        : new Date();
-      const st = cloneDefaultRoutine(viewDate);
+      
+      const st = cloneDefaultRoutine();
       instantUpdate(st, 'Routine reset to default.');
     };
   }
 
-             function cloneRoutineStruct() {
-  // CRITICAL FIX: Clone the structure for the DATE BEING VIEWED, not today.
-  const viewDate = S.routineViewDate
-    ? new Date(S.routineViewDate + 'T12:00:00')
-    : new Date();
-  const raw = getRoutineStruct(viewDate);
+      function cloneRoutineStruct() {
+  const raw = getRoutineStruct();
   return raw.map(([k, l, items]) => [k, l, items.map(([ik, il]) => [ik, il])]);
 }
 
@@ -9371,7 +8767,7 @@ if (dsNow < todayDate && !isEditingPastDay) {
                   <div style="display:flex;gap:8px;padding-top:18px;">
                     <button class="btn btn-primary" id="play-whole-surah">
                       ${(_qAudio && _isPlayingFullSurah && _currentSurahNum === num && !_qAudio.paused)
-                     ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause Surah`
+                        ? `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause`
                         : `<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Play Surah`}
                     </button>
                   </div>
@@ -9447,10 +8843,19 @@ if (dsNow < todayDate && !isEditingPastDay) {
           }
 
           // Update Continue Reading pointer
-       // Bookmark navigation must NEVER update Qur'an progress.
-// Keep the last full-surah audio pause position unchanged.
+          if (!_fullSurahOwnsPointer) {
+            S.quranProgress = { surah: targetSurah, verse: verseToScrollTo };
+            setJSON('quran-progress', S.quranProgress).catch(() => { });
+            _refreshContinueReadingBox();
 
-        
+            const profEl = document.getElementById('profile-quran-progress');
+            if (profEl) {
+              const surMeta = SURAHS.find(s => s.num === targetSurah);
+              if (surMeta) profEl.textContent = `Surah ${targetSurah}:${verseToScrollTo} \u2014 ${surMeta.translit}`;
+            }
+          }
+
+       
           // FIX MOBILE AND DESKTOP BOOKMARK VERSE POSITION
 
           const scrollContainer = document.querySelector('.content');
@@ -9653,99 +9058,53 @@ if (dsNow < todayDate && !isEditingPastDay) {
 
           setTimeout(saveIfChanged, 1500);
         }
-                   function bindQuranReader(num) {
-          $$('[data-bm]').forEach(b => b.onclick = async () => {
-            const v = parseInt(b.dataset.bm);
-            const idx = S.bookmarks.findIndex(x => x.surah === num && x.verse === v);
+          function bindQuranReader(num) {
+                   $$('[data-bm]').forEach(b => b.onclick = async () => {
+              const v = parseInt(b.dataset.bm);
+              const idx = S.bookmarks.findIndex(x => x.surah === num && x.verse === v);
 
-            if (idx > -1) {
-              // Removing bookmark
-              S.bookmarks.splice(idx, 1);
-            } else {
-              // Adding bookmark
-              S.bookmarks.push({
-                surah: num,
-                verse: v,
-                arName: SURAHS.find(s => s.num === num).arName,
-                translit: SURAHS.find(s => s.num === num).translit,
-                date: new Date().toISOString(),
-                ar: (FULL_TEXT[num] && FULL_TEXT[num].verses[v - 1]) || ''
-              });
-            }
-
-            // --- SYNC ROUTINE WITH TODAY'S BOOKMARK COUNT ---
-            const dsNow = dateStr(new Date());
-            const day = S.dayCache[dsNow] || await getDay(dsNow);
-            
-            if (!day.routine) day.routine = {};
-
-            // Count bookmarks that belong to TODAY
-            const todayBookmarks = S.bookmarks.filter(bm => {
-              if (!bm || !bm.date) return false;
-              return bm.date.startsWith(dsNow);
-            });
-
-            // Tick if there is at least 1 bookmark today, untick if 0
-            const shouldTick = todayBookmarks.length > 0;
-
-            // 1. Set default routine IDs
-            day.routine['r_mquran'] = shouldTick; 
-            day.routine['r_nquran'] = shouldTick;
-
-            // 2. Find ANY custom/renamed routine item that has "Qur'an" or "Quran" in the title
-            const activeStruct = getRoutineStruct(new Date()); 
-            activeStruct.forEach(section => {
-              section[2].forEach(item => {
-                const itemKey = item[0];
-                const itemLabel = item[1].toLowerCase();
-                if (itemLabel.includes("qur'an") || itemLabel.includes("quran")) {
-                  day.routine[itemKey] = shouldTick;
-                }
-              });
-            });
-
-            // 3. Save to memory and cloud
-            S.dayCache[dsNow] = day;
-            saveDay(dsNow, day).catch(console.error);
-
-            // INSTANT UI UPDATE (if looking at the Routine tab)
-            if (S.screen === 'routine') {
-              const body = document.getElementById('routine-body');
-              if (body) {
-                body.innerHTML = _buildRoutineBodyHTML(dsNow, day);
-                _bindRoutineButtons();
+              if (idx > -1) {
+                S.bookmarks.splice(idx, 1);
+              } else {
+                S.bookmarks.push({
+                  surah: num,
+                  verse: v,
+                  arName: SURAHS.find(s => s.num === num).arName,
+                  translit: SURAHS.find(s => s.num === num).translit,
+                  date: new Date().toISOString(),
+                  ar: (FULL_TEXT[num] && FULL_TEXT[num].verses[v - 1]) || ''
+                });
               }
-            }
-            // -------------------------------------------------
 
-            // Bookmarking persists ONLY the bookmarks list. 
-            await setJSON('bookmarks', S.bookmarks);
+              // Bookmarking persists ONLY the bookmarks list. It must NEVER move
+              // the "Continue reading" pointer, the Qur'an progress, or audio state.
+              await setJSON('bookmarks', S.bookmarks);
 
-            b.textContent = idx > -1 ? '☆ Bookmark' : '★ Bookmarked';
-            toast(idx > -1 ? 'Bookmark removed' : 'Verse bookmarked');
-            
-            // Refresh Home screen if visible
-            if (S.screen === 'home') {
-              repaintHomeFromCache(dateStr(new Date()));
-            }
-          });
+              b.textContent = idx > -1 ? '☆ Bookmark' : '★ Bookmarked';
+              toast(idx > -1 ? 'Bookmark removed' : 'Verse bookmarked');
+              
+              // Instantly refresh the Home screen counter
+              if (S.screen === 'home') {
+                repaintHomeFromCache(dateStr(new Date()));
+              }
+            });
 
-          const mr = $('#mark-read');
-          if (mr) mr.onclick = async () => {
-            const meta = SURAHS.find(x => x.num === num);
-            const totalVerses = meta ? meta.verses : 1;
-            await trackQuranVerses(num, totalVerses);
+            const mr = $('#mark-read');
+            if (mr) mr.onclick = async () => {
+              const meta = SURAHS.find(x => x.num === num);
+              const totalVerses = meta ? meta.verses : 1;
+              await trackQuranVerses(num, totalVerses);
 
-            if (!S.completedSurahs.includes(num)) {
-              S.completedSurahs.push(num);
-              await setJSON('completed-surahs', S.completedSurahs);
-            }
+              if (!S.completedSurahs.includes(num)) {
+                S.completedSurahs.push(num);
+                await setJSON('completed-surahs', S.completedSurahs);
+              }
 
-            toast('Marked ' + meta.translit + ' as read ✔');
-          };
+              toast('Marked ' + meta.translit + ' as read ✔');
+            };
 
-          attachQuranScrollProgress(num);
-        }
+            attachQuranScrollProgress(num);
+          }
 
         /* ============================= ADHKAR ============================= */
     /* Synchronous Adhkar list builder — reads only from the static ADHKAR array
@@ -12831,43 +12190,15 @@ if (dsNow < todayDate && !isEditingPastDay) {
           else if (mq.addListener) mq.addListener(handler);
         })();
 
-  
-function syncNotificationUI() {
-  if (S.screen !== 'settings' || !S.settings) return;
-
-  const isSupported = ('Notification' in window);
-  const isDenied = !isSupported || Notification.permission === 'denied';
-
-  const warning = document.getElementById('notif-permission-warning');
-
-  // Show warning only when notifications are blocked or unsupported
-  if (warning) {
-    warning.style.display = isDenied ? 'flex' : 'none';
-  }
-
-  const deviceNotif = getDeviceNotifSettings(S.settings.notif || {});
-
-  document.querySelectorAll('[data-notif]').forEach(button => {
-    const key = button.dataset.notif;
-
-    // ✅ FORCE UNTICK: The tick should ONLY show if the browser allows it AND it's turned on.
-    const isOn = !isDenied && deviceNotif[key] === true;
-
-    button.classList.toggle('done', isOn);
-
-    button.disabled = isDenied;
-    button.style.opacity = isDenied ? '0.45' : '1';
-    button.style.cursor = isDenied ? 'not-allowed' : 'pointer';
-  });
+      function syncNotificationUI() {
+  // Never reset notification preferences automatically.
+  // Only the user's manual action may change a saved preference.
+  if (!S || !S.settings || !S.settings.notif) return;
 }
 
-
-                   function renderSettings() {
+        /* ============================= SETTINGS ============================= */
+                function renderSettings() {
           const s = S.settings;
-          
-          // Check if the browser's real toggle is OFF or blocked
-          const browserBlocked = typeof Notification === 'undefined' || Notification.permission === 'denied';
-          
           return `
         <div class="settings-page">
         <div class="pg-head" style="margin-bottom: 0; padding-bottom: 10px;">
@@ -12890,83 +12221,40 @@ function syncNotificationUI() {
             <div class="checkrow"><span class="rowtitle" style="flex:1">Calculation method</span><span class="rowsub">${CALC_METHODS[s.calcMethod].label}</span></div>
             <div class="checkrow"><span class="rowtitle" style="flex:1">Asr method</span><span class="rowsub">${s.asrMethod === 'hanafi' ? 'Hanafi' : 'Standard'}</span></div>
             
-                      <!-- NEW HOLIDAY TOGGLE -->
-                                                                 <button class="btn btn-ghost btn-block" style="margin-top:12px;" data-nav="setup-location">Change prayer settings</button>
+            <!-- NEW HOLIDAY TOGGLE -->
+                                 <div class="checkrow">
+              <span class="rowtitle" style="flex:1">Holiday Mode (Weekend Routine)</span>
+              <button class="chk ${(() => {
+                const targetDate = (S.screen === 'routine' && S.routineViewDate) ? S.routineViewDate : dateStr(new Date());
+                const isWeekend = new Date(targetDate + 'T12:00:00').getDay() === 0 || new Date(targetDate + 'T12:00:00').getDay() === 6;
+                if (s.holidayDates && s.holidayDates[targetDate] !== undefined) {
+                  return s.holidayDates[targetDate] ? 'done' : '';
+                }
+                return isWeekend ? 'done' : '';
+              })()}" data-toggle-holiday></button>
+            </div>
+
+            <button class="btn btn-ghost btn-block" style="margin-top:12px;" data-nav="setup-location">Change prayer settings</button>
           </div>
         </section>
 
-    <section class="settings-section">
-      <div class="settings-fixed-top">
-        <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">
-          Notifications
-        </div>
-      </div>
-
-      <!-- Notification permission warning -->
-      <div
-        id="notif-permission-warning"
-        style="
-          display:none;
-          align-items:flex-start;
-          gap:12px;
-          padding:16px;
-          margin-bottom:12px;
-          border:1px solid rgba(239, 68, 68, 0.25);
-          border-radius:14px;
-          background:rgba(239, 68, 68, 0.07);
-        "
-      >
-        <div style="
-          width:38px;
-          height:38px;
-          min-width:38px;
-          border-radius:50%;
-          display:flex;
-          align-items:center;
-          justify-content:center;
-          background:rgba(239, 68, 68, 0.12);
-          color:#ef4444;
-          font-size:19px;
-        ">
-          <span>!</span>
-        </div>
-
-        <div style="flex:1;">
-          <div style="font-weight:700; font-size:14px; color:var(--tx); margin-bottom:5px;">
-            Notifications are blocked
+        <section class="settings-section">
+          <div class="settings-fixed-top">
+            <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">Notifications</div>
           </div>
-          <div style="font-size:13px; line-height:1.6; color:var(--tx); opacity:0.75;">
-            Your browser is blocking notifications. Allow notifications in your browser settings to receive your reminders.
+              <div class="card" style="margin-bottom:16px;">
+             ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
+              // Check if the browser itself allows notifications
+            const isOn = s.notif[k] === true;
+              return `<div class="checkrow">
+                <span class="rowtitle" style="flex:1; display: flex; align-items: center;">
+                  ${k[0].toUpperCase() + k.slice(1)} reminder
+                </span>
+                <button class="chk ${isOn ? 'done' : ''}" data-notif="${k}"></button>
+              </div>`;
+            }).join('')}
           </div>
-          <div style="font-size:12px; line-height:1.5; margin-top:9px; color:var(--amber);">
-            After allowing notifications, return here. Your notification settings will become available again.
-          </div>
-        </div>
-      </div>
-
-      <div class="card" style="margin-bottom:12px;">
-        ${['fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'quran', 'adhkar', 'news', 'birthday'].map(k => {
-          
-          // ✅ SIMPLE FIX: If browser is blocked, isOn is strictly false (no tick).
-          const isOn = browserBlocked ? false : (s.notif && s.notif[k] === true);
-
-          return `
-            <div class="checkrow">
-              <span class="rowtitle" style="flex:1;">
-                ${k[0].toUpperCase() + k.slice(1)} reminder
-              </span>
-
-              <button
-                class="chk ${isOn ? 'done' : ''}"
-                data-notif="${k}"
-                ${browserBlocked ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
-                type="button">
-              </button>
-            </div>
-          `;
-        }).join('')}
-      </div>
-</section>
+        </section>
 
         <section class="settings-section">
           <div class="settings-fixed-top">
@@ -13141,153 +12429,142 @@ function syncNotificationUI() {
           content.addEventListener('scroll', onScroll, { passive: true });
         }
 
-                                           function bindSettings() {
+                                        function bindSettings() {
           
-        // ---- Device-specific notification toggles ----
+            // (Adhan preview logic removed - notification plays automatically)
 
-$$('[data-notif]').forEach(b => {
-  b.onclick = async (e) => {
-    e.preventDefault();
+          // ---- Notifications toggles (instant tick, background save) ----
 
-    const k = b.dataset.notif;
+              // ---- Notifications toggles (instant tick, background save) ----
+          $$('[data-notif]').forEach(b => {
+            b.onclick = async (e) => {
+              e.preventDefault();
 
-    if (b.dataset.busy === '1') return;
+              // 1. CHECK BROWSER PERMISSION FIRST
+              // If the browser has blocked notifications, don't let them tick it.
+              if (typeof Notification !== 'undefined' && Notification.permission !== 'granted') {
+                toast('Please enable notifications in your browser/phone settings first.');
+                
+                // If they haven't been asked yet, trigger the prompt now
+                if (Notification.permission === 'default') {
+                  await setupPushNotifications();
+                }
+                return; // Stop the function here so the box doesn't tick
+              }
 
-    if (typeof Notification === 'undefined') {
-      toast('Notifications are not supported in this browser.');
-      syncNotificationUI();
-      return;
-    }
+              // 2. NORMAL TOGGLE LOGIC
+              if (b.dataset.busy === '1') return;
+              b.dataset.busy = '1';
+              setTimeout(() => { try { delete b.dataset.busy; } catch (_) {} }, 300);
 
-   if (Notification.permission === 'denied') {
-  syncNotificationUI();
-  toast("Notifications are blocked. Please allow them in your browser settings.");
-  return;
-}
+              const k = b.dataset.notif;
+              const nextVal = !S.settings.notif[k];
+              S.settings.notif[k] = nextVal;
 
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
+                        // Paint the tick NOW — same frame as the tap.
+              b.classList.toggle('done', nextVal);
 
-      if (permission !== 'granted') {
-        toast('Please allow notifications in your browser settings.');
-        syncNotificationUI();
-        return;
-      }
-    }
+              // 👇 ADDED FIX: Force an INSTANT local save before the cloud sync
+              try { 
+                  const uid = getCloudUid() || 'guest';
+                  localStorage.setItem('u:' + uid + ':settings', JSON.stringify(S.settings)); 
+              } catch (err) {}
 
-    b.dataset.busy = '1';
+              // Persist in the background — never block the UI.
+              setJSON('settings', S.settings).catch(() => {});
 
-    setTimeout(() => {
-      delete b.dataset.busy;
-    }, 300);
+                         // If they just turned a notification ON, request permission
+              if (nextVal) {
+                setupPushNotifications().catch(() => {});
+              }
 
-    // Read this device's notification preferences.
-    const deviceNotif = getDeviceNotifSettings(
-      S.settings.notif || {}
-    );
+              syncPrayerTimesToSW();           // ← ADD THIS
+              
+              // Turning OFF any prayer reminder stops the adhan preview.
+              if (!nextVal && window._activeAdhanKey === k) {
+                if (_globalAdhanPlayer) {
+                  _globalAdhanPlayer.pause();
+                  _globalAdhanPlayer.currentTime = 0;
+                  _globalAdhanPlayer = null;
+                }
+                window._activeAdhanKey = null;
+              }
+              
+              // Update ONLY the speaker icon in place — no full render, no scroll jump
+              const row = b.closest('.checkrow');
+              if (row) {
+                const oldIcon = row.querySelector('[data-adhan-icon]');
+                if (oldIcon) oldIcon.remove();
 
-    const nextVal = deviceNotif[k] !== true;
+                if (nextVal && window._activeAdhanKey === k) {
+                  const icon = document.createElement('span');
+                  icon.setAttribute('data-adhan-icon', '1');
+                  icon.style.cssText = 'margin-right:8px;display:inline-flex;align-items:center;color:var(--green-l);';
+                  icon.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
+                  const title = row.querySelector('.rowtitle');
+                  if (title) title.prepend(icon);
+                }
+              }
+            }
+          });
 
-    deviceNotif[k] = nextVal;
+                   const holidayToggle = $('[data-toggle-holiday]');
+          if (holidayToggle) {
+            holidayToggle.onclick = (e) => {
+              e.preventDefault();
+              if (holidayToggle.dataset.busy === '1') return;
+              holidayToggle.dataset.busy = '1';
+              setTimeout(() => { try { delete holidayToggle.dataset.busy; } catch (_) {} }, 300);
 
-    // Update this device's UI.
-    b.classList.toggle('done', nextVal);
+              const targetDate = (S.screen === 'routine' && S.routineViewDate) ? S.routineViewDate : dateStr(new Date());
+              const isWeekendDay = new Date(targetDate + 'T12:00:00').getDay() === 0 || new Date(targetDate + 'T12:00:00').getDay() === 6;
+              
+              let currentlyHoliday = isWeekendDay;
+              if (S.settings.holidayDates && S.settings.holidayDates[targetDate] !== undefined) {
+                currentlyHoliday = S.settings.holidayDates[targetDate];
+              }
+              
+              const nextVal = !currentlyHoliday;
+              
+              if (!S.settings.holidayDates) S.settings.holidayDates = {};
+              S.settings.holidayDates[targetDate] = nextVal;
 
-    // Save only to this device.
-    saveDeviceNotifSettings(deviceNotif);
+              holidayToggle.classList.toggle('done', nextVal);
+              setJSON('settings', S.settings).catch(() => {});
 
-    S.settings.notif = deviceNotif;
+              toast(nextVal
+                ? 'Holiday Mode ON — Weekend routine loaded.'
+                : 'Holiday Mode OFF — Workday routine loaded.');
 
-    // Keep existing notification integration.
-    syncPrayerTimesToSW();
+              // ✅ If you are on the routine screen, redraw it immediately
+              if (S.screen === 'routine') {
+                hydrateRoutine();
+              } else {
+                render();
+              }
+            };
+          }
 
-    // Keep existing push subscription behaviour.
-    if (nextVal) {
-      setupPushNotifications().catch(() => {});
-    }
+          // ---- Auto-location toggle (instant tick, background save) ----
+          const autoLocToggle = $('[data-toggle-auto-loc]');
+          if (autoLocToggle) {
+            autoLocToggle.onclick = (e) => {
+              e.preventDefault();
+              if (autoLocToggle.dataset.busy === '1') return;
+              autoLocToggle.dataset.busy = '1';
+              setTimeout(() => { try { delete autoLocToggle.dataset.busy; } catch (_) {} }, 300);
 
-    // Keep existing Adhan stop behaviour.
-    if (!nextVal && window._activeAdhanKey === k) {
-      if (_globalAdhanPlayer) {
-        _globalAdhanPlayer.pause();
-        _globalAdhanPlayer.currentTime = 0;
-        _globalAdhanPlayer = null;
-      }
+              const nextVal = !S.settings.autoLocation;
+              S.settings.autoLocation = nextVal;
 
-      window._activeAdhanKey = null;
-    }
+              autoLocToggle.classList.toggle('done', nextVal);
+              setJSON('settings', S.settings).catch(() => {});
 
-    // Keep existing speaker icon update.
-    const row = b.closest('.checkrow');
-
-    if (row) {
-      const oldIcon = row.querySelector('[data-adhan-icon]');
-
-      if (oldIcon) oldIcon.remove();
-
-      if (nextVal && window._activeAdhanKey === k) {
-        const icon = document.createElement('span');
-
-        icon.setAttribute('data-adhan-icon', '1');
-
-        icon.style.cssText =
-          'margin-right:8px;display:inline-flex;align-items:center;color:var(--green-l);';
-
-        icon.innerHTML =
-          '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path></svg>';
-
-        const title = row.querySelector('.rowtitle');
-
-        if (title) title.prepend(icon);
-      }
-    }
-  };
-});
-
-            // ---- Auto-location toggle ----
-// ---- Auto-location toggle ----
-const autoLocToggle = $('[data-toggle-auto-loc]');
-
-if (autoLocToggle) {
-  autoLocToggle.onclick = (e) => {
-    e.preventDefault();
-
-    if (autoLocToggle.dataset.busy === '1') return;
-
-    autoLocToggle.dataset.busy = '1';
-
-    setTimeout(() => {
-      delete autoLocToggle.dataset.busy;
-    }, 300);
-
-    const nextVal = S.settings.autoLocation !== true;
-    S.settings.autoLocation = nextVal;
-
-    autoLocToggle.classList.toggle('done', nextVal);
-
-    setJSON('settings', S.settings).catch(err => {
-      console.warn('Could not save auto-location setting:', err);
-    });
-
-if (nextVal) {
-  // Turning auto-update ON → clear the once-per-session flag so GPS can
-  // run one time now, show one toast, then stay silent for the rest of
-  // the session. Fires immediately (0 s), not after 3 s.
-  try {
-    sessionStorage.removeItem('__gpsRunDone');
-    sessionStorage.removeItem('__gpsToastShown');
-  } catch (e) {}
-
-  if (S.settings.autoLocation === true) {
-    autoUpdateLocation();
-  }
-} else {
-  toast('Auto-update OFF — using manual location.');
-}
-  };
-}
-
-            
+              toast(nextVal
+                ? 'Auto-update ON — location will sync automatically.'
+                : 'Auto-update OFF — using manual location.');
+            };
+          }
 
           // ---- Arabic font size buttons (instant, no re-render) ----
           $$('[data-fontsz]').forEach(b => {
@@ -13303,21 +12580,23 @@ if (nextVal) {
                 x.classList.toggle('btn-ghost', !active);
               });
 
+              // Persist in the background — no need to wait.
               setJSON('settings', S.settings).catch(() => {});
             };
           });
 
-          // ---- Birthday save ----
-          const bdayBtn = $('#birthday-save');
-          if (bdayBtn) bdayBtn.onclick = async () => {
-            const val = $('#birthday-input').value;
-            S.settings.birthday = val || null;
-            setJSON('settings', S.settings).catch(() => {});
-            syncPrayerTimesToSW();
-            toast(val ? 'Birthday saved. We\u2019ll remind you each year.' : 'Birthday cleared.');
-          };
+          // ---- Birthday save (this one is a deliberate Save button, so a
+          //      short delay before feedback is fine — but we still don't want
+          //      to block the UI. It's a one-off action anyway.) ----
+                  const bdayBtn = $('#birthday-save');
+if (bdayBtn) bdayBtn.onclick = async () => {
+  const val = $('#birthday-input').value;
+  S.settings.birthday = val || null;
+  setJSON('settings', S.settings).catch(() => {});
+  syncPrayerTimesToSW();
+  toast(val ? 'Birthday saved. We\u2019ll remind you each year.' : 'Birthday cleared.');
+};
 
-          // ---- Delete Account Logic ----
           const del = $('#delete-acct');
           if (del) del.onclick = async () => {
             if (!confirm('This will permanently erase your worship data — prayers, routine, Qur\'an progress, bookmarks, adhkar, reflections and chat history.\n\nYour login, profile, profile picture, birthday, prayer settings, Arabic font size, notification preferences, and all other Settings will be kept.\n\nContinue?')) return;
@@ -13491,7 +12770,7 @@ if (nextVal) {
               }
             } catch (e) { console.warn('Cloud erase failed:', e); }
 
-            unsubscribeAllCloudListeners();
+                  unsubscribeAllCloudListeners();
             _subscribedDayKey = null;
             _globalKeysSubscribed = false;
             subscribeToGlobalKeys();
@@ -13871,15 +13150,7 @@ if (nextVal) {
         /* ============================= SCREEN ACTION BINDER ============================= */
         function bindScreenActions(s) {
           try {
-      if (s === 'home') {
-  subscribeToCurrentDay();
-  hydrateHome();
-
-  // Run GPS IMMEDIATELY on Home mount — no 3-second delay.
-  if (S.settings?.autoLocation === true) {
-    autoUpdateLocation();
-  }
-}
+            if (s === 'home') { subscribeToCurrentDay(); hydrateHome(); }
             else if (s === 'salah') { subscribeToCurrentDay(); hydrateSalahPage(); }
             else if (s === 'routine') { subscribeToCurrentDay(); hydrateRoutine(); }
             else if (s === 'quran-library') { hydrateQuranLibrary(); }
@@ -14142,7 +13413,7 @@ if (nextVal) {
             subscribeToCurrentDay(true);
           }
 
-                                         if (user && S.settings && S.settings.setupDone) {
+                        if (user && S.settings && S.settings.setupDone) {
             const restored = readLastScreen();
             // Pre-load today's day + the full week BEFORE the very first render
             // so the Home/Tracker screens appear fully populated with no blank
@@ -14168,28 +13439,15 @@ if (nextVal) {
             } catch (e) {
               console.warn('Startup pre-fetch failed; continuing:', e);
             }
-
-            go(restored.screen || 'home', restored.arg);
-            syncPrayerTimesToSW();
-
-            // 🔒 FIRST OPEN OF THIS SESSION — clear the guards and run GPS once.
-           // FIRST OPEN / REFRESH — wait 2 seconds before GPS sync.
-try {
-  sessionStorage.removeItem('__gpsRunDone');
-  sessionStorage.removeItem('__gpsToastShown');
-} catch (e) {}
-
-setTimeout(() => {
-  if (S.settings && S.settings.autoLocation === true) {
-    autoUpdateLocation();
-  }
-}, 2000);
-
+                                  go(restored.screen || 'home', restored.arg);
+            syncPrayerTimesToSW();           // ← ADD THIS
+          
+            autoUpdateLocation();
           } else if (user) {
-  go('setup-location');
-} else {
-  go('auth');
-}
+            go('setup-location');
+          } else {
+            go('auth');
+          }
 
           try {
         window.sb.supabase.auth.onAuthStateChange(async (event, session) => {
@@ -14349,7 +13607,7 @@ setTimeout(() => {
     setTimeout(consumePendingChecks, 400);
     
     // SILENTLY TRIGGER NEWS CHECK WHEN APP OPENS
-  fetch('/api/news-cron').catch(() => {});
+    fetch('/api/notify').catch(() => {}); 
             const uid = window.__sbUid || S?._lastUid || S?.profile?.uid;
             if (uid && typeof _sbEnsureBroadcast === 'function') {
               _sbEnsureBroadcast(uid);
@@ -14359,7 +13617,7 @@ setTimeout(() => {
           }
         });
 
-                     window.addEventListener('focus', () => {
+                window.addEventListener('focus', () => {
           checkAutoTheme();
           syncNotificationUI();
           setTimeout(consumePendingChecks, 400);
@@ -14368,20 +13626,6 @@ setTimeout(() => {
             _sbEnsureBroadcast(uid);
           }
         });
-
-        // --- ADD THESE TWO BLOCKS ---
-        // 1. Checks permission whenever you click anywhere on the page
-        document.addEventListener('click', () => {
-          if (S.screen === 'settings') syncNotificationUI();
-        });
-        
-        // 2. Checks permission the moment you switch back to the tab
-        document.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'visible' && S.screen === 'settings') {
-            syncNotificationUI();
-          }
-        });
-        // ----------------------------
 
         /* ============================= NOTIFICATION SCHEDULER ============================= */
         
@@ -14536,8 +13780,6 @@ setTimeout(() => {
         return false;
       }
     }
-
-    
 
     // Call this function when the user logs in or finishes setup
     // For example, inside your `bindSetupNotif` or `performLogin` functions.
@@ -15390,20 +14632,6 @@ function openPrayerModal(prayerName, notifTag) {
     console.warn('openPrayerModal setup failed:', err);
     _openPrayerKey = null;
   }
-}
-
-          function triggerPendingAuthPopup() {
-  try {
-    const pendingPrayer = sessionStorage.getItem('__pendingAuthPopup');
-    if (pendingPrayer) {
-      sessionStorage.removeItem('__pendingAuthPopup'); // Clear so it only shows once
-      
-      // Wait 1.5 seconds to make sure the UI has loaded
-      setTimeout(() => {
-        openPrayerModal(pendingPrayer, null); 
-      }, 1500);
-    }
-  } catch(e) {}
 }
     </script>
     </body>
