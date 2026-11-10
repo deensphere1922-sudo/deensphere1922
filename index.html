@@ -2788,13 +2788,13 @@ function toastGpsOnce(msg) {
               if (parsed !== null) return parsed;
             }
           } catch (e) {}
-          try {
-            const v = localStorage.getItem(key);
-            if (v !== null) {
-              const parsed = JSON.parse(v);
-              if (parsed !== null) return parsed;
-            }
-          } catch (e) {}
+          // try {
+          //   const v = localStorage.getItem(key);
+          //   if (v !== null) {
+          //     const parsed = JSON.parse(v);
+          //     if (parsed !== null) return parsed;
+          //   }
+          // } catch (e) {}
 
           try {
             const user = window.fb?.auth?.currentUser;
@@ -5692,21 +5692,24 @@ function getCloudSyncValue(key, value) {
               if (Array.isArray(parsed) && parsed.length) S.routineStruct = parsed;
             }
 
-            // --- CRITICAL FIX: Load ALL cached days instantly from local storage ---
-            for (let i = 0; i < localStorage.length; i++) {
-              const k = localStorage.key(i);
-              if (k && k.includes(':day:')) {
-                const ds = k.split(':day:')[1];
-                const rawDay = localStorage.getItem(k);
-                if (rawDay) {
-                  try {
-                    const parsedDay = JSON.parse(rawDay);
-                    if (parsedDay) S.dayCache[ds] = parsedDay;
-                  } catch(e) {}
-                }
-              }
-            }
-            // -------------------------------------------------------------------------
+           // --- FIX 2: only load this user's cached days ---
+const uidPrefix = 'u:' + (window.__sbUid || 'guest') + ':';
+for (let i = 0; i < localStorage.length; i++) {
+  const k = localStorage.key(i);
+  if (!k || !k.startsWith(uidPrefix)) continue;
+  const rest = k.slice(uidPrefix.length);
+  if (rest.startsWith('day:')) {
+    const ds = rest.split('day:')[1];
+    const rawDay = localStorage.getItem(k);
+    if (rawDay) {
+      try {
+        const parsedDay = JSON.parse(rawDay);
+        if (parsedDay) S.dayCache[ds] = parsedDay;
+      } catch(e) {}
+    }
+  }
+}
+// -------------------------------------------------------------------------
 
           } catch (e) {
             console.warn('Sync hydration failed:', e);
@@ -14283,9 +14286,12 @@ setTimeout(() => {
           try {
         window.sb.supabase.auth.onAuthStateChange(async (event, session) => {
       const u = session?.user || null;
-      if (u && u.id !== S._lastUid) {
-        S._lastUid = u.id;
-        window.__sbUid = u.id;
+   if (u && u.id !== S._lastUid) {
+  S._lastUid = u.id;
+  window.__sbUid = u.id;
+
+  // ✅ FIX 1: wipe any previous user's in-memory day records
+  S.dayCache = {};
 
         // ✅ FIRST: Load the existing profile from the cloud.
         // If a profile already exists for this user, use it. Only fall back to
