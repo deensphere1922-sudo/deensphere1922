@@ -8493,15 +8493,15 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-           function getRoutineStruct(d) {
+        function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
+  const isFriday = dateToCheck.getDay() === 5;
 
   // Effective Holiday Mode for this specific date.
   // - If the user has explicitly saved a value for this date, honour it.
   // - Otherwise fall back to the natural weekday/weekend default.
-  // A weekday with no explicit entry is NEVER treated as holiday.
   let isHoliday;
   if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
     isHoliday = S.settings.holidayDates[dateKey] === true;
@@ -8510,7 +8510,6 @@ function repaintRoutineFromCache(ds) {
   }
 
   // Pick the correct stored routine for this day type.
-  // S.routineStruct holds BOTH: { weekday: [...], weekend: [...] }
   let baseStruct;
   if (S.routineStruct && Array.isArray(S.routineStruct.weekday) && Array.isArray(S.routineStruct.weekend)) {
     baseStruct = isHoliday ? S.routineStruct.weekend : S.routineStruct.weekday;
@@ -8522,15 +8521,32 @@ function repaintRoutineFromCache(ds) {
     baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
   }
 
-  // Filter out deleted items
-  return baseStruct.map(section => {
+  // Clone so we never mutate the stored structure.
+  const finalStruct = baseStruct.map(section => {
     const [secKey, secLabel, items] = section;
-    const filteredItems = (items || []).filter(item => {
-      const itemKey = item[0];
-      return !S.deletedRoutineItems.includes(itemKey);
-    });
+    const filteredItems = (items || []).filter(item => !S.deletedRoutineItems.includes(item[0]));
     return [secKey, secLabel, filteredItems];
-  }).filter(section => section[2].length > 0);
+  });
+
+  // Friday only + Weekday Routine only (never Holiday/Weekend mode).
+  if (isFriday && !isHoliday && !S.deletedRoutineItems.includes('r_kahf')) {
+    let inserted = false;
+    for (const section of finalStruct) {
+      const items = section[2];
+      const adhkarIdx = items.findIndex(it => it[0] === 'r_madhkar');
+      if (adhkarIdx !== -1) {
+        items.splice(adhkarIdx + 1, 0, ['r_kahf', 'Read Surah Al-Kahf']);
+        inserted = true;
+        break;
+      }
+    }
+    // If Morning Adhkar was renamed/deleted, still surface it in the first section.
+    if (!inserted && finalStruct.length && finalStruct[0][2].length) {
+      finalStruct[0][2].push(['r_kahf', 'Read Surah Al-Kahf']);
+    }
+  }
+
+  return finalStruct.filter(section => section[2].length > 0);
 }
 
                      function cloneDefaultRoutine(d) {
