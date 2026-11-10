@@ -5692,22 +5692,50 @@ function getCloudSyncValue(key, value) {
               if (Array.isArray(parsed) && parsed.length) S.routineStruct = parsed;
             }
 
-           // --- FIX 2: only load this user's cached days ---
-const uidPrefix = 'u:' + (window.__sbUid || 'guest') + ':';
+          // --- FIX 2: load THIS user's cached days (uid may not be known yet) ---
+// On a hard refresh, window.__sbUid is still null here — the Supabase
+// session hasn't resolved yet. If we only accept 'u:<uid>:day:*' we
+// silently skip every real user's cache and repaint the Tracker as 0%.
+// Instead: accept any 'u:<uid>:day:...' key that isn't the guest bucket,
+// and ONLY fall back to 'u:guest:day:*' if no real user is logged in.
+const _realUid = window.__sbUid || S?._lastUid || (S?.profile && S.profile.uid) || null;
+const _guestAllowed = !_realUid;
+
 for (let i = 0; i < localStorage.length; i++) {
   const k = localStorage.key(i);
-  if (!k || !k.startsWith(uidPrefix)) continue;
-  const rest = k.slice(uidPrefix.length);
-  if (rest.startsWith('day:')) {
-    const ds = rest.split('day:')[1];
-    const rawDay = localStorage.getItem(k);
-    if (rawDay) {
-      try {
-        const parsedDay = JSON.parse(rawDay);
-        if (parsedDay) S.dayCache[ds] = parsedDay;
-      } catch(e) {}
-    }
+  if (!k) continue;
+
+  // Match  "u:<uid>:day:YYYY-MM-DD"  (or plain "day:YYYY-MM-DD" for very old data)
+  let ds = null;
+  let bucket = null;
+
+  const mUser = k.match(/^u:([^:]+):day:(\d{4}-\d{2}-\d{2})$/);
+  const mLegacy = k.match(/^day:(\d{4}-\d{2}-\d{2})$/);
+
+  if (mUser) {
+    bucket = mUser[1];
+    ds = mUser[2];
+  } else if (mLegacy) {
+    bucket = 'guest';
+    ds = mLegacy[1];
   }
+
+  if (!ds) continue;
+
+  // Accept this user's bucket; also accept the guest bucket when nobody is
+  // logged in. Never mix one user's data into another user's cache.
+  if (_realUid && bucket !== _realUid) continue;
+  if (!_realUid && bucket !== 'guest') continue;
+
+  const rawDay = localStorage.getItem(k);
+  if (!rawDay) continue;
+
+  try {
+    const parsedDay = JSON.parse(rawDay);
+    if (parsedDay && parsedDay.date === ds) {
+      S.dayCache[ds] = parsedDay;
+    }
+  } catch (e) {}
 }
 // -------------------------------------------------------------------------
 
@@ -14205,6 +14233,10 @@ if (nextVal) {
       window.__sbUid = user.id;
       S._lastUid = user.id;
 
+       try { hydrateFromLocalStorageSync(); } catch (e) {
+    console.warn('Post-auth local hydration failed:', e);
+  }
+
       // ✅ FIRST: Load the existing profile from the cloud.
       let existingProfile = null;
       try {
@@ -14305,6 +14337,9 @@ setTimeout(() => {
    if (u && u.id !== S._lastUid) {
   S._lastUid = u.id;
   window.__sbUid = u.id;
+
+    try { hydrateFromLocalStorageSync(); } catch (e) {}
+
 
   // ✅ FIX 1: wipe any previous user's in-memory day records
   S.dayCache = {};
