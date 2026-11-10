@@ -8556,8 +8556,8 @@ function repaintRoutineFromCache(ds) {
     return [secKey, secLabel, filteredItems];
   });
 
-  // Friday only + Weekday Routine only (never Holiday/Weekend mode).
-  if (isFriday && !isHoliday && !S.deletedRoutineItems.includes('r_kahf')) {
+    // Friday only — injects into BOTH Weekday and Weekend/Holiday routines
+  if (isFriday && !S.deletedRoutineItems.includes('r_kahf')) {
     let inserted = false;
     for (const section of finalStruct) {
       const items = section[2];
@@ -8568,9 +8568,13 @@ function repaintRoutineFromCache(ds) {
         break;
       }
     }
-    // If Morning Adhkar was renamed/deleted, still surface it in the first section.
+    // Fallback: If Morning Adhkar was renamed/deleted, put it in the first section.
     if (!inserted && finalStruct.length && finalStruct[0][2].length) {
       finalStruct[0][2].push(['r_kahf', 'Read Surah Al-Kahf']);
+    }
+    // Second Fallback: If all sections are empty, create a temporary one.
+    if (!inserted) {
+      finalStruct.unshift(['friday_kahf', 'Friday', [['r_kahf', 'Read Surah Al-Kahf']]]);
     }
   }
 
