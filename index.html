@@ -5936,7 +5936,7 @@ if (S.screen === 'home') repaintHomeFromCache(ds);
 
           _subscribedDayKey = liveListenerId;
 
-       subscribeToKey(key, (remoteDay) => {
+             subscribeToKey(key, (remoteDay) => {
   if (!remoteDay) return;
 
   // Routine has its own dedicated sync path — don't clobber it here
@@ -5946,8 +5946,10 @@ if (S.screen === 'home') repaintHomeFromCache(ds);
   const next = JSON.stringify(remoteDay);
   if (prev === next) return;
 
+  // Update the local memory
   S.dayCache[ds] = remoteDay;
 
+  // Repaint whichever screen is currently open instantly
   const s = S.screen;
   if (s === 'home' || s === 'salah') repaintHomeFromCache(ds);
   else if (s === 'tracker') repaintTrackerFromCache();
@@ -6022,12 +6024,12 @@ if (S.screen === 'home') repaintHomeFromCache(ds);
             }
           });
 
-                subscribeToKey('routine-struct', (val) => {
+                               subscribeToKey('routine-struct', (val) => {
   if (val && typeof val === 'object' && val.weekday && val.weekend) {
     S.routineStruct = val;
     if (S.screen === 'routine') hydrateRoutine();
-    // Recompute the Tracker if it's open — the routine length affects the score
     else if (S.screen === 'tracker') repaintTrackerFromCache();
+    else if (S.screen === 'home') repaintHomeFromCache(dateStr(new Date())); // <-- ADDED
   } else if (val && typeof val === 'object' && val.data) {
     const legacyData = cloneStructure(val.data);
     if (val.isWeekendMode) {
@@ -6037,10 +6039,12 @@ if (S.screen === 'home') repaintHomeFromCache(ds);
     }
     if (S.screen === 'routine') hydrateRoutine();
     else if (S.screen === 'tracker') repaintTrackerFromCache();
+    else if (S.screen === 'home') repaintHomeFromCache(dateStr(new Date())); // <-- ADDED
   } else if (Array.isArray(val) && val.length) {
     S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
     if (S.screen === 'routine') hydrateRoutine();
     else if (S.screen === 'tracker') repaintTrackerFromCache();
+    else if (S.screen === 'home') repaintHomeFromCache(dateStr(new Date())); // <-- ADDED
   }
 });
 
