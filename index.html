@@ -14938,7 +14938,20 @@ setTimeout(() => {
     // }
 
     /* ============================= IN-APP BANNER, ADHAN & PRAYER MODAL ============================= */
-    let _notificationAdhanAudio = null;
+    
+    // ============================================================
+// TRUE "is the user actually looking at this app" test.
+// visibilityState alone is not enough: a backgrounded tab can
+// still report 'visible' on mobile while the phone is locked
+// or the user is in another app.
+// ============================================================
+function _userIsActuallyPresent() {
+  if (document.visibilityState !== 'visible') return false;
+  if (typeof document.hasFocus === 'function' && !document.hasFocus()) return false;
+  return true;
+}
+
+let _notificationAdhanAudio = null;
 
     // function _stopNotificationAdhan() {
     //   if (_notificationAdhanAudio) {
@@ -14980,8 +14993,9 @@ setTimeout(() => {
         }
       }
 
-      const banner = document.getElementById('in-app-banner');
+          const banner = document.getElementById('in-app-banner');
       if (banner) {
+        if (typeof banner.__cleanup === 'function') banner.__cleanup();
         banner.remove();
       }
     }
@@ -15031,8 +15045,9 @@ setTimeout(() => {
     function _playNotificationAdhan(prayer) {
       if (!S || !S.settings || !S.settings.notif || !S.settings.notif[prayer]) return;
 
-      // Audio and in-app banners only work when the page is visible.
-      if (document.visibilityState !== 'visible') return;
+           // 🚫 Only show the banner + play audio when the user is
+      // genuinely on screen (visible tab AND focused window).
+      if (!_userIsActuallyPresent()) return;
 
       _stopNotificationAdhan();
 
@@ -15092,7 +15107,17 @@ setTimeout(() => {
       `;
 
       document.body.appendChild(banner);
-
+      // 🛑 Kill banner + audio the instant the user leaves the app.
+      const killOnLeave = () => { if (!_userIsActuallyPresent()) _stopNotificationAdhan(); };
+      const killOnBlur   = () => setTimeout(() => { if (!_userIsActuallyPresent()) _stopNotificationAdhan(); }, 50);
+      document.addEventListener('visibilitychange', killOnLeave);
+      window.addEventListener('blur', killOnBlur);
+      window.addEventListener('pagehide', _stopNotificationAdhan);
+      banner.__cleanup = () => {
+        document.removeEventListener('visibilitychange', killOnLeave);
+        window.removeEventListener('blur', killOnBlur);
+        window.removeEventListener('pagehide', _stopNotificationAdhan);
+      };
       const closeBtn = banner.querySelector('#close-adhan-btn');
       if (closeBtn) {
         closeBtn.onclick = (e) => {
