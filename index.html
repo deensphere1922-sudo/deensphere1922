@@ -5890,10 +5890,10 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
             _localWriteAt[key] = Date.now();
           } catch (e) {}
 
-          // Await the cloud save so the app knows it finished
-          await setJSON(key, d);
+       // Fire the cloud save in the background — never block the UI
+setJSON(key, d).catch(err => console.warn('Cloud save failed for ' + key, err));
 
-          if (S.screen === 'home') repaintHomeFromCache(ds);
+if (S.screen === 'home') repaintHomeFromCache(ds);
         }
 
         async function trackQuranVerses(surahNum, verseNum) {
@@ -5936,23 +5936,23 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
 
           _subscribedDayKey = liveListenerId;
 
-          subscribeToKey(key, (remoteDay) => {
-            if (!remoteDay) return;
+       subscribeToKey(key, (remoteDay) => {
+  if (!remoteDay) return;
 
-            // CRITICAL FIX: Do not let the cloud overwrite the Routine screen!
-            if (S.screen === 'routine') return; 
+  // Routine has its own dedicated sync path — don't clobber it here
+  if (S.screen === 'routine') return;
 
-            const prev = JSON.stringify(S.dayCache[ds] || {});
-            const next = JSON.stringify(remoteDay);
-            if (prev === next) return;
+  const prev = JSON.stringify(S.dayCache[ds] || {});
+  const next = JSON.stringify(remoteDay);
+  if (prev === next) return;
 
-            S.dayCache[ds] = remoteDay;
+  S.dayCache[ds] = remoteDay;
 
-            const s = S.screen;
-            if (s === 'home' || s === 'salah') repaintHomeFromCache(ds);
-            else if (s === 'tracker') repaintTrackerFromCache();
-            else if (s === 'adhkar')  repaintAdhkarFromCache(ds);
-          });
+  const s = S.screen;
+  if (s === 'home' || s === 'salah') repaintHomeFromCache(ds);
+  else if (s === 'tracker') repaintTrackerFromCache();
+  else if (s === 'adhkar')  repaintAdhkarFromCache(ds);
+});
         }
 
             let _globalKeysSubscribed = false;
@@ -6022,23 +6022,27 @@ if (routineStruct && typeof routineStruct === 'object' && routineStruct.weekday 
             }
           });
 
-                         subscribeToKey('routine-struct', (val) => {
-            if (val && typeof val === 'object' && val.weekday && val.weekend) {
-              S.routineStruct = val;
-              if (S.screen === 'routine') hydrateRoutine();
-            } else if (val && typeof val === 'object' && val.data) {
-              const legacyData = cloneStructure(val.data);
-              if (val.isWeekendMode) {
-                S.routineStruct = { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData };
-              } else {
-                S.routineStruct = { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
-              }
-              if (S.screen === 'routine') hydrateRoutine();
-            } else if (Array.isArray(val) && val.length) {
-              S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
-              if (S.screen === 'routine') hydrateRoutine();
-            }
-          });
+                subscribeToKey('routine-struct', (val) => {
+  if (val && typeof val === 'object' && val.weekday && val.weekend) {
+    S.routineStruct = val;
+    if (S.screen === 'routine') hydrateRoutine();
+    // Recompute the Tracker if it's open — the routine length affects the score
+    else if (S.screen === 'tracker') repaintTrackerFromCache();
+  } else if (val && typeof val === 'object' && val.data) {
+    const legacyData = cloneStructure(val.data);
+    if (val.isWeekendMode) {
+      S.routineStruct = { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: legacyData };
+    } else {
+      S.routineStruct = { weekday: legacyData, weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
+    }
+    if (S.screen === 'routine') hydrateRoutine();
+    else if (S.screen === 'tracker') repaintTrackerFromCache();
+  } else if (Array.isArray(val) && val.length) {
+    S.routineStruct = { weekday: cloneStructure(val), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) };
+    if (S.screen === 'routine') hydrateRoutine();
+    else if (S.screen === 'tracker') repaintTrackerFromCache();
+  }
+});
 
                 subscribeToKey('guide-history', (val) => {
             if (!Array.isArray(val)) return;
@@ -8276,10 +8280,9 @@ if (S.screen === 'home') {
 
 saveDay(dsNow, fresh).catch(console.error);
 
-// Immediately update Home → Today's progress
-if (S.screen === 'home') {
-  repaintHomeFromCache(dsNow);
-}
+// Refresh whichever screen is visible
+if (S.screen === 'home') repaintHomeFromCache(dsNow);
+else if (S.screen === 'tracker') repaintTrackerFromCache();
     saveDay(dsNow, fresh)
   .then(() => {
     S.dayCache[dsNow] = fresh;
@@ -8409,26 +8412,22 @@ function repaintRoutineFromCache(ds) {
           });
         }
 
-           function repaintTrackerFromCache() {
+        function repaintTrackerFromCache() {
   if (S.screen !== 'tracker') return;
 
   const range = S.trackerRange || 'week';
 
-  // 1. Update the Overall % card
   const overall = document.getElementById('tracker-overall');
   if (overall) overall.innerHTML = _buildTrackerOverallHTML(range);
 
-  // 2. Update the Day by day Grid (The squares)
   const grid = document.getElementById('tracker-grid');
   if (grid) {
     grid.innerHTML = _buildTrackerGridHTML(range);
-    // Re-bind the click events for the new squares
     document.querySelectorAll('[data-tracker-day]').forEach(b => {
       b.onclick = () => showTrackerDay(b.dataset.trackerDay);
     });
   }
 
-  // 3. Update the Category Totals
   const cats = document.getElementById('tracker-cats');
   if (cats) cats.innerHTML = _buildTrackerCatsHTML(range);
 }
@@ -9178,6 +9177,8 @@ if (dsNow < todayDate && !isEditingPastDay) {
 
     // Sync to cloud in background
     saveDay(dsNow, cached).catch(() => {});
+    // If the Tracker is open, repaint it so the user sees the score update live
+if (S.screen === 'tracker') repaintTrackerFromCache();
     
     delete b.dataset.busy;
   }, { passive: false });
@@ -9891,15 +9892,20 @@ if (dsNow < todayDate && !isEditingPastDay) {
       S.dayCache[ds] = fresh;
       updateButton(nextDone);
 
-      saveDay(ds, fresh).catch((err) => {
-        console.error('Could not save Adhkar status:', err);
-        fresh.adhkar[key] = previous;
-        fresh.routine[routineKey] = previous;
-        S.dayCache[ds] = fresh;
-        updateButton(previous);
-      }).finally(() => { delete b.dataset.busy; });
+    saveDay(ds, fresh).catch((err) => {
+  console.error('Could not save Adhkar status:', err);
+  fresh.adhkar[key] = previous;
+  fresh.routine[routineKey] = previous;
+  S.dayCache[ds] = fresh;
+  updateButton(previous);
+}).finally(() => { delete b.dataset.busy; });
+
+// If the Tracker is open, repaint it so Adhkar score updates live
+if (S.screen === 'tracker') repaintTrackerFromCache();
     };
   });
+
+  if (S.screen === 'tracker') repaintTrackerFromCache();
   _bindAdhkarCatDelegate();
 }
     
@@ -10898,9 +10904,9 @@ if (dsNow < todayDate && !isEditingPastDay) {
     const isFuture = dd > now;
     const rec = records[i] || _trackerEmptyDay();
 
-    const routineStats = _routineStatsForDate(rec, dd);
-    const routineDone = routineStats.done;
-    const routineMax  = routineStats.total;
+   const routineStats = _routineStatsForDate(rec, dd);
+const routineDone = routineStats.done;
+const routineMax  = routineStats.total;
 
     const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
     const adhkarDone = (rec.adhkar?.morning ? 1 : 0) + (rec.adhkar?.evening ? 1 : 0);
@@ -11105,14 +11111,16 @@ if (dsNow < todayDate && !isEditingPastDay) {
                  async function hydrateTracker() {
           const range = S.trackerRange || 'week';
 
-          const sel = document.getElementById('tracker-range');
-          if (sel) {
-            sel.onchange = () => {
-              S.trackerRange = sel.value;
-              try { localStorage.setItem('tracker-range', sel.value); } catch(e) {}
-              hydrateTracker();
-            };
-          }
+         const sel = document.getElementById('tracker-range');
+if (sel) {
+  sel.onchange = () => {
+    S.trackerRange = sel.value;
+    try { localStorage.setItem('tracker-range', sel.value); } catch(e) {}
+    // Repaint using cache instantly, then hydrate from cloud
+    repaintTrackerFromCache();
+    hydrateTracker();
+  };
+} 
 
           const now = new Date();
           const todayStr = dateStr(now);
@@ -11193,18 +11201,11 @@ if (dsNow < todayDate && !isEditingPastDay) {
             const rec = allRecords[i] || emptyDay();
 
             // ✅ FIX: Get the correct routine structure and max for THIS specific day
-            const activeRoutineStruct = getRoutineStruct(dd);
-            const routineMax = activeRoutineStruct.reduce((s, x) => s + x[2].length, 0) || 16;
+         const routineStats = _routineStatsForDate(rec, dd);
+const routineDone = routineStats.done;
+const routineMax  = routineStats.total;
 
-            const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
-            
-            // ✅ FIX: Only count routine items that belong to this day's active routine
-            let routineDone = 0;
-            activeRoutineStruct.forEach(([_, __, items]) => {
-              items.forEach(([ik]) => {
-                if (rec.routine && rec.routine[ik]) routineDone++;
-              });
-            });
+const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
 
             const adhkarDone = (rec.adhkar?.morning ? 1 : 0) + (rec.adhkar?.evening ? 1 : 0);
 
@@ -13948,18 +13949,47 @@ if (nextVal) {
             else if (s === 'tawhid') { bindTawhid(); }
             else if (s === 'ramadan') { bindRamadan(); hydrateRamadanCalendar(); }
             else if (s === 'reflection') { bindReflection(); }
-           else if (s === 'tracker') { 
-  subscribeToCurrentDay(); 
-  
-  // ✅ CRITICAL FIX: Force a fresh fetch of the routine structure 
-  // from the cloud before calculating the tracker stats. 
-  // This ensures mobile and desktop use the exact same routine length.
+         else if (s === 'tracker') { 
+  // 1. Refresh the routine structure from the cloud FIRST so the math matches every device
   getJSON('routine-struct').then(fresh => {
     if (fresh && fresh.weekday && fresh.weekend) {
       S.routineStruct = fresh;
     }
     hydrateTracker(); 
   }).catch(() => hydrateTracker());
+
+  // 2. Subscribe to live updates for EVERY day in the tracker range
+  const range = S.trackerRange || 'week';
+  const now = new Date();
+  let daysToTrack = [];
+
+  if (range === 'week') {
+    const dayOfWeek = now.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    const monday = new Date(now);
+    monday.setDate(now.getDate() + mondayOffset);
+    monday.setHours(0, 0, 0, 0);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(monday);
+      d.setDate(monday.getDate() + i);
+      daysToTrack.push(dateStr(d));
+    }
+  } else {
+    const y = now.getFullYear(), m = now.getMonth();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      daysToTrack.push(dateStr(new Date(y, m, d)));
+    }
+  }
+
+  // Live listener per day — a tick on mobile repaints desktop instantly
+  daysToTrack.forEach(ds => {
+    subscribeToKey('day:' + ds, (remoteDay) => {
+      if (!remoteDay) return;
+      S.dayCache[ds] = remoteDay;
+      if (S.screen === 'tracker') repaintTrackerFromCache();
+    });
+  });
 }
             else if (s === 'profile') { bindProfile(); }
             else if (s === 'settings') {
