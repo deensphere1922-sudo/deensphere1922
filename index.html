@@ -8521,15 +8521,12 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-        function getRoutineStruct(d) {
+               function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
   const isFriday = dateToCheck.getDay() === 5;
 
-  // Effective Holiday Mode for this specific date.
-  // - If the user has explicitly saved a value for this date, honour it.
-  // - Otherwise fall back to the natural weekday/weekend default.
   let isHoliday;
   if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
     isHoliday = S.settings.holidayDates[dateKey] === true;
@@ -8537,7 +8534,6 @@ function repaintRoutineFromCache(ds) {
     isHoliday = isWeekendDay;
   }
 
-  // Pick the correct stored routine for this day type.
   let baseStruct;
   if (S.routineStruct && Array.isArray(S.routineStruct.weekday) && Array.isArray(S.routineStruct.weekend)) {
     baseStruct = isHoliday ? S.routineStruct.weekend : S.routineStruct.weekday;
@@ -8549,17 +8545,22 @@ function repaintRoutineFromCache(ds) {
     baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
   }
 
-  // Clone so we never mutate the stored structure.
+  // Clone so we never mutate the stored structure
   const finalStruct = baseStruct.map(section => {
     const [secKey, secLabel, items] = section;
     const filteredItems = (items || []).filter(item => !S.deletedRoutineItems.includes(item[0]));
     return [secKey, secLabel, filteredItems];
   });
 
-       // Friday only — injects into BOTH Weekday and Weekend/Holiday routines
-     // Friday only — injects into BOTH Weekday and Weekend/Holiday routines
+  // 🛑 IF NOT FRIDAY: Forcefully remove Al-Kahf so it NEVER shows on other days!
+  if (!isFriday) {
+    for (const section of finalStruct) {
+      section[2] = section[2].filter(it => it[0] !== 'r_kahf');
+    }
+  }
+
+  // ✅ IF FRIDAY: Inject it safely
   if (isFriday && !S.deletedRoutineItems.includes('r_kahf')) {
-    // Uses your custom name if you edited it, otherwise defaults to the original
     const kahfLabel = (typeof S.customKahfName !== 'undefined' && S.customKahfName) 
       ? S.customKahfName 
       : 'Read Surah Al-Kahf';
@@ -8567,6 +8568,14 @@ function repaintRoutineFromCache(ds) {
     let inserted = false;
     for (const section of finalStruct) {
       const items = section[2];
+      
+      // If it's already in the list (because you moved it), leave it where it is
+      if (items.some(it => it[0] === 'r_kahf')) {
+        inserted = true;
+        break;
+      }
+
+      // Otherwise, inject it below Morning Adhkar
       const adhkarIdx = items.findIndex(it => it[0] === 'r_madhkar');
       if (adhkarIdx !== -1) {
         items.splice(adhkarIdx + 1, 0, ['r_kahf', kahfLabel]);
@@ -8574,6 +8583,8 @@ function repaintRoutineFromCache(ds) {
         break;
       }
     }
+    
+    // Fallbacks if Adhkar is missing
     if (!inserted && finalStruct.length && finalStruct[0][2].length) {
       finalStruct[0][2].push(['r_kahf', kahfLabel]);
     }
@@ -8940,7 +8951,7 @@ function renderRoutine() {
       }
     }
 
-           function _bindRoutineButtons() {
+                function _bindRoutineButtons() {
     const ds = S.routineViewDate || dateStr(new Date());
  
 const instantUpdate = async (newStruct, successMsg) => {
@@ -8997,15 +9008,13 @@ const instantUpdate = async (newStruct, successMsg) => {
       const trimmed = next.trim();
       if (!trimmed) { toast('Item name cannot be empty.'); return; }
 
-      // ⚡ SPECIAL FRIDAY FIX: Saves the custom name so it updates in-place
       if (ik === 'r_kahf') {
         S.customKahfName = trimmed; 
         setJSON('custom-kahf-name', trimmed).catch(() => {});
-        el.textContent = trimmed; // Updates instantly on the exact same line
+        el.textContent = trimmed;
         return; 
       }
       
-      // Normal edit for all other items
       const st = cloneRoutineStruct(ds); 
       for (const [, , items] of st) { 
         for (const it of items) { 
@@ -9042,10 +9051,20 @@ const instantUpdate = async (newStruct, successMsg) => {
       if (!trimmed) { toast('Name cannot be empty.'); return; }
       
       const st = cloneRoutineStruct(ds);
+      
+      for (const [, , items] of st) {
+        for (const it of items) {
+          if (it[1].toLowerCase() === trimmed.toLowerCase()) {
+            toast('This item already exists!');
+            return;
+          }
+        }
+      }
+
       for (const [k, , items] of st) {
         if (k === secKey) {
           const ik = 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-          items.push([ik, trimmed]);
+          items.push([ik, trimmed]); 
         }
       }
       instantUpdate(st, 'Item added.');
@@ -9106,7 +9125,7 @@ const instantUpdate = async (newStruct, successMsg) => {
       instantUpdate(st, null);
     });
 
-    // ---- Move item up ----
+    // ---- Move item up (SWAPS WITH AL-KAHF) ----
     $$('[data-move-item-up]').forEach(b => b.onclick = async (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -9117,7 +9136,21 @@ const instantUpdate = async (newStruct, successMsg) => {
       if (!sec) return;
       
       const items = sec[2];
-      const idx = items.findIndex(it => it[0] === ik);
+      let idx = items.findIndex(it => it[0] === ik);
+      
+      // If moving a normal item UP that is right below Al-Kahf, we must materialize Al-Kahf
+      // so they can swap properly on the screen.
+      if (idx === 1 && items[0][0] === 'r_kahf') {
+          const label = S.customKahfName || 'Read Surah Al-Kahf';
+          items[0] = ['r_kahf', label];
+      }
+      
+      if (idx === -1 && ik === 'r_kahf') {
+        const label = S.customKahfName || 'Read Surah Al-Kahf';
+        items.push(['r_kahf', label]);
+        idx = items.length - 1;
+      }
+
       if (idx <= 0) return;
       
       [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
@@ -9135,7 +9168,14 @@ const instantUpdate = async (newStruct, successMsg) => {
       if (!sec) return;
       
       const items = sec[2];
-      const idx = items.findIndex(it => it[0] === ik);
+      let idx = items.findIndex(it => it[0] === ik);
+
+      if (idx === -1 && ik === 'r_kahf') {
+        const label = S.customKahfName || 'Read Surah Al-Kahf';
+        items.push(['r_kahf', label]);
+        idx = items.length - 1;
+      }
+
       if (idx === -1 || idx >= items.length - 1) return;
       
       [items[idx + 1], items[idx]] = [items[idx], items[idx + 1]];
