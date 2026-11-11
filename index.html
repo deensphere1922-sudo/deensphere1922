@@ -8523,7 +8523,7 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-                  function getRoutineStruct(d) {
+              function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
@@ -8570,14 +8570,10 @@ function repaintRoutineFromCache(ds) {
     let inserted = false;
     for (const section of finalStruct) {
       const items = section[2];
-      
-      // If it's already in the list (because you moved it on Friday), leave it where it is
       if (items.some(it => it[0] === 'r_kahf')) {
         inserted = true;
         break;
       }
-
-      // Otherwise, inject it below Morning Adhkar
       const adhkarIdx = items.findIndex(it => it[0] === 'r_madhkar');
       if (adhkarIdx !== -1) {
         items.splice(adhkarIdx + 1, 0, ['r_kahf', kahfLabel]);
@@ -8585,13 +8581,43 @@ function repaintRoutineFromCache(ds) {
         break;
       }
     }
-    
-    // Fallbacks if Adhkar is missing
     if (!inserted && finalStruct.length && finalStruct[0][2].length) {
       finalStruct[0][2].push(['r_kahf', kahfLabel]);
     }
     if (!inserted) {
       finalStruct.unshift(['friday_kahf', 'Friday', [['r_kahf', kahfLabel]]]);
+    }
+  }
+
+  // =========================================================
+  // ✅ NEW: INJECT "Recite last two verses of Surah Al-Baqarah" EVERY DAY
+  // =========================================================
+  if (!S.deletedRoutineItems.includes('r_baqarah')) {
+    let baqarahInserted = false;
+    
+    // Check if it already exists (so we don't duplicate it if user moves it)
+    for (const section of finalStruct) {
+      if (section[2].some(it => it[0] === 'r_baqarah')) {
+        baqarahInserted = true;
+        break;
+      }
+    }
+
+    // If it doesn't exist, inject it into the 'night' section (Home & Night)
+    if (!baqarahInserted) {
+      let nightSec = finalStruct.find(s => s[0] === 'night');
+      if (nightSec) {
+        // Insert before Witr if possible, otherwise just push it
+        const witrIdx = nightSec[2].findIndex(it => it[0] === 'r_witr');
+        if (witrIdx !== -1) {
+           nightSec[2].splice(witrIdx, 0, ['r_baqarah', 'Recite last two verses of Surah Al-Baqarah']);
+        } else {
+           nightSec[2].push(['r_baqarah', 'Recite last two verses of Surah Al-Baqarah']);
+        }
+      } else if (finalStruct.length > 0) {
+        // Fallback: if no 'night' section, put it in the last section
+        finalStruct[finalStruct.length - 1][2].push(['r_baqarah', 'Recite last two verses of Surah Al-Baqarah']);
+      }
     }
   }
 
@@ -8661,7 +8687,7 @@ async function saveRoutineStruct(struct) {
 
       // 🔒 LIST OF ITEM IDs TO PROTECT (Removes the X button)
       const PROTECTED_ITEMS = [
-        'r_fajr', 'r_madhkar', 'r_dhuhr', 'r_asr', 'r_maghrib', 'r_isha', 'r_eadhkar', 'r_kahf'
+        'r_fajr', 'r_madhkar', 'r_dhuhr', 'r_asr', 'r_maghrib', 'r_isha', 'r_eadhkar', 'r_kahf', 'r_baqarah'
       ];
 
       const pastBanner = !isToday ? `
@@ -9288,22 +9314,19 @@ function renderRoutine() {
   };
 }
 
-                            function cloneRoutineStruct() {
+                      function cloneRoutineStruct() {
   const viewDate = S.routineViewDate
     ? new Date(S.routineViewDate + 'T12:00:00')
     : new Date();
     
-  // If we are editing a past day, clone from the draft structure instead of the real one
   const isEditingPast = S.routineEditModeDate === (S.routineViewDate || dateStr(new Date()));
   const sourceStruct = (isEditingPast && S.routineDraftStruct) ? S.routineDraftStruct : S.routineStruct;
   
-  // If no struct exists, use default
   if (!sourceStruct) {
       const isHoliday = viewDate.getDay() === 0 || viewDate.getDay() === 6;
       return cloneDefaultRoutine(viewDate);
   }
 
-  // Extract the correct day type (weekday/weekend) from the source
   const dateKey = dateStr(viewDate);
   const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
   let isHoliday;
@@ -9322,7 +9345,6 @@ function renderRoutine() {
     baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
   }
 
-  // Filter out deleted items and handle Friday Al-Kahf logic
   const finalStruct = baseStruct.map(section => {
     const [secKey, secLabel, items] = section;
     const filteredItems = (items || []).filter(item => !S.deletedRoutineItems.includes(item[0]));
@@ -9337,9 +9359,7 @@ function renderRoutine() {
   }
   
   if (isFriday && !S.deletedRoutineItems.includes('r_kahf')) {
-    // Check if there is a custom name in the current struct source
     let kahfLabel = 'Read Surah Al-Kahf';
-    
     for (const section of finalStruct) {
       const existing = section[2].find(it => it[0] === 'r_kahf');
       if (existing) {
@@ -9347,7 +9367,6 @@ function renderRoutine() {
         break;
       }
     }
-    // Fallback to global custom name if not found in struct (for backward compat)
     if (kahfLabel === 'Read Surah Al-Kahf' && typeof S.customKahfName !== 'undefined' && S.customKahfName) {
       kahfLabel = S.customKahfName;
     }
@@ -9368,6 +9387,31 @@ function renderRoutine() {
     }
     if (!inserted && finalStruct.length && finalStruct[0][2].length) {
       finalStruct[0][2].push(['r_kahf', kahfLabel]);
+    }
+  }
+
+  // ✅ NEW: Ensure Baqarah is cloned correctly for moving up/down
+  if (!S.deletedRoutineItems.includes('r_baqarah')) {
+    let baqarahInserted = false;
+    for (const section of finalStruct) {
+      if (section[2].some(it => it[0] === 'r_baqarah')) {
+        baqarahInserted = true;
+        break;
+      }
+    }
+    
+    if (!baqarahInserted) {
+      let nightSec = finalStruct.find(s => s[0] === 'night');
+      if (nightSec) {
+        const witrIdx = nightSec[2].findIndex(it => it[0] === 'r_witr');
+        if (witrIdx !== -1) {
+           nightSec[2].splice(witrIdx, 0, ['r_baqarah', 'Recite last two verses of Surah Al-Baqarah']);
+        } else {
+           nightSec[2].push(['r_baqarah', 'Recite last two verses of Surah Al-Baqarah']);
+        }
+      } else if (finalStruct.length > 0) {
+        finalStruct[finalStruct.length - 1][2].push(['r_baqarah', 'Recite last two verses of Surah Al-Baqarah']);
+      }
     }
   }
 
