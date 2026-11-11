@@ -8521,7 +8521,7 @@ function repaintRoutineFromCache(ds) {
           ]],
         ];
 
-               function getRoutineStruct(d) {
+                  function getRoutineStruct(d) {
   const dateToCheck = d || new Date();
   const dateKey = dateStr(dateToCheck);
   const isWeekendDay = dateToCheck.getDay() === 0 || dateToCheck.getDay() === 6;
@@ -8552,7 +8552,7 @@ function repaintRoutineFromCache(ds) {
     return [secKey, secLabel, filteredItems];
   });
 
-  // 🛑 IF NOT FRIDAY: Forcefully remove Al-Kahf so it NEVER shows on other days!
+  // 🛑 STRICT SHIELD: If it is NOT Friday, forcefully delete Al-Kahf from the view!
   if (!isFriday) {
     for (const section of finalStruct) {
       section[2] = section[2].filter(it => it[0] !== 'r_kahf');
@@ -8569,7 +8569,7 @@ function repaintRoutineFromCache(ds) {
     for (const section of finalStruct) {
       const items = section[2];
       
-      // If it's already in the list (because you moved it), leave it where it is
+      // If it's already in the list (because you moved it on Friday), leave it where it is
       if (items.some(it => it[0] === 'r_kahf')) {
         inserted = true;
         break;
