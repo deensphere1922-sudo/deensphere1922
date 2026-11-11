@@ -10742,7 +10742,16 @@ if (S.screen === 'tracker') repaintTrackerFromCache();
           const iftar = t.maghrib;
           const isFastingNow = now >= suhoorEnd && now < iftar;
           const fastLabel = isFastingNow ? 'Fasting now' : (now < suhoorEnd ? 'Pre-dawn — eat Suhoor' : 'After Iftar');
-          const hDay = hijriDayOfMonth();
+        // Get the actual Hijri date, including its month
+const hijri = _hijriFromDate(now);
+const hDay = hijri.day || 0;
+
+// Show the correct Ramadan label
+const ramadanHeader = hijri.month === 9
+  ? `${hDay} Ramadan`
+  : hijri.month < 9
+   ? 'Ramadan has not yet started 🌙'
+   : 'Ramadan has ended 🌙';
 
                 const isEid = (() => {
             try {
@@ -10752,7 +10761,7 @@ if (S.screen === 'tracker') repaintTrackerFromCache();
             } catch (e) { return false; }
           })();
 
-          return `<div class="pg-head"><div class="pg-title">Ramadan</div><div class="pg-sub">${niceDate()} &middot; ${esc(S.settings.location.label)}${hDay ? ' &middot; ' + hDay + ' Ramadan' : ''}</div></div>
+         return `<div class="pg-head"><div class="pg-title">Ramadan</div><div class="pg-sub">${niceDate()} &middot; ${esc(S.settings.location.label)} &middot; ${ramadanHeader}</div></div>
 
               ${isEid ? `
             <div class="ramadan-fixed-top">
