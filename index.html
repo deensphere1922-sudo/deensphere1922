@@ -9073,7 +9073,7 @@ function renderRoutine() {
     }
   };
 
-  // ---- Edit item name ----
+    // ---- Edit item name ----
   $$('[data-edit-item]').forEach(el => el.onclick = async (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -9085,13 +9085,6 @@ function renderRoutine() {
     
     const trimmed = next.trim();
     if (!trimmed) { toast('Item name cannot be empty.'); return; }
-
-    if (ik === 'r_kahf') {
-      S.customKahfName = trimmed; 
-      setJSON('custom-kahf-name', trimmed).catch(() => {});
-      el.textContent = trimmed;
-      return; 
-    }
     
     const st = cloneRoutineStruct(ds); 
     for (const [, , items] of st) { 
@@ -9295,7 +9288,7 @@ function renderRoutine() {
   };
 }
 
-                       function cloneRoutineStruct() {
+                            function cloneRoutineStruct() {
   const viewDate = S.routineViewDate
     ? new Date(S.routineViewDate + 'T12:00:00')
     : new Date();
@@ -9344,9 +9337,20 @@ function renderRoutine() {
   }
   
   if (isFriday && !S.deletedRoutineItems.includes('r_kahf')) {
-    const kahfLabel = (typeof S.customKahfName !== 'undefined' && S.customKahfName) 
-      ? S.customKahfName 
-      : 'Read Surah Al-Kahf';
+    // Check if there is a custom name in the current struct source
+    let kahfLabel = 'Read Surah Al-Kahf';
+    
+    for (const section of finalStruct) {
+      const existing = section[2].find(it => it[0] === 'r_kahf');
+      if (existing) {
+        kahfLabel = existing[1];
+        break;
+      }
+    }
+    // Fallback to global custom name if not found in struct (for backward compat)
+    if (kahfLabel === 'Read Surah Al-Kahf' && typeof S.customKahfName !== 'undefined' && S.customKahfName) {
+      kahfLabel = S.customKahfName;
+    }
 
     let inserted = false;
     for (const section of finalStruct) {
