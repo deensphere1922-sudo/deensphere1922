@@ -5534,13 +5534,15 @@ syncSurahButtons();
           }
         }
 
-        let S = {
+               let S = {
   _lastUid: null, profile: null, settings: null, onboardingDone: false, quranProgress: { surah: 1, verse: 1 },
   quranBookmark: { surah: 1, verse: 1 },
   bookmarks: [], tawhidProgress: {},
   screen: 'splash', dayCache: {}, countdownTimer: null, guideMsgs: [], guideThinking: false, routineViewDate: null,
   trackerRange: 'week', completedSurahs: [], routineStruct: null,
-  deletedRoutineItems: [], // <--- ADD THIS LINE
+  deletedRoutineItems: [], 
+  routineDraft: null,         // <--- ADD THIS
+  routineDraftStruct: null,   // <--- ADD THIS
   verseArg: null,
   videoCat: 'Featured', videoQuery: '', videoBlocked: false
 };
@@ -8766,19 +8768,26 @@ function renderRoutine() {
 
   const cachedDay = S.dayCache[viewDate] || null;
 
-  return `
+   return `
     <div class="pg-head">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
         <div class="pg-title">Daily Routine</div>
 
         ${isPast ? `
-          <button
-            type="button"
-            class="btn ${isEditing ? 'btn-primary' : 'btn-ghost'}"
-            id="routine-edit-toggle"
-          >
-          ${isEditing ? '✓ Save Changes' : '✎ Edit'}
-          </button>
+          <div style="display:flex; gap:8px; flex-shrink:0;">
+            <button
+              type="button"
+              class="btn ${isEditing ? 'btn-primary' : 'btn-ghost'}"
+              id="routine-edit-toggle"
+            >
+            ${isEditing ? '✓ Save Changes' : '✎ Edit'}
+            </button>
+            ${isEditing ? `
+              <button type="button" class="btn btn-ghost" id="routine-cancel-edit" style="color:var(--amber);">
+                Cancel
+              </button>
+            ` : ''}
+          </div>
         ` : ''}
       </div>
 
@@ -8920,21 +8929,52 @@ function renderRoutine() {
         };
       }
 
-      // EDIT MODE / VIEW MODE BUTTON
+          // EDIT MODE / VIEW MODE BUTTON
       const editToggle = $('#routine-edit-toggle');
+      const cancelBtn = $('#routine-cancel-edit');
+
+      if (cancelBtn) {
+        cancelBtn.onclick = (e) => {
+          e.preventDefault();
+          // Discard the draft and reload the original saved data
+          S.routineDraft = null;
+          S.routineEditModeDate = null;
+          S.routineDraftStruct = null; 
+          render(); 
+        };
+      }
 
       if (editToggle) {
-        editToggle.onclick = (e) => {
+        editToggle.onclick = async (e) => {
           e.preventDefault();
-
           const selectedDate = S.routineViewDate || today;
 
           if (S.routineEditModeDate === selectedDate) {
-            S.routineEditModeDate = null;
+            // --- SAVE CHANGES ---
+            // 1. Save the drafted day data (prayers/checkboxes)
+            if (S.routineDraft) {
+              S.dayCache[selectedDate] = S.routineDraft;
+              await saveDay(selectedDate, S.routineDraft);
+            }
+            // 2. Save the drafted routine structure (items added/deleted)
+            if (S.routineDraftStruct) {
+               await setJSON('routine-struct', S.routineDraftStruct);
+               S.routineStruct = S.routineDraftStruct;
+            }
+            toast('Changes saved successfully.');
           } else {
-            S.routineEditModeDate = selectedDate;
+            // --- START EDITING ---
+            // Create a deep copy of the current day so we don't modify the original until "Save" is clicked
+            const currentDay = S.dayCache[selectedDate] || null;
+            S.routineDraft = currentDay ? JSON.parse(JSON.stringify(currentDay)) : null;
+            
+            // Create a deep copy of the current routine structure for this specific date
+            const viewDateObj = new Date(selectedDate + 'T12:00:00');
+            const baseStruct = getRoutineStruct(viewDateObj);
+            S.routineDraftStruct = JSON.parse(JSON.stringify(S.routineStruct || { weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT), weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND) }));
           }
 
+          S.routineEditModeDate = S.routineEditModeDate === selectedDate ? null : selectedDate;
           render();
         };
       }
@@ -8946,281 +8986,392 @@ function renderRoutine() {
         back.onclick = () => {
           S.routineViewDate = null;
           S.routineEditModeDate = null;
+          S.routineDraft = null;
+          S.routineDraftStruct = null;
           render();
         };
       }
     }
 
-                function _bindRoutineButtons() {
-    const ds = S.routineViewDate || dateStr(new Date());
- 
-const instantUpdate = async (newStruct, successMsg) => {
-  const viewDate = S.routineViewDate || dateStr(new Date());
+                     function _bindRoutineButtons() {
+  const ds = S.routineViewDate || dateStr(new Date());
+  const isEditingPast = S.routineEditModeDate === ds;
 
-  const selectedDate = new Date(viewDate + 'T12:00:00');
-  const dateKey = dateStr(selectedDate);
-  const isWeekendDay =
-    selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
+  const instantUpdate = async (newStruct, successMsg) => {
+    if (isEditingPast) {
+      // We are editing a past day. Save the new structure to the draft memory, DO NOT save to cloud yet.
+      if (!S.routineDraftStruct) {
+        S.routineDraftStruct = JSON.parse(JSON.stringify(S.routineStruct || {}));
+      }
+      
+      const viewDate = S.routineViewDate || dateStr(new Date());
+      const selectedDate = new Date(viewDate + 'T12:00:00');
+      const dateKey = dateStr(selectedDate);
+      const isWeekendDay = selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
 
-  const isHoliday =
-    S.settings?.holidayDates?.[dateKey] !== undefined
+      const isHoliday = S.settings?.holidayDates?.[dateKey] !== undefined
+          ? S.settings.holidayDates[dateKey] === true
+          : isWeekendDay;
+
+      if (!S.routineDraftStruct.weekday) S.routineDraftStruct.weekday = cloneStructure(ROUTINE_STRUCT_DEFAULT);
+      if (!S.routineDraftStruct.weekend) S.routineDraftStruct.weekend = cloneStructure(ROUTINE_STRUCT_WEEKEND);
+
+      if (isHoliday) {
+        S.routineDraftStruct.weekend = cloneStructure(newStruct);
+      } else {
+        S.routineDraftStruct.weekday = cloneStructure(newStruct);
+      }
+
+      const body = document.getElementById('routine-body');
+      if (body) {
+        // Temporarily override the global structure just for the render so the user sees the draft
+        const originalStruct = S.routineStruct;
+        S.routineStruct = S.routineDraftStruct; 
+        body.innerHTML = _buildRoutineBodyHTML(viewDate, S.routineDraft || S.dayCache[viewDate] || null);
+        S.routineStruct = originalStruct; // restore
+        _bindRoutineButtons();
+      }
+      toast('Draft updated. Click Save Changes to apply.');
+      return;
+    }
+
+    // Normal save (Today or saving a past day)
+    const viewDate = S.routineViewDate || dateStr(new Date());
+    const selectedDate = new Date(viewDate + 'T12:00:00');
+    const dateKey = dateStr(selectedDate);
+    const isWeekendDay = selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
+
+    const isHoliday = S.settings?.holidayDates?.[dateKey] !== undefined
       ? S.settings.holidayDates[dateKey] === true
       : isWeekendDay;
 
-  if (!S.routineStruct || !Array.isArray(S.routineStruct.weekday) || !Array.isArray(S.routineStruct.weekend)) {
-    S.routineStruct = {
-      weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
-      weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
-    };
-  }
+    if (!S.routineStruct || !Array.isArray(S.routineStruct.weekday) || !Array.isArray(S.routineStruct.weekend)) {
+      S.routineStruct = {
+        weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
+        weekend: cloneStructure(ROUTINE_STRUCT_WEEKEND)
+      };
+    }
 
-  if (isHoliday) {
-    S.routineStruct.weekend = cloneStructure(newStruct);
-  } else {
-    S.routineStruct.weekday = cloneStructure(newStruct);
-  }
+    if (isHoliday) {
+      S.routineStruct.weekend = cloneStructure(newStruct);
+    } else {
+      S.routineStruct.weekday = cloneStructure(newStruct);
+    }
 
-  const body = document.getElementById('routine-body');
-  if (body) {
-    body.innerHTML = _buildRoutineBodyHTML(viewDate, S.dayCache[viewDate] || null);
-    _bindRoutineButtons();
-  }
+    const body = document.getElementById('routine-body');
+    if (body) {
+      body.innerHTML = _buildRoutineBodyHTML(viewDate, S.dayCache[viewDate] || null);
+      _bindRoutineButtons();
+    }
 
-  try {
-    await setJSON('routine-struct', S.routineStruct);
-    if (successMsg) toast(successMsg);
-  } catch (error) {
-    console.error('Failed to save routine structure:', error);
-    toast('Failed to save routine changes.');
-  }
-};
+    try {
+      await setJSON('routine-struct', S.routineStruct);
+      if (successMsg) toast(successMsg);
+    } catch (error) {
+      console.error('Failed to save routine structure:', error);
+      toast('Failed to save routine changes.');
+    }
+  };
 
-    // ---- Edit item name ----
-    $$('[data-edit-item]').forEach(el => el.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      const ik = el.dataset.editItem;
-      const current = el.textContent;
-      const next = prompt('Edit item name:', current);
-      if (next === null) return;
-      
-      const trimmed = next.trim();
-      if (!trimmed) { toast('Item name cannot be empty.'); return; }
+  // ---- Edit item name ----
+  $$('[data-edit-item]').forEach(el => el.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    const ik = el.dataset.editItem;
+    const current = el.textContent;
+    const next = prompt('Edit item name:', current);
+    if (next === null) return;
+    
+    const trimmed = next.trim();
+    if (!trimmed) { toast('Item name cannot be empty.'); return; }
 
-      if (ik === 'r_kahf') {
-        S.customKahfName = trimmed; 
-        setJSON('custom-kahf-name', trimmed).catch(() => {});
-        el.textContent = trimmed;
-        return; 
-      }
-      
-      const st = cloneRoutineStruct(ds); 
-      for (const [, , items] of st) { 
-        for (const it of items) { 
-          if (it[0] === ik) it[1] = trimmed; 
-        } 
-      }
-      instantUpdate(st, 'Item updated.');
-    });
+    if (ik === 'r_kahf') {
+      S.customKahfName = trimmed; 
+      setJSON('custom-kahf-name', trimmed).catch(() => {});
+      el.textContent = trimmed;
+      return; 
+    }
+    
+    const st = cloneRoutineStruct(ds); 
+    for (const [, , items] of st) { 
+      for (const it of items) { 
+        if (it[0] === ik) it[1] = trimmed; 
+      } 
+    }
+    instantUpdate(st, 'Item updated.');
+  });
 
-    // ---- Delete item ----
-    $$('[data-del-item]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const ik = b.dataset.delItem;
-      if (!confirm('Delete this routine item?')) return;
-      
-      const st = cloneRoutineStruct(ds).map(([k, l, items]) => [k, l, items.filter(it => it[0] !== ik)]);
+  // ---- Delete item ----
+  $$('[data-del-item]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ik = b.dataset.delItem;
+    if (!confirm('Delete this routine item?')) return;
+    
+    const st = cloneRoutineStruct(ds).map(([k, l, items]) => [k, l, items.filter(it => it[0] !== ik)]);
+    
+    // If we are in edit mode, remove it from the draft day data as well
+    if (isEditingPast && S.routineDraft) {
+       if (S.routineDraft.routine && S.routineDraft.routine[ik] !== undefined) {
+         delete S.routineDraft.routine[ik];
+       }
+    } else {
       const day = S.dayCache[ds];
       if (day && day.routine && day.routine[ik] !== undefined) {
         delete day.routine[ik];
         saveDay(ds, day).catch(() => {});
       }
-      instantUpdate(st, 'Item deleted.');
-    });
+    }
+    instantUpdate(st, 'Item deleted.');
+  });
 
-    // ---- Add item ----
-    $$('[data-add-item]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const secKey = b.dataset.addItem;
-      const name = prompt('New routine item:');
-      if (name === null) return;
-      const trimmed = name.trim();
-      if (!trimmed) { toast('Name cannot be empty.'); return; }
-      
-      const st = cloneRoutineStruct(ds);
-      
-      for (const [, , items] of st) {
-        for (const it of items) {
-          if (it[1].toLowerCase() === trimmed.toLowerCase()) {
-            toast('This item already exists!');
-            return;
-          }
+  // ---- Add item ----
+  $$('[data-add-item]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const secKey = b.dataset.addItem;
+    const name = prompt('New routine item:');
+    if (name === null) return;
+    const trimmed = name.trim();
+    if (!trimmed) { toast('Name cannot be empty.'); return; }
+    
+    const st = cloneRoutineStruct(ds);
+    
+    for (const [, , items] of st) {
+      for (const it of items) {
+        if (it[1].toLowerCase() === trimmed.toLowerCase()) {
+          toast('This item already exists!');
+          return;
         }
       }
+    }
 
-      for (const [k, , items] of st) {
-        if (k === secKey) {
-          const ik = 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-          items.push([ik, trimmed]); 
-        }
+    for (const [k, , items] of st) {
+      if (k === secKey) {
+        const ik = 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+        items.push([ik, trimmed]); 
       }
-      instantUpdate(st, 'Item added.');
-    });
+    }
+    instantUpdate(st, 'Item added.');
+  });
 
-    // ---- Rename section ----
-    $$('[data-rename-sec]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const secKey = b.dataset.renameSec;
-      const st = cloneRoutineStruct(ds);
-      const sec = st.find(s => s[0] === secKey);
-      if (!sec) return;
-      
-      const next = prompt('Rename section:', sec[1]);
-      if (next === null) return;
-      const trimmed = next.trim();
-      if (!trimmed) { toast('Section name cannot be empty.'); return; }
-      
-      sec[1] = trimmed;
-      instantUpdate(st, 'Section renamed.');
-    });
+  // ---- Rename section ----
+  $$('[data-rename-sec]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const secKey = b.dataset.renameSec;
+    const st = cloneRoutineStruct(ds);
+    const sec = st.find(s => s[0] === secKey);
+    if (!sec) return;
+    
+    const next = prompt('Rename section:', sec[1]);
+    if (next === null) return;
+    const trimmed = next.trim();
+    if (!trimmed) { toast('Section name cannot be empty.'); return; }
+    
+    sec[1] = trimmed;
+    instantUpdate(st, 'Section renamed.');
+  });
 
-    // ---- Delete section ----
-    $$('[data-del-sec]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const secKey = b.dataset.delSec;
-      if (!confirm('Delete this entire section and all its items?')) return;
-      
-      const st = cloneRoutineStruct(ds).filter(([k]) => k !== secKey);
-      instantUpdate(st, 'Section deleted.');
-    });
+  // ---- Delete section ----
+  $$('[data-del-sec]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const secKey = b.dataset.delSec;
+    if (!confirm('Delete this entire section and all its items?')) return;
+    
+    const st = cloneRoutineStruct(ds).filter(([k]) => k !== secKey);
+    instantUpdate(st, 'Section deleted.');
+  });
 
-    // ---- Move section up ----
-    $$('[data-move-sec-up]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const secKey = b.dataset.moveSecUp;
-      const st = cloneRoutineStruct(ds);
-      const idx = st.findIndex(s => s[0] === secKey);
-      if (idx <= 0) return;
-      
-      [st[idx - 1], st[idx]] = [st[idx], st[idx - 1]];
-      instantUpdate(st, null);
-    });
+  // ---- Move section up ----
+  $$('[data-move-sec-up]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const secKey = b.dataset.moveSecUp;
+    const st = cloneRoutineStruct(ds);
+    const idx = st.findIndex(s => s[0] === secKey);
+    if (idx <= 0) return;
+    
+    [st[idx - 1], st[idx]] = [st[idx], st[idx - 1]];
+    instantUpdate(st, null);
+  });
 
-    // ---- Move section down ----
-    $$('[data-move-sec-down]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const secKey = b.dataset.moveSecDown;
-      const st = cloneRoutineStruct(ds);
-      const idx = st.findIndex(s => s[0] === secKey);
-      if (idx === -1 || idx >= st.length - 1) return;
-      
-      [st[idx + 1], st[idx]] = [st[idx], st[idx + 1]];
-      instantUpdate(st, null);
-    });
+  // ---- Move section down ----
+  $$('[data-move-sec-down]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const secKey = b.dataset.moveSecDown;
+    const st = cloneRoutineStruct(ds);
+    const idx = st.findIndex(s => s[0] === secKey);
+    if (idx === -1 || idx >= st.length - 1) return;
+    
+    [st[idx + 1], st[idx]] = [st[idx], st[idx + 1]];
+    instantUpdate(st, null);
+  });
 
-    // ---- Move item up (SWAPS WITH AL-KAHF) ----
-    $$('[data-move-item-up]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const ik = b.dataset.moveItemUp;
-      const secKey = b.dataset.sec;
-      const st = cloneRoutineStruct(ds);
-      const sec = st.find(s => s[0] === secKey);
-      if (!sec) return;
-      
-      const items = sec[2];
-      let idx = items.findIndex(it => it[0] === ik);
-      
-      // If moving a normal item UP that is right below Al-Kahf, we must materialize Al-Kahf
-      // so they can swap properly on the screen.
-      if (idx === 1 && items[0][0] === 'r_kahf') {
-          const label = S.customKahfName || 'Read Surah Al-Kahf';
-          items[0] = ['r_kahf', label];
-      }
-      
-      if (idx === -1 && ik === 'r_kahf') {
+  // ---- Move item up (SWAPS WITH AL-KAHF) ----
+  $$('[data-move-item-up]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ik = b.dataset.moveItemUp;
+    const secKey = b.dataset.sec;
+    const st = cloneRoutineStruct(ds);
+    const sec = st.find(s => s[0] === secKey);
+    if (!sec) return;
+    
+    const items = sec[2];
+    let idx = items.findIndex(it => it[0] === ik);
+    
+    if (idx === 1 && items[0][0] === 'r_kahf') {
         const label = S.customKahfName || 'Read Surah Al-Kahf';
-        items.push(['r_kahf', label]);
-        idx = items.length - 1;
-      }
+        items[0] = ['r_kahf', label];
+    }
+    
+    if (idx === -1 && ik === 'r_kahf') {
+      const label = S.customKahfName || 'Read Surah Al-Kahf';
+      items.push(['r_kahf', label]);
+      idx = items.length - 1;
+    }
 
-      if (idx <= 0) return;
-      
-      [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
-      instantUpdate(st, null);
-    });
+    if (idx <= 0) return;
+    
+    [items[idx - 1], items[idx]] = [items[idx], items[idx - 1]];
+    instantUpdate(st, null);
+  });
 
-    // ---- Move item down ----
-    $$('[data-move-item-down]').forEach(b => b.onclick = async (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const ik = b.dataset.moveItemDown;
-      const secKey = b.dataset.sec;
-      const st = cloneRoutineStruct(ds);
-      const sec = st.find(s => s[0] === secKey);
-      if (!sec) return;
-      
-      const items = sec[2];
-      let idx = items.findIndex(it => it[0] === ik);
+  // ---- Move item down ----
+  $$('[data-move-item-down]').forEach(b => b.onclick = async (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const ik = b.dataset.moveItemDown;
+    const secKey = b.dataset.sec;
+    const st = cloneRoutineStruct(ds);
+    const sec = st.find(s => s[0] === secKey);
+    if (!sec) return;
+    
+    const items = sec[2];
+    let idx = items.findIndex(it => it[0] === ik);
 
-      if (idx === -1 && ik === 'r_kahf') {
-        const label = S.customKahfName || 'Read Surah Al-Kahf';
-        items.push(['r_kahf', label]);
-        idx = items.length - 1;
-      }
+    if (idx === -1 && ik === 'r_kahf') {
+      const label = S.customKahfName || 'Read Surah Al-Kahf';
+      items.push(['r_kahf', label]);
+      idx = items.length - 1;
+    }
 
-      if (idx === -1 || idx >= items.length - 1) return;
-      
-      [items[idx + 1], items[idx]] = [items[idx], items[idx + 1]];
-      instantUpdate(st, null);
-    });
+    if (idx === -1 || idx >= items.length - 1) return;
+    
+    [items[idx + 1], items[idx]] = [items[idx], items[idx + 1]];
+    instantUpdate(st, null);
+  });
 
-    // ---- Add new section ----
-    const addSec = $('#routine-add-section');
-    if (addSec) addSec.onclick = async (e) => {
-      e.preventDefault();
-      const label = prompt('New section name (e.g. "Study Time"):');
-      if (label === null) return;
-      const trimmed = label.trim();
-      if (!trimmed) { toast('Section name cannot be empty.'); return; }
-      
-      const st = cloneRoutineStruct(ds);
-      const secKey = 'sec' + Date.now().toString(36);
-      st.push([secKey, trimmed, []]);
-      instantUpdate(st, 'Section added.');
-    };
+  // ---- Add new section ----
+  const addSec = $('#routine-add-section');
+  if (addSec) addSec.onclick = async (e) => {
+    e.preventDefault();
+    const label = prompt('New section name (e.g. "Study Time"):');
+    if (label === null) return;
+    const trimmed = label.trim();
+    if (!trimmed) { toast('Section name cannot be empty.'); return; }
+    
+    const st = cloneRoutineStruct(ds);
+    const secKey = 'sec' + Date.now().toString(36);
+    st.push([secKey, trimmed, []]);
+    instantUpdate(st, 'Section added.');
+  };
 
-    // ---- Reset routine ----
-    const rst = $('#routine-reset');
-    if (rst) rst.onclick = async (e) => {
-      e.preventDefault();
-      if (!confirm('Reset the routine back to the default set of sections and items?')) return;
+  // ---- Reset routine ----
+  const rst = $('#routine-reset');
+  if (rst) rst.onclick = async (e) => {
+    e.preventDefault();
+    if (!confirm('Reset the routine back to the default set of sections and items?')) return;
 
-      const viewDate = S.routineViewDate
-        ? new Date(S.routineViewDate + 'T12:00:00')
-        : new Date();
-      const st = cloneDefaultRoutine(viewDate);
-      instantUpdate(st, 'Routine reset to default.');
-    };
-  }
+    const viewDate = S.routineViewDate
+      ? new Date(S.routineViewDate + 'T12:00:00')
+      : new Date();
+    const st = cloneDefaultRoutine(viewDate);
+    instantUpdate(st, 'Routine reset to default.');
+  };
+}
 
-             function cloneRoutineStruct() {
-  // CRITICAL FIX: Clone the structure for the DATE BEING VIEWED, not today.
+                       function cloneRoutineStruct() {
   const viewDate = S.routineViewDate
     ? new Date(S.routineViewDate + 'T12:00:00')
     : new Date();
-  const raw = getRoutineStruct(viewDate);
-  return raw.map(([k, l, items]) => [k, l, items.map(([ik, il]) => [ik, il])]);
+    
+  // If we are editing a past day, clone from the draft structure instead of the real one
+  const isEditingPast = S.routineEditModeDate === (S.routineViewDate || dateStr(new Date()));
+  const sourceStruct = (isEditingPast && S.routineDraftStruct) ? S.routineDraftStruct : S.routineStruct;
+  
+  // If no struct exists, use default
+  if (!sourceStruct) {
+      const isHoliday = viewDate.getDay() === 0 || viewDate.getDay() === 6;
+      return cloneDefaultRoutine(viewDate);
+  }
+
+  // Extract the correct day type (weekday/weekend) from the source
+  const dateKey = dateStr(viewDate);
+  const isWeekendDay = viewDate.getDay() === 0 || viewDate.getDay() === 6;
+  let isHoliday;
+  if (S.settings && S.settings.holidayDates && S.settings.holidayDates[dateKey] !== undefined) {
+    isHoliday = S.settings.holidayDates[dateKey] === true;
+  } else {
+    isHoliday = isWeekendDay;
+  }
+  
+  let baseStruct;
+  if (sourceStruct.weekday && sourceStruct.weekend) {
+    baseStruct = isHoliday ? sourceStruct.weekend : sourceStruct.weekday;
+  } else if (Array.isArray(sourceStruct)) {
+    baseStruct = sourceStruct;
+  } else {
+    baseStruct = isHoliday ? ROUTINE_STRUCT_WEEKEND : ROUTINE_STRUCT_DEFAULT;
+  }
+
+  // Filter out deleted items and handle Friday Al-Kahf logic
+  const finalStruct = baseStruct.map(section => {
+    const [secKey, secLabel, items] = section;
+    const filteredItems = (items || []).filter(item => !S.deletedRoutineItems.includes(item[0]));
+    return [secKey, secLabel, filteredItems];
+  });
+
+  const isFriday = viewDate.getDay() === 5;
+  if (!isFriday) {
+    for (const section of finalStruct) {
+      section[2] = section[2].filter(it => it[0] !== 'r_kahf');
+    }
+  }
+  
+  if (isFriday && !S.deletedRoutineItems.includes('r_kahf')) {
+    const kahfLabel = (typeof S.customKahfName !== 'undefined' && S.customKahfName) 
+      ? S.customKahfName 
+      : 'Read Surah Al-Kahf';
+
+    let inserted = false;
+    for (const section of finalStruct) {
+      const items = section[2];
+      if (items.some(it => it[0] === 'r_kahf')) {
+        inserted = true;
+        break;
+      }
+      const adhkarIdx = items.findIndex(it => it[0] === 'r_madhkar');
+      if (adhkarIdx !== -1) {
+        items.splice(adhkarIdx + 1, 0, ['r_kahf', kahfLabel]);
+        inserted = true;
+        break;
+      }
+    }
+    if (!inserted && finalStruct.length && finalStruct[0][2].length) {
+      finalStruct[0][2].push(['r_kahf', kahfLabel]);
+    }
+  }
+
+  // Return a deep clone so the caller can mutate it safely
+  return finalStruct.filter(section => section[2].length > 0).map(([k, l, items]) => [k, l, items.map(([ik, il]) => [ik, il])]);
 }
 
-   function _bindRoutineDelegate() {
+    function _bindRoutineDelegate() {
   const content = document.querySelector('.content');
   if (!content) return;
   if (content.dataset.routineDelegated === '1') return;
@@ -9237,33 +9388,37 @@ const instantUpdate = async (newStruct, successMsg) => {
     b.dataset.busy = '1';
 
     const dsNow = S.routineViewDate || dateStr(new Date());
-    
-   
-const todayDate = dateStr(new Date());
-const isEditingPastDay = S.routineEditModeDate === dsNow;
+    const todayDate = dateStr(new Date());
+    const isPast = dsNow < todayDate;
+    const isEditingPastDay = S.routineEditModeDate === dsNow;
 
-if (dsNow < todayDate && !isEditingPastDay) {
-  toast('Click Edit Mode to change a past day.');
-  delete b.dataset.busy;
-  return;
-}
-
+    if (isPast && !isEditingPastDay) {
+      toast('Click Edit Mode to change a past day.');
+      delete b.dataset.busy;
+      return;
+    }
 
     const k = b.dataset.r;
     const baseKey = k.replace('r_', '');
 
-    if (!S.dayCache[dsNow]) {
-      S.dayCache[dsNow] = { 
+    // Use the draft if editing a past day, otherwise use the real cache
+    const targetDay = (isEditingPastDay && S.routineDraft) ? S.routineDraft : S.dayCache[dsNow];
+
+    if (!targetDay) {
+      const defaultDay = { 
         date: dsNow, salah: {}, routine: {}, 
         adhkar: { morning: false, evening: false }, 
         quranVerses: 0, quranVersesRead: {}, reflection: null 
       };
+      if (isEditingPastDay) S.routineDraft = defaultDay;
+      else S.dayCache[dsNow] = defaultDay;
     }
 
-    const cached = S.dayCache[dsNow];
+    const cached = (isEditingPastDay && S.routineDraft) ? S.routineDraft : S.dayCache[dsNow];
     const currentlyDone = !!cached.routine?.[k];
     const nowDone = !currentlyDone;
 
+    // Update UI instantly
     b.classList.toggle('done', nowDone);
     const row = b.closest('.checkrow');
     if (row) {
@@ -9274,24 +9429,32 @@ if (dsNow < todayDate && !isEditingPastDay) {
       }
     }
 
+    // Update the data object
+    if (!cached.routine) cached.routine = {};
     cached.routine[k] = nowDone;
 
     if (['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'].includes(baseKey)) {
+      if (!cached.salah) cached.salah = {};
       cached.salah[baseKey] = nowDone ? 'completed' : 'pending';
     }
-    if (baseKey === 'madhkar') cached.adhkar.morning = nowDone;
-    if (baseKey === 'eadhkar') cached.adhkar.evening = nowDone;
+    if (baseKey === 'madhkar') {
+      if (!cached.adhkar) cached.adhkar = {};
+      cached.adhkar.morning = nowDone;
+    }
+    if (baseKey === 'eadhkar') {
+      if (!cached.adhkar) cached.adhkar = {};
+      cached.adhkar.evening = nowDone;
+    }
 
-    // Force save to local storage instantly
-    try {
-      localStorage.setItem(_lsKey('day:' + dsNow), JSON.stringify(cached));
-      _localWriteAt['day:' + dsNow] = Date.now();
-    } catch(e) {}
-
-    // Sync to cloud in background
-    saveDay(dsNow, cached).catch(() => {});
-    // If the Tracker is open, repaint it so the user sees the score update live
-if (S.screen === 'tracker') repaintTrackerFromCache();
+    // ONLY save to the database if we are NOT in Edit Mode
+    if (!isEditingPastDay) {
+      try {
+        localStorage.setItem(_lsKey('day:' + dsNow), JSON.stringify(cached));
+        _localWriteAt['day:' + dsNow] = Date.now();
+      } catch(e) {}
+      saveDay(dsNow, cached).catch(() => {});
+      if (S.screen === 'tracker') repaintTrackerFromCache();
+    }
     
     delete b.dataset.busy;
   }, { passive: false });
