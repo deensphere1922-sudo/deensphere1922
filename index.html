@@ -8556,25 +8556,29 @@ function repaintRoutineFromCache(ds) {
     return [secKey, secLabel, filteredItems];
   });
 
-    // Friday only — injects into BOTH Weekday and Weekend/Holiday routines
+       // Friday only — injects into BOTH Weekday and Weekend/Holiday routines
+     // Friday only — injects into BOTH Weekday and Weekend/Holiday routines
   if (isFriday && !S.deletedRoutineItems.includes('r_kahf')) {
+    // Uses your custom name if you edited it, otherwise defaults to the original
+    const kahfLabel = (typeof S.customKahfName !== 'undefined' && S.customKahfName) 
+      ? S.customKahfName 
+      : 'Read Surah Al-Kahf';
+
     let inserted = false;
     for (const section of finalStruct) {
       const items = section[2];
       const adhkarIdx = items.findIndex(it => it[0] === 'r_madhkar');
       if (adhkarIdx !== -1) {
-        items.splice(adhkarIdx + 1, 0, ['r_kahf', 'Read Surah Al-Kahf']);
+        items.splice(adhkarIdx + 1, 0, ['r_kahf', kahfLabel]);
         inserted = true;
         break;
       }
     }
-    // Fallback: If Morning Adhkar was renamed/deleted, put it in the first section.
     if (!inserted && finalStruct.length && finalStruct[0][2].length) {
-      finalStruct[0][2].push(['r_kahf', 'Read Surah Al-Kahf']);
+      finalStruct[0][2].push(['r_kahf', kahfLabel]);
     }
-    // Second Fallback: If all sections are empty, create a temporary one.
     if (!inserted) {
-      finalStruct.unshift(['friday_kahf', 'Friday', [['r_kahf', 'Read Surah Al-Kahf']]]);
+      finalStruct.unshift(['friday_kahf', 'Friday', [['r_kahf', kahfLabel]]]);
     }
   }
 
@@ -8637,10 +8641,15 @@ async function saveRoutineStruct(struct) {
       first paint is fully populated. hydrateRoutine() reuses this exact builder
       and then wires up all the edit/delete/move handlers. */
 
-    function _buildRoutineBodyHTML(ds, day) {
+               function _buildRoutineBodyHTML(ds, day) {
       const today = dateStr(new Date());
       const isToday = ds === today;
-        const struct = getRoutineStruct(new Date(ds + 'T12:00:00'));
+      const struct = getRoutineStruct(new Date(ds + 'T12:00:00'));
+
+      // 🔒 LIST OF ITEM IDs TO PROTECT (Removes the X button)
+      const PROTECTED_ITEMS = [
+        'r_fajr', 'r_madhkar', 'r_dhuhr', 'r_asr', 'r_maghrib', 'r_isha', 'r_eadhkar', 'r_kahf'
+      ];
 
       const pastBanner = !isToday ? `
             <div class="card" style="margin-bottom:14px;background:var(--gold-dim);border-color:var(--gold);">
@@ -8654,8 +8663,22 @@ async function saveRoutineStruct(struct) {
         const isFirstSec = secIndex === 0;
         const isLastSec = secIndex === struct.length - 1;
 
-              return `
-                                  <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">
+        // 🧹 ULTIMATE AUTO-CLEANER: Removes ANY duplicate rows instantly
+        const seenTitles = new Set();
+        const cleanItems = items.filter(it => {
+          const title = it[1].toLowerCase().trim();
+          
+          // If we've already seen this exact name in this section, hide it
+          if (seenTitles.has(title)) {
+            return false; 
+          }
+          
+          seenTitles.add(title);
+          return true; 
+        });
+
+        return `
+              <div style="display:flex;justify-content:space-between;align-items:center;margin:16px 0 8px;">
               <div class="pg-sub" style="font-weight:600;color:var(--tx);margin:0;">${esc(secLabel)}</div>
               <div style="display:flex;align-items:center;background:var(--card-el);border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:0 1px 2px rgba(0,0,0,0.1);">
                 <button class="btn-text" data-move-sec-up="${secKey}" style="padding:6px 10px;border-right:1px solid var(--border);transition:background 0.2s; ${secIndex === 0 ? 'opacity: 0.25; pointer-events: none; cursor: default;' : 'cursor:pointer;'}" ${secIndex === 0 ? 'disabled' : ''} title="Move section up">⬆</button>
@@ -8665,47 +8688,52 @@ async function saveRoutineStruct(struct) {
               </div>
             </div>
             <div class="card" style="margin-bottom:6px;">
-            ${items.length === 0 ? `<div class="rowsub" style="padding:8px 4px;">No items yet — add one below.</div>` : ''}
-            ${items.map(([ik, il], itemIndex) => {
-          const done = !!(day && day.routine && day.routine[ik]);
+            ${cleanItems.length === 0 ? `<div class="rowsub" style="padding:8px 4px;">No items yet — add one below.</div>` : ''}
+            ${cleanItems.map(([ik, il], itemIndex) => {
+              const done = !!(day && day.routine && day.routine[ik]);
+              
+              // Hide the X button if it is a protected item OR has Kahf/Mulk in the name
+              const isProtected = PROTECTED_ITEMS.includes(ik) || il.toLowerCase().includes('mulk') || il.toLowerCase().includes('kahf');
 
-          return `<div class="checkrow">
-                                        <div style="display:flex;flex-direction:column;gap:0px;margin-right:4px;background:var(--card-el);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
+              return `<div class="checkrow">
+                <div style="display:flex;flex-direction:column;gap:0px;margin-right:4px;background:var(--card-el);border:1px solid var(--border);border-radius:6px;overflow:hidden;">
                   <button class="btn-text" data-move-item-up="${ik}" data-sec="${secKey}" style="padding:4px 6px;border-bottom:1px solid var(--border);font-size:9px;line-height:1; ${itemIndex === 0 ? 'opacity: 0.25; pointer-events: none; cursor: default;' : 'cursor:pointer;'}" ${itemIndex === 0 ? 'disabled' : ''} title="Move up">▲</button>
-                  <button class="btn-text" data-move-item-down="${ik}" data-sec="${secKey}" style="padding:4px 6px;font-size:9px;line-height:1; ${itemIndex === items.length - 1 ? 'opacity: 0.25; pointer-events: none; cursor: default;' : 'cursor:pointer;'}" ${itemIndex === items.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
+                  <button class="btn-text" data-move-item-down="${ik}" data-sec="${secKey}" style="padding:4px 6px;font-size:9px;line-height:1; ${itemIndex === cleanItems.length - 1 ? 'opacity: 0.25; pointer-events: none; cursor: default;' : 'cursor:pointer;'}" ${itemIndex === cleanItems.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
                 </div>
                 <button class="chk ${done ? 'done' : ''}" data-r="${ik}"></button>
                 <div style="flex:1;min-width:0;">
                   <div class="rowtitle" data-edit-item="${ik}" style="${done ? 'color:var(--tx2);text-decoration:line-through' : ''};cursor:pointer;" title="Tap to edit">${esc(il)}</div>
                 </div>
-                <button class="btn-text" data-del-item="${ik}" style="font-size:12px;padding:4px 8px;color:var(--amber);" title="Delete item">✕</button>
+                ${isProtected ? '' : `<button class="btn-text" data-del-item="${ik}" style="font-size:12px;padding:4px 8px;color:var(--amber);" title="Delete item">✕</button>`}
               </div>`;
-        }).join('')}
-            <button class="btn-text" data-add-item="${secKey}" style="display:block;width:100%;text-align:left;padding:10px 4px;color:var(--green-l);font-size:13px;font-weight:600;border-top:1px solid var(--border);margin-top:2px;">+ Add item to "${esc(secLabel)}"</button>
+            }).join('')}
+            
+            <!-- Add item button -->
+            <button class="btn-text" data-add-item="${secKey}" style="display:flex;align-items:center;width:100%;text-align:left;padding:12px 14px;color:var(--green-l);font-size:13px;font-weight:600;border-top:1px solid var(--border);margin-top:4px;cursor:pointer;background:transparent;">
+              <span style="font-size:16px;margin-right:8px;font-weight:400;">+</span> Add item to "${esc(secLabel)}"
+            </button>
             </div>`;
       }).join('');
+      
       const controls = `
             <div class="card" style="margin-top:14px;background:var(--bg2);">
               <button class="btn btn-ghost btn-block" id="routine-add-section" style="margin-bottom:8px;">+ Add new section</button>
               <button class="btn btn-ghost btn-block" id="routine-reset" style="color:var(--amber);">Reset routine to default</button>
             </div>`;
-
         
-const isPast = ds < today;
-const isEditing = S.routineEditModeDate === ds;
+      const isPast = ds < today;
+      const isEditing = S.routineEditModeDate === ds;
 
-const lockStyle = isPast && !isEditing
-  ? 'opacity:0.55;pointer-events:none;user-select:none;filter:grayscale(100%);'
-  : '';
+      const lockStyle = isPast && !isEditing
+        ? 'opacity:0.55;pointer-events:none;user-select:none;filter:grayscale(100%);'
+        : '';
 
-return pastBanner +
-  `<div style="${lockStyle}">` +
-  sections +
-  controls +
-  `</div>`;
-
+      return pastBanner +
+        `<div style="${lockStyle}">` +
+        sections +
+        controls +
+        `</div>`;
     }
-
   
 function renderRoutine() {
   const today = dateStr(new Date());
@@ -8912,9 +8940,8 @@ function renderRoutine() {
       }
     }
 
-     function _bindRoutineButtons() {
+           function _bindRoutineButtons() {
     const ds = S.routineViewDate || dateStr(new Date());
-
  
 const instantUpdate = async (newStruct, successMsg) => {
   const viewDate = S.routineViewDate || dateStr(new Date());
@@ -8924,13 +8951,11 @@ const instantUpdate = async (newStruct, successMsg) => {
   const isWeekendDay =
     selectedDate.getDay() === 0 || selectedDate.getDay() === 6;
 
-  // CRITICAL FIX: Check if the date is ACTUALLY a holiday, or just a weekend.
   const isHoliday =
     S.settings?.holidayDates?.[dateKey] !== undefined
       ? S.settings.holidayDates[dateKey] === true
       : isWeekendDay;
 
-  // Ensure both buckets exist
   if (!S.routineStruct || !Array.isArray(S.routineStruct.weekday) || !Array.isArray(S.routineStruct.weekend)) {
     S.routineStruct = {
       weekday: cloneStructure(ROUTINE_STRUCT_DEFAULT),
@@ -8938,7 +8963,6 @@ const instantUpdate = async (newStruct, successMsg) => {
     };
   }
 
-  // Save ONLY to the correct bucket based on the selected date's mode
   if (isHoliday) {
     S.routineStruct.weekend = cloneStructure(newStruct);
   } else {
@@ -8946,12 +8970,8 @@ const instantUpdate = async (newStruct, successMsg) => {
   }
 
   const body = document.getElementById('routine-body');
-
   if (body) {
-    body.innerHTML = _buildRoutineBodyHTML(
-      viewDate,
-      S.dayCache[viewDate] || null
-    );
+    body.innerHTML = _buildRoutineBodyHTML(viewDate, S.dayCache[viewDate] || null);
     _bindRoutineButtons();
   }
 
@@ -8963,8 +8983,6 @@ const instantUpdate = async (newStruct, successMsg) => {
     toast('Failed to save routine changes.');
   }
 };
-
-
 
     // ---- Edit item name ----
     $$('[data-edit-item]').forEach(el => el.onclick = async (e) => {
@@ -8978,17 +8996,22 @@ const instantUpdate = async (newStruct, successMsg) => {
       
       const trimmed = next.trim();
       if (!trimmed) { toast('Item name cannot be empty.'); return; }
+
+      // ⚡ SPECIAL FRIDAY FIX: Saves the custom name so it updates in-place
+      if (ik === 'r_kahf') {
+        S.customKahfName = trimmed; 
+        setJSON('custom-kahf-name', trimmed).catch(() => {});
+        el.textContent = trimmed; // Updates instantly on the exact same line
+        return; 
+      }
       
-      // Clone the EXACT structure you are looking at
+      // Normal edit for all other items
       const st = cloneRoutineStruct(ds); 
-      
-      // Find and update the item
       for (const [, , items] of st) { 
         for (const it of items) { 
           if (it[0] === ik) it[1] = trimmed; 
         } 
       }
-      
       instantUpdate(st, 'Item updated.');
     });
 
@@ -9134,13 +9157,12 @@ const instantUpdate = async (newStruct, successMsg) => {
       instantUpdate(st, 'Section added.');
     };
 
-       // ---- Reset routine ----
+    // ---- Reset routine ----
     const rst = $('#routine-reset');
     if (rst) rst.onclick = async (e) => {
       e.preventDefault();
       if (!confirm('Reset the routine back to the default set of sections and items?')) return;
 
-      // Reset must use the SELECTED date's mode, not today's.
       const viewDate = S.routineViewDate
         ? new Date(S.routineViewDate + 'T12:00:00')
         : new Date();
