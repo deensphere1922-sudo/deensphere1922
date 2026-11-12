@@ -2229,6 +2229,28 @@
     z-index: 39 !important;
 }
 
+/* Prayer heading stays above both dropdowns */
+.settings-page .settings-section:nth-of-type(1) .settings-fixed-top {
+  z-index: 44 !important;
+}
+
+/* Both dropdowns appear above Notifications */
+#dropdown-menu-list,
+#asr-menu-list {
+  position: fixed !important;
+  z-index: 40 !important;
+}
+
+/* Notifications heading and its entire content stay behind */
+.settings-page .settings-section:nth-of-type(2) {
+  position: relative !important;
+  z-index: 39 !important;
+}
+
+.settings-page .settings-section:nth-of-type(2) .settings-fixed-top {
+  z-index: 39 !important;
+}
+
       </style>
     </head>
 
@@ -13612,7 +13634,38 @@ function syncNotificationUI() {
 
 
 
-            <div class="checkrow"><span class="rowtitle" style="flex:1">Asr method</span><span class="rowsub">${s.asrMethod === 'hanafi' ? 'Hanafi' : 'Standard'}</span></div>
+          <div class="checkrow calc-method-row">
+  <span class="rowtitle calc-method-label">Asr method</span>
+
+  <div class="custom-dropdown" id="asr-method-dropdown">
+    <button type="button" class="dropdown-trigger" id="asr-trigger-btn">
+      <span id="selected-asr-text">
+        ${s.asrMethod === 'hanafi' ? 'Hanafi' : 'Standard (Shafi’i, Maliki, Hanbali)'}
+      </span>
+      <svg class="chevron-icon" viewBox="0 0 24 24" width="20" height="20"
+        fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+
+    <div class="dropdown-menu" id="asr-menu-list">
+      <button type="button"
+        class="dropdown-item ${s.asrMethod === 'standard' ? 'active' : ''}"
+        data-asr-value="standard">
+        <span class="item-label">Standard (Shafi’i, Maliki, Hanbali)</span>
+        ${s.asrMethod === 'standard' ? '<span class="check-icon">✓</span>' : ''}
+      </button>
+
+      <button type="button"
+        class="dropdown-item ${s.asrMethod === 'hanafi' ? 'active' : ''}"
+        data-asr-value="hanafi">
+        <span class="item-label">Hanafi</span>
+        ${s.asrMethod === 'hanafi' ? '<span class="check-icon">✓</span>' : ''}
+      </button>
+    </div>
+  </div>
+</div>
             
                       <!-- NEW HOLIDAY TOGGLE -->
                                                                  <button class="btn btn-ghost btn-block" style="margin-top:12px;" data-nav="setup-location">Change prayer settings</button>
@@ -14038,15 +14091,20 @@ if (dropdownEl && triggerBtn && menuList) {
       e.preventDefault();
       e.stopPropagation();
       
-      const isOpen = dropdownEl.classList.contains('open');
-      if (isOpen) {
-        dropdownEl.classList.remove('open');
-        menuList.classList.remove('show');
-      } else {
-        positionMenu(); // <-- Position it right before showing
-        dropdownEl.classList.add('open');
-        menuList.classList.add('show');
-      }
+     const isOpen = dropdownEl.classList.contains('open');
+
+if (isOpen) {
+  dropdownEl.classList.remove('open');
+  menuList.classList.remove('show');
+} else {
+  // Close Asr dropdown first
+  document.getElementById('asr-method-dropdown')?.classList.remove('open');
+  document.getElementById('asr-menu-list')?.classList.remove('show');
+
+  positionMenu();
+  dropdownEl.classList.add('open');
+  menuList.classList.add('show');
+}
     });
 
     // Close when clicking outside
@@ -14118,6 +14176,102 @@ if (dropdownEl && triggerBtn && menuList) {
       });
     });
   }
+}
+
+// ---- Custom Asr method dropdown ----
+const asrDropdown = document.getElementById('asr-method-dropdown');
+const asrTrigger = document.getElementById('asr-trigger-btn');
+const asrMenu = document.getElementById('asr-menu-list');
+const selectedAsrText = document.getElementById('selected-asr-text');
+
+if (asrDropdown && asrTrigger && asrMenu) {
+  document.body.appendChild(asrMenu);
+
+  const positionAsrMenu = () => {
+    const rect = asrTrigger.getBoundingClientRect();
+    asrMenu.style.top = (rect.bottom + 8) + 'px';
+    asrMenu.style.left = rect.left + 'px';
+    asrMenu.style.width = rect.width + 'px';
+  };
+
+  asrTrigger.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+   const isOpen = asrMenu.classList.contains('show');
+
+if (isOpen) {
+  asrDropdown.classList.remove('open');
+  asrMenu.classList.remove('show');
+} else {
+  // Close Calculation Method dropdown first
+  document.getElementById('calc-method-dropdown')?.classList.remove('open');
+  document.getElementById('dropdown-menu-list')?.classList.remove('show');
+
+  positionAsrMenu();
+  asrDropdown.classList.add('open');
+  asrMenu.classList.add('show');
+}
+  });
+
+  const contentScroller = document.querySelector('.content');
+
+  if (contentScroller) {
+    contentScroller.addEventListener('scroll', () => {
+      if (asrMenu.classList.contains('show')) positionAsrMenu();
+    }, { passive: true });
+  }
+
+  window.addEventListener('scroll', () => {
+    if (asrMenu.classList.contains('show')) positionAsrMenu();
+  }, { passive: true });
+
+  window.addEventListener('resize', () => {
+    if (asrMenu.classList.contains('show')) positionAsrMenu();
+  });
+
+  asrMenu.querySelectorAll('[data-asr-value]').forEach(item => {
+    item.addEventListener('click', async () => {
+      const value = item.dataset.asrValue;
+      if (!['standard', 'hanafi'].includes(value)) return;
+
+      S.settings.asrMethod = value;
+
+      asrMenu.querySelectorAll('[data-asr-value]').forEach(option => {
+        option.classList.remove('active');
+        option.querySelector('.check-icon')?.remove();
+      });
+
+      item.classList.add('active');
+      item.insertAdjacentHTML('beforeend',
+        '<span class="check-icon">✓</span>'
+      );
+
+      selectedAsrText.textContent =
+        value === 'hanafi'
+          ? 'Hanafi'
+          : 'Standard (Shafi’i, Maliki, Hanbali)';
+
+      asrDropdown.classList.remove('open');
+      asrMenu.classList.remove('show');
+
+      try {
+        await setJSON('settings', S.settings);
+        syncPrayerTimesToSW();
+        toast('Asr method saved.');
+      } catch (error) {
+        console.error('Asr method save failed:', error);
+        toast('Could not save Asr method.');
+      }
+    });
+  });
+
+  document.addEventListener('click', (e) => {
+    if (!asrDropdown.contains(e.target) && !asrMenu.contains(e.target)) {
+      asrDropdown.classList.remove('open');
+      asrMenu.classList.remove('show');
+    }
+  });
 }
 
             
