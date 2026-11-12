@@ -2071,7 +2071,6 @@
   flex-shrink: 0;
 }
 
-/* The main trigger button */
 .dropdown-trigger {
   width: 100%;
   display: flex;
@@ -2080,7 +2079,8 @@
   padding: 0 16px;
   height: 50px;
   background-color: var(--card);
-  border: 1px solid var(--green);
+  /* Changed default border to green */
+  border: 1px solid var(--green-l);
   border-radius: 12px;
   font-size: 14px;
   font-weight: 500;
@@ -2090,8 +2090,26 @@
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.dropdown-trigger:hover { border-color: var(--green-l); }
-.dropdown-trigger:focus { outline: none; box-shadow: 0 0 0 3px rgba(25, 145, 100, 0.12); }
+/* Dark mode: green outline */
+[data-theme="dark"] .dropdown-trigger {
+  border-color: var(--green-l) !important;
+}
+
+/* Light mode: green outline */
+[data-theme="light"] .dropdown-trigger {
+  border-color: var(--green-l) !important;
+}
+
+/* Optional: Make the outline a bit brighter/thicker when hovering so it feels interactive */
+.dropdown-trigger:hover {
+  border-color: var(--green) !important;
+  box-shadow: 0 0 0 1px var(--green-dim);
+}
+
+.dropdown-trigger:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--green-dim2);
+}
 
 .chevron-icon {
   color: var(--tx2);
