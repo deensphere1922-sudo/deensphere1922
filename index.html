@@ -2025,6 +2025,192 @@
 }
 
 
+
+/* Prayer calculation method dropdown */
+
+.calc-method-menu {
+  position: absolute;
+  top: calc(100% + 12px);
+  bottom: auto;
+  left: 0;
+  right: 0;
+  z-index: 9999;
+
+  max-height: calc(100vh - 230px);
+  min-height: 150px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  margin-bottom: 40px;
+  padding: 8px;
+
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(0,0,0,.16);
+}
+
+/* ==================== CUSTOM CALCULATION METHOD DROPDOWN ==================== */
+.calc-method-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 78px;
+}
+
+.calc-method-label {
+  flex: 1;
+  min-width: 150px;
+  font-weight: 500;
+}
+
+.custom-dropdown {
+  position: relative;
+  width: min(450px, 55%);
+  flex-shrink: 0;
+}
+
+/* The main trigger button */
+.dropdown-trigger {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  height: 50px;
+  background-color: var(--card);
+  border: 1px solid var(--green);
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--tx);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.dropdown-trigger:hover { border-color: var(--green-l); }
+.dropdown-trigger:focus { outline: none; box-shadow: 0 0 0 3px rgba(25, 145, 100, 0.12); }
+
+.chevron-icon {
+  color: var(--tx2);
+  transition: transform 0.2s ease;
+}
+.custom-dropdown.open .chevron-icon { transform: rotate(180deg); }
+
+.dropdown-menu {
+  display: none; 
+  position: fixed; /* <-- CHANGE BACK TO FIXED */
+  z-index: 9999999; 
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.3);
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 8px;
+  flex-direction: column;
+  gap: 2px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.custom-dropdown.open + .dropdown-menu,
+.dropdown-menu.show {
+  display: flex;
+}
+
+/* Scrollbar */
+.dropdown-menu::-webkit-scrollbar { width: 6px; }
+.dropdown-menu::-webkit-scrollbar-track { background: transparent; margin: 8px 0; }
+.dropdown-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 10px; }
+.dropdown-menu::-webkit-scrollbar-thumb:hover { background: var(--tx3); }
+
+/* Individual items */
+.dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  font-size: 13.5px;
+  color: var(--tx);
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.dropdown-item:hover { background-color: var(--card-el); }
+
+.dropdown-item.active {
+  background-color: #1E8A5F !important; 
+  color: #FFFFFF !important;
+  font-weight: 600;
+}
+
+.check-icon { color: #FFFFFF; flex-shrink: 0; }
+
+@media (max-width: 600px) {
+  .calc-method-row { align-items: flex-start; flex-direction: column; gap: 10px; padding-top: 12px; padding-bottom: 12px; }
+  .custom-dropdown { width: 100%; max-width: none; }
+  .calc-method-label { min-width: 0; }
+}
+
+
+
+/* Selected calculation method */
+.calc-method-option.active {
+  background: #d1fae5 !important;
+  color: #087f4f !important;
+  font-weight: 600;
+  border-radius: 9px;
+}
+
+/* Selected method tick */
+.calc-method-check {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #07864f;
+  font-size: 19px;
+  font-weight: 800;
+  flex-shrink: 0;
+}
+
+/* Smooth hover effect */
+.calc-method-option:hover:not(.active) {
+  background: #f0f7f3;
+  border-radius: 9px;
+}
+
+/* Calculation dropdown: above Notifications */
+#dropdown-menu-list {
+    position: fixed !important;
+    z-index: 40 !important;
+}
+
+/* Prayer heading: above the dropdown */
+.settings-page .settings-section:nth-of-type(1) .settings-fixed-top {
+    position: sticky !important;
+    z-index: 44 !important;
+}
+
+/* Entire Notifications section: below the dropdown */
+.settings-page .settings-section:nth-of-type(2) {
+    position: relative !important;
+    z-index: 39 !important;
+}
+
+/* Notifications heading: below the dropdown */
+.settings-page .settings-section:nth-of-type(2) .settings-fixed-top {
+    position: sticky !important;
+    z-index: 39 !important;
+}
+
       </style>
     </head>
 
@@ -3199,13 +3385,73 @@ latestVal = getCloudSyncValue(key, latestVal);
         }
 
         /* ============================= PRAYER CALCULATION ============================= */
-        const CALC_METHODS = {
-          MWL: { label: 'Muslim World League', fajr: 18, ishaAngle: 17 },
-          ISNA: { label: 'Islamic Society of North America', fajr: 15, ishaAngle: 15 },
-          EGYPT: { label: 'Egyptian General Authority', fajr: 19.5, ishaAngle: 17.5 },
-          KARACHI: { label: 'University of Islamic Sciences, Karachi', fajr: 18, ishaAngle: 18 },
-          UMMALQURA: { label: 'Umm al-Qura University, Makkah', fajr: 18.5, ishaMinutes: 90 },
-        };
+       
+const CALC_METHODS = {
+  JAFARI: { label: 'Shia Ithna-Ashari (Qum, Iran)', apiId: 0 },
+  KARACHI: { label: 'University of Islamic Sciences, Karachi (Pakistan)', apiId: 1, fajr: 18, ishaAngle: 18 },
+  ISNA: { label: 'Islamic Society of North America (North America)', apiId: 2, fajr: 15, ishaAngle: 15 },
+  MWL: { label: 'Muslim World League (Worldwide)', apiId: 3, fajr: 18, ishaAngle: 17 },
+  UMMALQURA: { label: 'Umm Al-Qura University, Makkah (Saudi Arabia)', apiId: 4, fajr: 18.5, ishaMinutes: 90 },
+  EGYPT: { label: 'Egyptian General Authority of Survey (Egypt)', apiId: 5, fajr: 19.5, ishaAngle: 17.5 },
+  TEHRAN: { label: 'University of Tehran (Iran)', apiId: 7 },
+  GULF: { label: 'Gulf Region (Gulf Countries)', apiId: 8 },
+  KUWAIT: { label: 'Kuwait (Kuwait)', apiId: 9 },
+  QATAR: { label: 'Qatar (Qatar)', apiId: 10 },
+  SINGAPORE: { label: 'MUIS (Singapore)', apiId: 11 },
+  FRANCE: { label: 'UOIF (France)', apiId: 12 },
+  TURKEY: { label: 'Diyanet (Turkey)', apiId: 13 },
+  RUSSIA: { label: 'Spiritual Administration of Muslims (Russia)', apiId: 14 },
+  MOONSIGHTING: { label: 'Moonsighting Committee (Worldwide)', apiId: 15 },
+  DUBAI: { label: 'Dubai (United Arab Emirates)', apiId: 16 },
+  MALAYSIA: { label: 'JAKIM (Malaysia)', apiId: 17 },
+  TUNISIA: { label: 'Tunisia (Tunisia)', apiId: 18 },
+  ALGERIA: { label: 'Algeria (Algeria)', apiId: 19 },
+  INDONESIA: { label: 'KEMENAG (Indonesia)', apiId: 20 },
+  MOROCCO: { label: 'Morocco (Morocco)', apiId: 21 },
+  PORTUGAL: { label: 'Comunidade Islamica de Lisboa (Portugal)', apiId: 22 },
+  JORDAN: { label: 'Ministry of Awqaf (Jordan)', apiId: 23 },
+};
+
+
+async function fetchPrayerTimesByMethod(date, lat, lng, methodKey, asrMethod) {
+  const method = CALC_METHODS[methodKey] || CALC_METHODS.MWL;
+
+  const dateString = [
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    date.getFullYear()
+  ].join('-');
+
+  const url = new URL(
+    `https://api.aladhan.com/v1/timings/${dateString}`
+  );
+
+  url.searchParams.set('latitude', String(lat));
+  url.searchParams.set('longitude', String(lng));
+  url.searchParams.set('method', String(method.apiId));
+  url.searchParams.set(
+    'school',
+    asrMethod === 'hanafi' ? '1' : '0'
+  );
+
+  if (methodKey === 'CUSTOM') {
+    throw new Error('Custom calculation parameters must be configured first.');
+  }
+
+  const response = await fetch(url.toString());
+
+  if (!response.ok) {
+    throw new Error('Prayer calculation request failed.');
+  }
+
+  const result = await response.json();
+
+  if (result.code !== 200 || !result.data?.timings) {
+    throw new Error('Invalid prayer time response.');
+  }
+
+  return result.data.timings;
+}
         function julianDay(y, m, d) {
           if (m <= 2) { y -= 1; m += 12; }
           const A = Math.floor(y / 100), B = 2 - A + Math.floor(A / 4);
@@ -3232,61 +3478,106 @@ latestVal = getCloudSyncValue(key, latestVal);
           const d = new Date(baseDate); d.setHours(0, 0, 0, 0);
           return new Date(d.getTime() + hoursLocal * 3600000);
         }
-              function computePrayerTimesFor(date, lat, lng, tz, methodKey, asrMethod) {
-          const method = CALC_METHODS[methodKey] || CALC_METHODS.MWL;
-          const jd = julianDay(date.getFullYear(), date.getMonth() + 1, date.getDate());
-          const { decl, eqt } = sunPosition(jd + 0.5 - lng / 360);
-          const dhuhrHours = 12 - eqt - lng / 15 + tz;
-          
-          const fajrHours = dhuhrHours - hourAngle(method.fajr, lat, decl);
-          const sunriseHours = dhuhrHours - hourAngle(0.833, lat, decl);
-          const sunsetHours = dhuhrHours + hourAngle(0.833, lat, decl);
-          
-          const t = asrMethod === 'hanafi' ? 2 : 1;
-          const asrAlt = darctan(1 / (t + dtan(Math.abs(lat - decl))));
-          const asrHours = dhuhrHours + hourAngle(-asrAlt, lat, decl);
-          
-          const maghribHours = sunsetHours;
-          let ishaHours;
-          if (method.ishaMinutes) { 
-            ishaHours = maghribHours + method.ishaMinutes / 60; 
-          } else { 
-            ishaHours = dhuhrHours + hourAngle(method.ishaAngle, lat, decl); 
-          }
-
-          // =========================================================
-          // THE PERFECT TIME FORMATTING FOR ALL COUNTRIES
-          // =========================================================
-          // This drops the seconds for ALL prayers. 
-          // So 4:49:45 becomes 4:49 (Today).
-          // And 4:50:15 becomes 4:50 (Tomorrow).
-          // It uses the local timezone (tz) so it works perfectly everywhere.
-          
-                                        const formatTime = (baseDate, hoursLocal) => {
-            const d = new Date(baseDate); 
-            d.setHours(0, 0, 0, 0);
-            // Calculate the time based on the exact location's timezone
-            const timeObj = new Date(d.getTime() + hoursLocal * 3600000);
             
-            // Round to the nearest minute. This is the standard for exact prayer times.
-            // If the seconds are 30 or more, add 1 minute.
-            if (timeObj.getSeconds() >= 30) {
-              timeObj.setMinutes(timeObj.getMinutes() + 1);
-            }
-            timeObj.setSeconds(0, 0);
-            
-            return timeObj;
-          };
+function computePrayerTimesFor(date, lat, lng, tz, methodKey, asrMethod) {
+  const selectedMethod = CALC_METHODS[methodKey] || {};
+  const fallbackMethod = CALC_METHODS.MWL;
 
-                                  return {
-            fajr: formatTime(date, fajrHours), 
-            sunrise: formatTime(date, sunriseHours),
-            dhuhr: formatTime(date, dhuhrHours), 
-            asr: formatTime(date, asrHours),
-            maghrib: formatTime(date, maghribHours), 
-            isha: formatTime(date, ishaHours),
-          };
-        }
+  // Use selected calculation parameters when available.
+  // Missing parameters temporarily fall back to MWL.
+  const method = {
+    ...fallbackMethod,
+    ...selectedMethod
+  };
+
+  const safeNumber = (value, fallback) =>
+    Number.isFinite(Number(value)) ? Number(value) : fallback;
+
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  const timezone = Number(tz);
+
+  if (
+    !(date instanceof Date) ||
+    Number.isNaN(date.getTime()) ||
+    !Number.isFinite(latitude) ||
+    !Number.isFinite(longitude) ||
+    !Number.isFinite(timezone)
+  ) {
+    throw new Error("Invalid date or prayer location.");
+  }
+
+  const fajrAngle = safeNumber(method.fajr, fallbackMethod.fajr);
+  const ishaAngle = safeNumber(method.ishaAngle, fallbackMethod.ishaAngle);
+  const ishaMinutes = Number(method.ishaMinutes);
+
+  const jd = julianDay(
+    date.getFullYear(),
+    date.getMonth() + 1,
+    date.getDate()
+  );
+
+  const { decl, eqt } = sunPosition(jd + 0.5 - longitude / 360);
+  const dhuhrHours = 12 - eqt - longitude / 15 + timezone;
+
+  const fajrHours =
+    dhuhrHours - hourAngle(fajrAngle, latitude, decl);
+
+  const sunriseHours =
+    dhuhrHours - hourAngle(0.833, latitude, decl);
+
+  const sunsetHours =
+    dhuhrHours + hourAngle(0.833, latitude, decl);
+
+  const t = asrMethod === "hanafi" ? 2 : 1;
+  const asrAlt = darctan(
+    1 / (t + dtan(Math.abs(latitude - decl)))
+  );
+
+  const asrHours =
+    dhuhrHours + hourAngle(-asrAlt, latitude, decl);
+
+  const maghribHours = sunsetHours;
+
+  const ishaHours =
+    Number.isFinite(ishaMinutes) && ishaMinutes > 0
+      ? maghribHours + ishaMinutes / 60
+      : dhuhrHours + hourAngle(ishaAngle, latitude, decl);
+
+  const formatTime = (baseDate, hoursLocal) => {
+    if (!Number.isFinite(hoursLocal)) {
+      throw new Error("Invalid calculated prayer time.");
+    }
+
+    const d = new Date(baseDate);
+    d.setHours(0, 0, 0, 0);
+
+    const timeObj = new Date(
+      d.getTime() + hoursLocal * 3600000
+    );
+
+    if (Number.isNaN(timeObj.getTime())) {
+      throw new Error("Invalid prayer time date.");
+    }
+
+    if (timeObj.getSeconds() >= 30) {
+      timeObj.setMinutes(timeObj.getMinutes() + 1);
+    }
+
+    timeObj.setSeconds(0, 0);
+    return timeObj;
+  };
+
+  return {
+    fajr: formatTime(date, fajrHours),
+    sunrise: formatTime(date, sunriseHours),
+    dhuhr: formatTime(date, dhuhrHours),
+    asr: formatTime(date, asrHours),
+    maghrib: formatTime(date, maghribHours),
+    isha: formatTime(date, ishaHours)
+  };
+}
+
       
 
  function getPrayerTimezone() {
@@ -13268,7 +13559,41 @@ function syncNotificationUI() {
               <button class="chk ${s.autoLocation !== false ? 'done' : ''}" data-toggle-auto-loc></button>
             </div>
 
-            <div class="checkrow"><span class="rowtitle" style="flex:1">Calculation method</span><span class="rowsub">${CALC_METHODS[s.calcMethod].label}</span></div>
+           
+
+
+
+<div class="checkrow calc-method-row">
+  <span class="rowtitle calc-method-label">
+    Calculation method
+  </span>
+
+  <div class="custom-dropdown" id="calc-method-dropdown">
+    <button type="button" class="dropdown-trigger" id="dropdown-trigger-btn">
+      <span id="selected-method-text">${CALC_METHODS[s.calcMethod] ? CALC_METHODS[s.calcMethod].label : 'Select method'}</span>
+      <svg class="chevron-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    </button>
+
+    <div class="dropdown-menu" id="dropdown-menu-list">
+      ${Object.entries(CALC_METHODS).map(([key, method]) => `
+        <button type="button" class="dropdown-item ${key === s.calcMethod ? 'active' : ''}" data-value="${key}">
+          <span class="item-label">${method.label}</span>
+          ${key === s.calcMethod ? `
+            <svg class="check-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>
+          ` : ''}
+        </button>
+      `).join('')}
+    </div>
+  </div>
+</div>
+
+
+
+
             <div class="checkrow"><span class="rowtitle" style="flex:1">Asr method</span><span class="rowsub">${s.asrMethod === 'hanafi' ? 'Hanafi' : 'Standard'}</span></div>
             
                       <!-- NEW HOLIDAY TOGGLE -->
@@ -13666,6 +13991,115 @@ if (nextVal) {
   toast('Auto-update OFF — using manual location.');
 }
   };
+}
+
+
+// ---- Custom Prayer calculation method dropdown ----
+const dropdownEl = document.getElementById('calc-method-dropdown');
+const triggerBtn = document.getElementById('dropdown-trigger-btn');
+const menuList = document.getElementById('dropdown-menu-list');
+const selectedTextEl = document.getElementById('selected-method-text');
+
+if (dropdownEl && triggerBtn && menuList) {
+  
+  // 1. Teleport to body so it floats above everything
+  document.body.appendChild(menuList);
+
+  // 2. The function that calculates where the menu should be
+  const positionMenu = () => {
+    const rect = triggerBtn.getBoundingClientRect();
+    menuList.style.top = (rect.bottom + 8) + 'px';
+    menuList.style.left = rect.left + 'px';
+    menuList.style.width = rect.width + 'px';
+  };
+
+  if (triggerBtn.dataset.bound !== '1') {
+    triggerBtn.dataset.bound = '1';
+    
+    triggerBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const isOpen = dropdownEl.classList.contains('open');
+      if (isOpen) {
+        dropdownEl.classList.remove('open');
+        menuList.classList.remove('show');
+      } else {
+        positionMenu(); // <-- Position it right before showing
+        dropdownEl.classList.add('open');
+        menuList.classList.add('show');
+      }
+    });
+
+    // Close when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!dropdownEl.contains(e.target) && !menuList.contains(e.target)) {
+        dropdownEl.classList.remove('open');
+        menuList.classList.remove('show');
+      }
+    });
+
+    // THE FIX: Update position when the user scrolls the page
+    const contentScroller = document.querySelector('.content');
+    
+    if (contentScroller) {
+      contentScroller.addEventListener('scroll', () => {
+        if (dropdownEl.classList.contains('open')) positionMenu();
+      }, { passive: true });
+    }
+    
+    window.addEventListener('scroll', () => {
+      if (dropdownEl.classList.contains('open')) positionMenu();
+    }, { passive: true });
+    
+    window.addEventListener('resize', () => {
+      if (dropdownEl.classList.contains('open')) positionMenu();
+    });
+  }
+
+  // Selection logic remains the same...
+  if (menuList.dataset.bound !== '1') {
+    menuList.dataset.bound = '1';
+
+    menuList.querySelectorAll('.dropdown-item').forEach(item => {
+      item.addEventListener('click', async (e) => {
+        e.preventDefault();
+        const selectedMethod = item.dataset.value;
+        if (!CALC_METHODS[selectedMethod]) return;
+
+        menuList.querySelectorAll('.dropdown-item').forEach(i => {
+          i.classList.remove('active');
+          const oldCheck = i.querySelector('.check-icon');
+          if (oldCheck) oldCheck.remove();
+        });
+        
+        item.classList.add('active');
+        item.insertAdjacentHTML('beforeend', `
+          <svg class="check-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 6L9 17l-5-5"/>
+          </svg>
+        `);
+
+        const labelEl = item.querySelector('.item-label');
+        if (labelEl) {
+          selectedTextEl.textContent = labelEl.textContent.trim();
+        }
+
+        dropdownEl.classList.remove('open');
+        menuList.classList.remove('show');
+
+        S.settings.calcMethod = selectedMethod;
+        try {
+          await setJSON('settings', S.settings);
+          syncPrayerTimesToSW();
+          toast('Calculation method saved.');
+        } catch (error) {
+          console.error('Calculation method save failed:', error);
+          toast('Could not save calculation method.');
+        }
+      });
+    });
+  }
 }
 
             
