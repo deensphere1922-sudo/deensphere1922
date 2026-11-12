@@ -180,8 +180,10 @@
           }
           button svg { pointer-events: none; }
 
-          input, select, textarea {
-            font-family: inherit; color: var(--tx); background: var(--card-el);
+                  input, select, textarea {
+            font-family: inherit; 
+            color: #71717A; /* <--- THIS makes the typed text grey */
+            background: var(--card-el);
             border: 1px solid var(--border); border-radius: var(--r-sm);
             padding: 12px 14px; font-size: 14.5px; width: 100%; outline: none;
           }
@@ -7942,42 +7944,91 @@
           const resultsBox = $('#city-results');
           const labelEl = $('#selected-city-label');
 
-          const doSearch = async () => {
-            const q = searchInput.value.trim();
-            if (q.length < 2) { resultsBox.innerHTML = ''; return; }
-            resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">Searching…</div>';
-            const results = await searchCity(q);
-            if (!results.length) {
-              resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">No cities found. Try a different name.</div>';
-              return;
-            }
-            resultsBox.innerHTML = results.map((r, i) => `
-              <button type="button" data-city-idx="${i}" style="display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:6px;border-radius:10px;background:var(--card-el);border:1px solid var(--border);color:var(--tx);font-size:14px;font-weight:600;cursor:pointer;">
-                ${esc(r.short)}
-              </button>
-            `).join('');
-            
-            resultsBox.querySelectorAll('[data-city-idx]').forEach(btn => {
-              btn.onclick = () => {
-                const r = results[parseInt(btn.dataset.cityIdx)];
-                $('#lat-in').value = r.lat.toFixed(4);
-                $('#lng-in').value = r.lng.toFixed(4);
-                labelEl.textContent = r.short;
-                
-                if (!S.settings.location) S.settings.location = {};
-                S.settings.location.timezone = r.timezone; 
-                
-                resultsBox.innerHTML = '';
-                searchInput.value = '';
-                toast('Location set to ' + r.short);
-              };
-            });
-          };
+      const doSearch = async () => {
+  const q = searchInput.value.trim();
+  if (q.length < 2) { resultsBox.innerHTML = ''; return; }
+  resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">Searching…</div>';
+  
+  const results = await searchCity(q);
+  
+  if (!results.length) {
+    resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">No cities found. Try a different name.</div>';
+    return;
+  }
+  
+  resultsBox.innerHTML = results.map((r, i) => `
+    <button type="button" data-city-idx="${i}" style="display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:6px;border-radius:10px;background:var(--card-el);border:1px solid var(--border);color:var(--tx);font-size:14px;font-weight:600;cursor:pointer;">
+      ${esc(r.short)}
+    </button>
+  `).join('');
+  
+      resultsBox.querySelectorAll('[data-city-idx]').forEach(btn => {
+    btn.onclick = () => {
+      const r = results[parseInt(btn.dataset.cityIdx)];
+      
+      $('#lat-in').value = r.lat.toFixed(4);
+      $('#lng-in').value = r.lng.toFixed(4);
+      
+      if (labelEl) labelEl.textContent = r.short;
+      
+      // Show the city in the box
+      searchInput.value = r.short;
+      
+      // Turn it GREY
+      searchInput.style.color = '#71717A'; 
+      searchInput.style.fontWeight = '600'; 
+      
+      // Mark it as "selected"
+      searchInput.dataset.isSelected = 'true';
 
-          searchInput.addEventListener('input', () => {
-            clearTimeout(searchTimer);
-            searchTimer = setTimeout(doSearch, 400);
-          });
+      if (!S.settings.location) S.settings.location = {};
+      S.settings.location.timezone = r.timezone; 
+      
+      resultsBox.innerHTML = '';
+      toast('Location set to ' + r.short);
+    };
+  });
+};
+
+
+  // 🔥 When you click the box to update it, wipe it and show the placeholder
+  searchInput.addEventListener('focus', () => {
+    if (searchInput.dataset.isSelected === 'true') {
+      searchInput.dataset.isSelected = 'false'; // Remove the tag
+      searchInput.value = '';                   // Erase "India"
+      
+      // 🔥 Clear the custom color so the browser shows "Type a city name..."
+      searchInput.style.color = '';             
+      searchInput.style.fontWeight = '';        
+      
+      if (labelEl) labelEl.textContent = '';    // Clear the "Selected:" text below
+    }
+  });
+
+                     // Listen for typing
+  searchInput.addEventListener('input', (e) => {
+    // If "India" is in the box, and the user types a new letter...
+    if (searchInput.dataset.isSelected === 'true') {
+      searchInput.dataset.isSelected = 'false'; // Remove the tag
+      
+      // Grab the exact letter they just pressed (e.g., 's')
+      const newTypedLetter = e.target.value;
+
+      // 🔥 THE FIX: Erase "India" and leave ONLY the new letter
+      if (newTypedLetter.length > 1) { 
+        searchInput.value = newTypedLetter.slice(-1); 
+      }
+      
+      if (labelEl) labelEl.textContent = ''; 
+    }
+
+    // Turn the text back to white and trigger the search
+    searchInput.style.color = 'var(--tx)';
+    searchInput.style.fontWeight = '400';
+    
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(doSearch, 400);
+  });
 
           // 🔥 THE FIX FOR "USE MY CURRENT LOCATION"
           $('#use-loc').onclick = () => {
