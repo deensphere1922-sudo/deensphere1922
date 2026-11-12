@@ -12211,6 +12211,30 @@
             }
           }
 
+            function _setBackgroundScrollLock(locked) {
+    const content = document.querySelector('.content');
+    const main = document.querySelector('.main');
+    const shell = document.querySelector('.shell');
+    const isMobile = window.matchMedia('(max-width: 880px)').matches;
+
+    if (isMobile) {
+      if (shell) {
+        shell.style.overflow = locked ? 'hidden' : '';
+      }
+    } else {
+      if (main) {
+        main.style.overflow = locked ? 'hidden' : '';
+      }
+    }
+
+    if (content) {
+      content.style.overflowY = locked ? 'hidden' : '';
+    }
+    document.documentElement.style.overflow = locked ? 'hidden' : '';
+    document.body.style.overflow = locked ? 'hidden' : '';
+  }
+
+
             async function showTrackerDay(ds) {
         const todayStr = dateStr(new Date());
         
@@ -12255,7 +12279,9 @@
           </div>
         `;
 
-        document.body.appendChild(modal);
+             document.body.appendChild(modal);
+
+        _setBackgroundScrollLock(true);
 
         // Animate modal in
         requestAnimationFrame(() => {
@@ -12267,8 +12293,10 @@
           }
         });
 
-        // Setup Close actions
+              // Setup Close actions
         const closeModal = () => {
+          _setBackgroundScrollLock(false);
+
           modal.style.opacity = '0';
           const inner = document.getElementById('tracker-day-modal-inner');
           if (inner) {
