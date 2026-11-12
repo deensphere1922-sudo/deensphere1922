@@ -7791,6 +7791,7 @@
   // session) it updates the saved location, syncs prayer times, and shows
   // the confirmation toast ONCE PER APP SESSION on whatever screen the user
   // is on. Never fires in a repeating loop.
+   // --- AUTO LOCATION UPDATER ---
   async function autoUpdateLocation() {
     // OFF means absolutely no GPS access.
     if (!S.settings || !S.settings.setupDone || !S.profile) return;
@@ -7821,15 +7822,23 @@
           if (!data || !data.address) return;
 
           const address = data.address;
-          const city =
-            address.city ||
-            address.town ||
-            address.village ||
-            address.municipality ||
-            address.county ||
-            address.state;
-
+          
+          // 👇👇👇 THIS IS WHERE THE CODE GOES 👇👇👇
+          
+          const city = address.city || address.town || address.village || address.municipality || address.county || address.state;
+          
           if (!city) return;
+
+          // Clean up the city name (e.g., "Greater London" -> "London")
+          let cleanCity = city;
+          if (cleanCity.toLowerCase().includes('greater london')) cleanCity = 'London';
+
+          const country = address.country || '';
+          
+          // Create the perfect label format: "City, Country"
+          const locationLabel = country ? `${cleanCity}, ${country}` : cleanCity;
+          
+          // 👆👆👆 END OF PASTED CODE 👆👆👆
 
           if (!S.settings || S.settings.autoLocation !== true) return;
 
@@ -7841,16 +7850,13 @@
             .split(',')[0]
             .trim();
 
-          const country = address.country || '';
-          const locationLabel = [city, country].filter(Boolean).join(', ');
-
           // No city change → silent background refresh, no toast.
-          if (city.toLowerCase() === currentCity.toLowerCase()) {
+          if (cleanCity.toLowerCase() === currentCity.toLowerCase()) {
             S.settings.location = {
               ...currentLocation,
               lat,
               lng,
-              city,
+              city: cleanCity,
               label: locationLabel
             };
 
@@ -7870,7 +7876,7 @@
             ...currentLocation,
             lat,
             lng,
-            city,
+            city: cleanCity,
             label: locationLabel
           };
 
@@ -7923,115 +7929,138 @@
                   <button class="btn btn-primary btn-block" id="loc-next">Continue</button>
                 </div>`;
           }
-          function bindSetupLocation() {
-            let searchTimer = null;
-            const searchInput = $('#city-search');
-            const resultsBox = $('#city-results');
-            const labelEl = $('#selected-city-label');
+              function bindSetupLocation() {
+          let searchTimer = null;
+          const searchInput = $('#city-search');
+          const resultsBox = $('#city-results');
+          const labelEl = $('#selected-city-label');
 
-            const doSearch = async () => {
-              const q = searchInput.value.trim();
-              if (q.length < 2) { resultsBox.innerHTML = ''; return; }
-              resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">Searching…</div>';
-              const results = await searchCity(q);
-              if (!results.length) {
-                resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">No cities found. Try a different name.</div>';
-                return;
-              }
+          const doSearch = async () => {
+            const q = searchInput.value.trim();
+            if (q.length < 2) { resultsBox.innerHTML = ''; return; }
+            resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">Searching…</div>';
+            const results = await searchCity(q);
+            if (!results.length) {
+              resultsBox.innerHTML = '<div style="padding:10px;text-align:center;color:var(--tx3);font-size:13px;">No cities found. Try a different name.</div>';
+              return;
+            }
             resultsBox.innerHTML = results.map((r, i) => `
-    <button type="button" data-city-idx="${i}" style="display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:6px;border-radius:10px;background:var(--card-el);border:1px solid var(--border);color:var(--tx);font-size:14px;font-weight:600;cursor:pointer;">
-      ${esc(r.short)}
-    </button>
-  `).join('');
+              <button type="button" data-city-idx="${i}" style="display:block;width:100%;text-align:left;padding:14px 16px;margin-bottom:6px;border-radius:10px;background:var(--card-el);border:1px solid var(--border);color:var(--tx);font-size:14px;font-weight:600;cursor:pointer;">
+                ${esc(r.short)}
+              </button>
+            `).join('');
+            
             resultsBox.querySelectorAll('[data-city-idx]').forEach(btn => {
-    btn.onclick = () => {
-      const r = results[parseInt(btn.dataset.cityIdx)];
-      $('#lat-in').value = r.lat.toFixed(4);
-      $('#lng-in').value = r.lng.toFixed(4);
-      labelEl.textContent = r.short;
-      
-      // 🔥 ADD THIS LINE: Instantly save the correct timezone for the searched city
-      if (!S.settings.location) S.settings.location = {};
-      S.settings.location.timezone = r.timezone; 
-      
-      resultsBox.innerHTML = '';
-      searchInput.value = '';
-      toast('Location set to ' + r.short);
-    };
-  });
-            };
-
-            searchInput.addEventListener('input', () => {
-              clearTimeout(searchTimer);
-              searchTimer = setTimeout(doSearch, 400);
+              btn.onclick = () => {
+                const r = results[parseInt(btn.dataset.cityIdx)];
+                $('#lat-in').value = r.lat.toFixed(4);
+                $('#lng-in').value = r.lng.toFixed(4);
+                labelEl.textContent = r.short;
+                
+                if (!S.settings.location) S.settings.location = {};
+                S.settings.location.timezone = r.timezone; 
+                
+                resultsBox.innerHTML = '';
+                searchInput.value = '';
+                toast('Location set to ' + r.short);
+              };
             });
+          };
 
-            $('#use-loc').onclick = () => {
-              if (!navigator.geolocation) { toast('Location services aren\'t available here — search for a city instead.'); return; }
-              toast('Requesting your location…');
-              navigator.geolocation.getCurrentPosition(
-                pos => {
-                  const lat = pos.coords.latitude, lng = pos.coords.longitude;
-                  $('#lat-in').value = lat.toFixed(4);
-                  $('#lng-in').value = lng.toFixed(4);
-                  labelEl.textContent = lat.toFixed(2) + ', ' + lng.toFixed(2);
-                  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`)
-                    .then(r => r.json())
-                    .then(data => {
-                      if (data && data.display_name) {
-                        const parts = data.display_name.split(',');
-                        const short = parts.slice(0, 2).join(',').trim();
-                        labelEl.textContent = short;
-                      }
-                    })
-                    .catch(() => {});
+          searchInput.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(doSearch, 400);
+          });
+
+          // 🔥 THE FIX FOR "USE MY CURRENT LOCATION"
+          $('#use-loc').onclick = () => {
+            if (!navigator.geolocation) { 
+              toast('Location services aren\'t available here — search for a city instead.'); 
+              return; 
+            }
+            toast('Requesting your location…');
+            
+            navigator.geolocation.getCurrentPosition(
+              async (pos) => {
+                const lat = pos.coords.latitude;
+                const lng = pos.coords.longitude;
+                
+                $('#lat-in').value = lat.toFixed(4);
+                $('#lng-in').value = lng.toFixed(4);
+
+                try {
+                  // Fetch the clean city and country name based on GPS coordinates
+                  const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`, {
+                    headers: { 'Accept-Language': 'en' }
+                  });
+                  const data = await resp.json();
+                  
+                  let city = data.address?.city || data.address?.town || data.address?.village || data.address?.municipality || data.address?.state_district || data.address?.state || 'Unknown City';
+                  let country = data.address?.country || '';
+                  
+                  // Fix "Greater London" -> "London"
+                  if (city.toLowerCase().includes('greater london')) city = 'London';
+
+                  const cleanLabel = country ? `${city}, ${country}` : city;
+                  labelEl.textContent = cleanLabel;
+
+                  // Save the clean label and coordinates to memory
+                  if (!S.settings.location) S.settings.location = {};
+                  S.settings.location.lat = lat;
+                  S.settings.location.lng = lng;
+                  S.settings.location.label = cleanLabel;
+                  S.settings.location.timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+                  toast('Location detected: ' + cleanLabel);
+                } catch (err) {
+                  console.warn('Reverse geocode failed:', err);
+                  const fallbackLabel = `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+                  labelEl.textContent = fallbackLabel;
+                  if (!S.settings.location) S.settings.location = {};
+                  S.settings.location.lat = lat;
+                  S.settings.location.lng = lng;
+                  S.settings.location.label = fallbackLabel;
                   toast('Location detected from your device.');
-                },
-                err => {
-                  console.warn('Geolocation error:', err);
-                  toast('Couldn\'t access your location — search for a city instead.');
-                },
-                { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
-              );
-            };
+                }
+              },
+              (err) => {
+                console.warn('Geolocation error:', err);
+                toast('Couldn\'t access your location — search for a city instead.');
+              },
+              { enableHighAccuracy: true, timeout: 10000, maximumAge: 300000 }
+            );
+          };
 
           $('#loc-next').onclick = async () => {
-    const lat = parseFloat($('#lat-in').value), lng = parseFloat($('#lng-in').value);
-    if (isNaN(lat) || isNaN(lng)) { toast('Enter a valid latitude and longitude.'); return; }
-    const label = labelEl.textContent || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
-    
-    // Check if the location is actually changing before showing a toast
-    const locationChanged = S.settings.location.label !== label;
+            const lat = parseFloat($('#lat-in').value), lng = parseFloat($('#lng-in').value);
+            if (isNaN(lat) || isNaN(lng)) { toast('Enter a valid latitude and longitude.'); return; }
+            const label = labelEl.textContent || `${lat.toFixed(2)}, ${lng.toFixed(2)}`;
+            
+            const locationChanged = S.settings.location.label !== label;
 
-    let tz = S.settings.location.timezone;
-    if (!tz) {
-        if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; 
-        else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; 
-        else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; 
-    }
+            let tz = S.settings.location.timezone;
+            if (!tz) {
+              if (lng > 68 && lng < 97 && lat > 8 && lat < 35) tz = 'Asia/Kolkata'; 
+              else if (lng > -10 && lng < 2 && lat > 50 && lat < 60) tz = 'Europe/London'; 
+              else tz = Intl.DateTimeFormat().resolvedOptions().timeZone; 
+            }
 
-    S.settings.location = { lat, lng, label, timezone: tz }; 
-    await setJSON('settings', S.settings);
-    syncPrayerTimesToSW();             
-    
-  // A manual change also re-arms the one-shot GPS toast for this session,
-  // so if the user just lands on Home and immediately navigates away,
-  // they still get one confirmation.
-  try {
-    sessionStorage.removeItem('__gpsRunDone');
-    sessionStorage.removeItem('__gpsToastShown');
-  } catch (e) {}
+            S.settings.location = { lat, lng, label, timezone: tz }; 
+            await setJSON('settings', S.settings);
+            syncPrayerTimesToSW();             
+            
+            try {
+              sessionStorage.removeItem('__gpsRunDone');
+              sessionStorage.removeItem('__gpsToastShown');
+            } catch (e) {}
 
-  // No manual toast — the GPS confirmation covers it.
-
-  // Direct the user back to the correct screen
-  if (S.settings.setupDone) {
-    go('home'); // If they were just changing it in settings, send them to home
-  } else {
-    go('setup-calc'); // If this is initial setup, move to the next step
-  }
-  };
-          }
+            if (S.settings.setupDone) {
+              go('home'); 
+            } else {
+              go('setup-calc'); 
+            }
+          };
+        }
 
           function renderSetupCalc() {
             const s = S.settings;
