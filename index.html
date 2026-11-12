@@ -14091,15 +14091,20 @@ if (dropdownEl && triggerBtn && menuList) {
       e.preventDefault();
       e.stopPropagation();
       
-     const isOpen = dropdownEl.classList.contains('open');
+   const isOpen = menuList.classList.contains('show');
 
 if (isOpen) {
   dropdownEl.classList.remove('open');
   menuList.classList.remove('show');
 } else {
-  // Close Asr dropdown first
-  document.getElementById('asr-method-dropdown')?.classList.remove('open');
-  document.getElementById('asr-menu-list')?.classList.remove('show');
+  // Close all other dropdowns
+  document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+    menu.classList.remove('show');
+  });
+
+  document.querySelectorAll('.custom-dropdown.open').forEach(dropdown => {
+    dropdown.classList.remove('open');
+  });
 
   positionMenu();
   dropdownEl.classList.add('open');
@@ -14198,15 +14203,20 @@ if (asrDropdown && asrTrigger && asrMenu) {
     e.preventDefault();
     e.stopPropagation();
 
-   const isOpen = asrMenu.classList.contains('show');
+  const isOpen = asrMenu.classList.contains('show');
 
 if (isOpen) {
   asrDropdown.classList.remove('open');
   asrMenu.classList.remove('show');
 } else {
-  // Close Calculation Method dropdown first
-  document.getElementById('calc-method-dropdown')?.classList.remove('open');
-  document.getElementById('dropdown-menu-list')?.classList.remove('show');
+  // Close all other dropdowns
+  document.querySelectorAll('.dropdown-menu.show').forEach(menu => {
+    menu.classList.remove('show');
+  });
+
+  document.querySelectorAll('.custom-dropdown.open').forEach(dropdown => {
+    dropdown.classList.remove('open');
+  });
 
   positionAsrMenu();
   asrDropdown.classList.add('open');
