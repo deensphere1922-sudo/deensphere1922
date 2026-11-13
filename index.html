@@ -7801,124 +7801,103 @@
   // the confirmation toast ONCE PER APP SESSION on whatever screen the user
   // is on. Never fires in a repeating loop.
    // --- AUTO LOCATION UPDATER ---
-  async function autoUpdateLocation() {
-    // OFF means absolutely no GPS access.
-    if (!S.settings || !S.settings.setupDone || !S.profile) return;
-    if (S.settings.autoLocation !== true) return;
-    if (!navigator.geolocation) return;
+ // --- AUTO LOCATION UPDATER ---
+async function autoUpdateLocation() {
+  if (!S.settings || !S.settings.setupDone || !S.profile) return;
+  if (S.settings.autoLocation !== true) return;
+  if (!navigator.geolocation) return;
 
-    // 🚦 SESSION GUARD: only one GPS run per app session.
-    try {
-      if (sessionStorage.getItem('__gpsRunDone') === '1') return;
-    } catch (e) {}
+  // 🚦 SESSION GUARD: only one GPS run per app session.
+  try {
+    if (sessionStorage.getItem('__gpsRunDone') === '1') return;
+  } catch (e) {}
 
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+  navigator.geolocation.getCurrentPosition(
+    async (pos) => {
+      if (!S.settings || S.settings.autoLocation !== true) return;
+
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      try {
+        const resp = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`,
+          { headers: { 'Accept-Language': 'en' } }
+        );
+
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        if (!data || !data.address) return;
+
+        const address = data.address;
+        
+        const city = address.city || address.town || address.village || address.municipality || address.county || address.state;
+        
+        if (!city) return;
+
+        // Clean up the city name (e.g., "Greater London" -> "London")
+        let cleanCity = city;
+        if (cleanCity.toLowerCase().includes('greater london')) cleanCity = 'London';
+
+        const country = address.country || '';
+        
+        // Create the perfect label format: "City, Country"
+        const locationLabel = country ? `${cleanCity}, ${country}` : cleanCity;
+
         if (!S.settings || S.settings.autoLocation !== true) return;
 
-        const lat = pos.coords.latitude;
-        const lng = pos.coords.longitude;
+        // 🚦 Mark this session as "GPS already ran" — no future repeat.
+        try { sessionStorage.setItem('__gpsRunDone', '1'); } catch (e) {}
 
-        try {
-          const resp = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=10`,
-            { headers: { 'Accept-Language': 'en' } }
-          );
-
-          if (!resp.ok) return;
-
-          const data = await resp.json();
-          if (!data || !data.address) return;
-
-          const address = data.address;
-          
-          // 👇👇👇 THIS IS WHERE THE CODE GOES 👇👇👇
-          
-          const city = address.city || address.town || address.village || address.municipality || address.county || address.state;
-          
-          if (!city) return;
-
-          // Clean up the city name (e.g., "Greater London" -> "London")
-          let cleanCity = city;
-          if (cleanCity.toLowerCase().includes('greater london')) cleanCity = 'London';
-
-          const country = address.country || '';
-          
-          // Create the perfect label format: "City, Country"
-          const locationLabel = country ? `${cleanCity}, ${country}` : cleanCity;
-          
-          // 👆👆👆 END OF PASTED CODE 👆👆👆
-
-          if (!S.settings || S.settings.autoLocation !== true) return;
-
-          // 🚦 Mark this session as "GPS already ran" — no future repeat.
-          try { sessionStorage.setItem('__gpsRunDone', '1'); } catch (e) {}
-
-          const currentLocation = S.settings.location || {};
-          const currentCity = (currentLocation.city || currentLocation.label || '')
-            .split(',')[0]
-            .trim();
-
-          // No city change → silent background refresh, no toast.
-          if (cleanCity.toLowerCase() === currentCity.toLowerCase()) {
-            S.settings.location = {
-              ...currentLocation,
-              lat,
-              lng,
-              city: cleanCity,
-              label: locationLabel
-            };
-
-            await setJSON('settings', S.settings);
-            syncPrayerTimesToSW();
-
-            if (S.screen === 'home') {
-              hydrateHome();
-            } else if (S.screen === 'settings') {
-              render();
-            }
-            return;
-          }
-
-          // City actually changed → update, repaint, confirm (once/session).
-          S.settings.location = {
-            ...currentLocation,
-            lat,
-            lng,
-            city: cleanCity,
-            label: locationLabel
-          };
-
-          await setJSON('settings', S.settings);
-          syncPrayerTimesToSW();
-
-          const homeLocation = document.getElementById('home-location');
-          if (homeLocation) {
-            homeLocation.textContent = locationLabel;
-          }
-
-          if (S.screen === 'home') {
-            hydrateHome();
-          } else if (S.screen === 'settings') {
-            render();
-          }
-
-          // 🔒 One-time toast this session — on ANY screen (Qur'an, Tracker, etc.)
-          toastGpsOnce(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
-        } catch (err) {
-          console.warn('Auto location fetch failed:', err);
+        const currentLocation = S.settings.location || {};
+        
+        // 🚦 THE FIX 1: Force the correct timezone based on the city
+        let correctTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        
+        if (cleanCity.toLowerCase().includes('chennai') || country.toLowerCase().includes('india')) {
+          correctTimezone = 'Asia/Kolkata';
+        } else if (cleanCity.toLowerCase().includes('london') || country.toLowerCase().includes('united kingdom')) {
+          correctTimezone = 'Europe/London';
         }
-      },
-      (err) => {
-        console.warn('Auto geolocation error:', err);
-      },
-      {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 600000
+
+        // 🚦 THE FIX 2: Save the new location data AND the timezone
+        S.settings.location = {
+          ...currentLocation,
+          lat,
+          lng,
+          city: cleanCity,
+          label: locationLabel,
+          timezone: correctTimezone 
+        };
+
+        await setJSON('settings', S.settings);
+        syncPrayerTimesToSW();
+
+        // 🚦 THE FIX 3: Force the Home screen to redraw instantly!
+        if (S.screen === 'home') {
+          hydrateHome(); // This updates the "London" text to "Chennai"
+          if (typeof startCountdown === 'function') startCountdown(); // Fixes the timer
+        } else if (S.screen === 'settings') {
+          render();
+        }
+
+        toastGpsOnce(`📍 GPS Synced: Your location is now set to ${locationLabel}`);
+        
+      } catch (err) {
+        console.warn('Auto location fetch failed:', err);
       }
-    );
-  }
+    },
+    (err) => {
+      console.warn('Auto geolocation error:', err);
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+      maximumAge: 600000
+    }
+  );
+}
 
 
           function renderSetupLocation() {
