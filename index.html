@@ -14847,7 +14847,7 @@ async function autoUpdateLocation() {
   if (role === 'user') {
     div.style.cssText = 'align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);';
     div.textContent = text;
-  } else {
+   } else {
     // Assistant message: Process Markdown into HTML
     div.style.cssText = 'align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);';
     
@@ -14856,16 +14856,22 @@ async function autoUpdateLocation() {
     // 1. Convert **bold** to <strong>
     formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--tx); font-weight:600;">$1</strong>');
     
-    // 2. Convert bullet points (* or -) to a list
-    formattedText = formattedText.replace(/^\s*[\-\*]\s+(.*)$/gm, '<li style="margin-left:16px; margin-bottom:4px;">$1</li>');
+    // 2. Convert *italic* (or *"quote"*) to italics
+    formattedText = formattedText.replace(/\*(.*?)\*/g, '<em style="color:var(--tx);">$1</em>');
     
-    // 3. Convert code blocks `code` to styling
+    // 3. Convert bullet points (* or -) at the start of a line
+    formattedText = formattedText.replace(/^\s*[\-\*]\s+(.*)$/gm, '<li style="margin-left:16px; margin-bottom:6px; list-style-type: disc;">$1</li>');
+    
+    // 4. Wrap consecutive <li> tags in a <ul> for proper indentation
+    formattedText = formattedText.replace(/(<li.*?<\/li>)/gs, '<ul style="padding-left: 16px; margin-bottom: 10px;">$1</ul>');
+    
+    // 5. Convert code blocks `code` to styling
     formattedText = formattedText.replace(/`(.*?)`/g, '<code style="background:var(--bg); padding:2px 6px; border-radius:4px; font-family:monospace; font-size:12px;">$1</code>');
 
-    // 4. Convert newlines to <br> (but avoid breaking the list items)
+    // 6. Convert newlines to <br> (but avoid breaking the list items)
     formattedText = formattedText.replace(/\n(?!<li)/g, '<br>');
 
-    // 5. Cleanup extra breaks
+    // 7. Cleanup extra breaks (like multiple <br> in a row)
     formattedText = formattedText.replace(/(<br>\s*){3,}/g, '<br><br>');
 
     div.innerHTML = formattedText;
