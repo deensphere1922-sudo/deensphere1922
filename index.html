@@ -13694,56 +13694,130 @@ return `<div class="scr" style="
             `;
           }
 
-                    async function openYouTubePlayer(videoId) {
-            const overlay = document.getElementById('yt-player-overlay');
-            if (!overlay) return;
+               
+let _ytBackgroundScrollState = null;
 
-            // Pause (don't destroy) any currently-playing Qur'an audio. The audio
-            // bar stays visible & paused; the user can resume it or close it
-            // themselves from the audio bar's own X button.
-            try {
-              if (_qAudio && !_qAudio.paused) {
-                _qAudio.pause();
-                _abSetPlaying(false);
-                _abSyncStatus(false);
-              }
-              if (window.speechSynthesis && window.speechSynthesis.speaking) {
-                window.speechSynthesis.pause();
-              }
-            } catch (e) {}
+function lockYouTubeBackgroundScroll() {
+  if (_ytBackgroundScrollState) return;
 
-            overlay.style.display = 'flex';
-            requestAnimationFrame(() => overlay.classList.add('show'));
+  const body = document.body;
+  const html = document.documentElement;
+  const scrollY = window.scrollY || window.pageYOffset;
 
-            await _loadYouTubeApi();
+  _ytBackgroundScrollState = {
+    scrollY,
+    bodyPosition: body.style.position,
+    bodyTop: body.style.top,
+    bodyLeft: body.style.left,
+    bodyRight: body.style.right,
+    bodyWidth: body.style.width,
+    htmlOverflow: html.style.overflow
+  };
 
-            if (_ytPlayer) {
-              try { _ytPlayer.loadVideoById(videoId); } catch (e) {}
-              return;
-            }
+  html.style.overflow = 'hidden';
 
-            _ytPlayer = new window.YT.Player(_ytPlayerElId, {
-              videoId: videoId,
-              playerVars: { rel: 0, modestbranding: 1, playsinline: 1 },
-              events: {
-                onReady: (e) => { try { e.target.playVideo(); } catch (err) {} }
-              }
-            });
-          }
+  body.style.position = 'fixed';
+  body.style.top = `-${scrollY}px`;
+  body.style.left = '0';
+  body.style.right = '0';
+  body.style.width = '100%';
+}
 
-          function closeYouTubePlayer() {
-            const overlay = document.getElementById('yt-player-overlay');
-            if (overlay) {
-              overlay.classList.remove('show');
-              setTimeout(() => { overlay.style.display = 'none'; }, 200);
-            }
-            if (_ytPlayer) {
-              try {
-                if (typeof _ytPlayer.destroy === 'function') _ytPlayer.destroy();
-              } catch (e) {}
-              _ytPlayer = null;
-            }
-          }
+function unlockYouTubeBackgroundScroll() {
+  if (!_ytBackgroundScrollState) return;
+
+  const state = _ytBackgroundScrollState;
+  const body = document.body;
+  const html = document.documentElement;
+
+  body.style.position = state.bodyPosition;
+  body.style.top = state.bodyTop;
+  body.style.left = state.bodyLeft;
+  body.style.right = state.bodyRight;
+  body.style.width = state.bodyWidth;
+  html.style.overflow = state.htmlOverflow;
+
+  _ytBackgroundScrollState = null;
+
+  window.scrollTo(0, state.scrollY);
+}
+
+async function openYouTubePlayer(videoId) {
+  const overlay = document.getElementById('yt-player-overlay');
+  if (!overlay) return;
+
+  // Lock background scrolling while the video is open.
+  lockYouTubeBackgroundScroll();
+
+  try {
+    if (_qAudio && !_qAudio.paused) {
+      _qAudio.pause();
+      _abSetPlaying(false);
+      _abSyncStatus(false);
+    }
+
+    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+      window.speechSynthesis.pause();
+    }
+  } catch (e) {}
+
+  overlay.style.display = 'flex';
+  requestAnimationFrame(() => overlay.classList.add('show'));
+
+  try {
+    await _loadYouTubeApi();
+
+    if (_ytPlayer) {
+      try {
+        _ytPlayer.loadVideoById(videoId);
+      } catch (e) {}
+      return;
+    }
+
+    _ytPlayer = new window.YT.Player(_ytPlayerElId, {
+      videoId: videoId,
+      playerVars: {
+        rel: 0,
+        modestbranding: 1,
+        playsinline: 1
+      },
+      events: {
+        onReady: (e) => {
+          try {
+            e.target.playVideo();
+          } catch (err) {}
+        }
+      }
+    });
+  } catch (error) {
+    console.error('YouTube player error:', error);
+    closeYouTubePlayer();
+  }
+}
+
+function closeYouTubePlayer() {
+  const overlay = document.getElementById('yt-player-overlay');
+
+  if (overlay) {
+    overlay.classList.remove('show');
+    setTimeout(() => {
+      overlay.style.display = 'none';
+    }, 200);
+  }
+
+  if (_ytPlayer) {
+    try {
+      if (typeof _ytPlayer.destroy === 'function') {
+        _ytPlayer.destroy();
+      }
+    } catch (e) {}
+
+    _ytPlayer = null;
+  }
+
+  // Restore background scrolling and the previous page position.
+  unlockYouTubeBackgroundScroll();
+}
 
           // If a desktop user shrinks the window into mobile width, close the player
           // so it never overlays the mobile UI.
