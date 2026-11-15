@@ -7904,7 +7904,19 @@ async function autoUpdateLocation() {
 
           function renderSetupLocation() {
             const loc = S.settings.location;
-            return `<div class="scr" style="min-height:100vh;padding:28px 22px;max-width:440px;margin:0 auto;">
+           
+return `<div class="scr" style="
+  min-height:100vh;
+  min-height:100svh;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:28px 22px;
+  max-width:440px;
+  width:100%;
+  margin:0 auto;
+">
+
                   <div class="pg-title">Set your location</div>
                   <div class="pg-sub" style="margin-bottom:20px;">Used to calculate accurate prayer times for where you are.</div>
                   <button class="btn btn-primary btn-block" id="use-loc" style="margin-bottom:14px;">Use my current location</button>
