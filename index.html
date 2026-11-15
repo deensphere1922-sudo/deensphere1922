@@ -1441,8 +1441,11 @@
             touch-action: manipulation; -webkit-tap-highlight-color: transparent; cursor: pointer;
           }
 
-            .theme-toggle {
-            position: fixed; top: 16px; right: 16px; z-index: 900;
+          .theme-toggle {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100000;
             width: 44px; height: 44px; border-radius: 50%;
             background: var(--card); border: 1px solid var(--border);
             color: var(--tx2); display: flex; align-items: center; justify-content: center;
@@ -2259,6 +2262,16 @@
   .settings-page .settings-section:nth-of-type(2) .settings-fixed-top {
     z-index: 39 !important;
   }
+
+  /* Keep the global theme switch above every popup */
+#theme-toggle {
+  position: fixed !important;
+  top: 16px !important;
+  right: 16px !important;
+  z-index: 100001 !important;
+  pointer-events: auto !important;
+  display: flex !important;
+}
 
         </style>
       </head>
