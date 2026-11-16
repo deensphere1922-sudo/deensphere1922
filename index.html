@@ -15193,33 +15193,17 @@ Warm, respectful, scholarly, compassionate and educational.
               thinkingEl = null;
             };
 
-            const setInputBusy = (busy) => {
-           const inp = $('#guide-input');
-const composer = $('#guide-composer');
+         const setInputBusy = (busy) => {
+  const inp = $('#guide-input');
+  const btn = $('#guide-send');
 
-if (inp) {
-  inp.onkeydown = e => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      send();
-    }
-  };
+  if (inp) inp.disabled = busy;
 
-  setTimeout(() => {
-    try {
-      inp.focus();
-    } catch (_) {}
-  }, 0);
-}
-
-if (composer && inp) {
-  composer.addEventListener('click', e => {
-    if (!e.target.closest('#guide-send')) {
-      inp.focus();
-    }
-  });
-}
-            };
+  if (btn) {
+    btn.disabled = busy;
+    btn.textContent = busy ? '…' : 'Send';
+  }
+};
 
             const ensureClearButton = () => {
               const hasAssistant = S.guideMsgs.some(m => m.role === 'assistant');
@@ -15378,31 +15362,27 @@ if (composer && inp) {
               setJSON('guide-history', []).catch(() => {});
             };
 
-            const btn = $('#guide-send');
-            if (btn) btn.onclick = () => send();
+         const btn = $('#guide-send');
+if (btn) btn.onclick = () => send();
 
-         const inp = $('#guide-input');
+const inp = $('#guide-input');
+const composer = $('#guide-composer');
 
 if (inp) {
-  inp.onkeydown = e => {
+  inp.onkeydown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       send();
     }
   };
-
-  setTimeout(() => {
-    try { inp.focus(); } catch (_) {}
-  }, 0);
 }
 
-const composer = $('#guide-composer');
+if (composer && inp && !composer.dataset.focusBound) {
+  composer.dataset.focusBound = 'true';
 
-if (composer && inp) {
   composer.addEventListener('click', (e) => {
-    if (e.target.id !== 'guide-send') {
-      inp.focus();
-    }
+    if (e.target.closest('#guide-send')) return;
+    if (!inp.disabled) inp.focus();
   });
 }
 
