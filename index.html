@@ -9215,6 +9215,13 @@ return `<div class="scr" style="
       });
     }
 
+    const notice = document.getElementById('tracker-period-notice');
+    if (notice) {
+      notice.innerHTML = _trackerPeriodNoticeHTML(range);
+      const jumpButton = document.getElementById('tracker-jump-current');
+      if (jumpButton) jumpButton.onclick = _jumpTrackerToCurrentPeriod;
+    }
+
     const cats = document.getElementById('tracker-cats');
     if (cats) cats.innerHTML = _buildTrackerCatsHTML(range);
   }
@@ -11922,6 +11929,7 @@ return `<div class="scr" style="
                     </div>
                     <div id="tracker-overall" class="card" style="margin-bottom:0;">${initialOverall}</div>
                   </div>
+                  <div id="tracker-period-notice">${_trackerPeriodNoticeHTML(range)}</div>
 
                   <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">Day by day</div>
                   <div id="tracker-grid" class="card" style="margin-bottom:16px;">${initialGrid}</div>
@@ -11980,6 +11988,29 @@ return `<div class="scr" style="
             const left = first.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             const right = last.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
             return `${left} – ${right}`;
+          }
+
+          function _trackerPeriodNoticeHTML(range) {
+            // Show the return-to-current-period notice only when browsing history.
+            if (_trackerIsCurrentPeriod(range)) return '';
+            const isWeek = range === 'week';
+            const periodText = _trackerPeriodLabel(range);
+            const jumpText = isWeek ? 'Jump to this week' : 'Jump to this month';
+            return `<div class="card" style="margin:0 0 14px;padding:16px 18px;border:1px solid var(--gold);background:var(--gold-dim);">
+              <div style="font-size:14px;line-height:1.55;color:var(--tx);margin-bottom:12px;">
+                You are viewing <strong>${periodText}</strong>.
+              </div>
+              <button type="button" id="tracker-jump-current" class="btn btn-ghost btn-block" style="width:100%;justify-content:center;">
+                ${jumpText}
+              </button>
+            </div>`;
+          }
+
+          function _jumpTrackerToCurrentPeriod() {
+            S.trackerPeriodDate = dateStr(new Date());
+            try { localStorage.setItem('tracker-period-date', S.trackerPeriodDate); } catch (e) {}
+            repaintTrackerFromCache();
+            hydrateTracker();
           }
 
           function _trackerIsCurrentPeriod(range) {
@@ -12325,6 +12356,8 @@ return `<div class="scr" style="
 
             const periodLabel = document.getElementById('tracker-period-label');
             if (periodLabel) periodLabel.textContent = _trackerPeriodLabel(range);
+            const jumpButton = document.getElementById('tracker-jump-current');
+            if (jumpButton) jumpButton.onclick = _jumpTrackerToCurrentPeriod;
 
             const token = ++_trackerHydrationToken;
             const days = _trackerDays(range);
