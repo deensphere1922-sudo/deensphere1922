@@ -2360,6 +2360,22 @@
   pointer-events: auto !important;
 }
 
+/* ==================== MAKE ENTIRE COMPOSER CLICKABLE ==================== */
+/* This targets the container holding the input */
+div:has(> #guide-input) {
+  cursor: text !important; /* Changes the mouse to a text cursor */
+}
+
+/* This targets the input itself */
+#guide-input {
+  cursor: text !important;
+}
+
+/* Make the Send button behave normally */
+div:has(> #guide-input) button {
+  cursor: pointer !important;
+} 
+
         </style>
       </head>
 
@@ -17034,18 +17050,17 @@ if (composer && inp && !composer.dataset.focusBound) {
   const input = document.getElementById('guide-input');
   if (input) input.focus();
 
-  // --- DEEN GUIDE CLICK FIX ---
-document.addEventListener('click', function(e) {
-  // 1. Check if the user clicked inside the composer area
-  const composer = e.target.closest('#guide-composer');
+  document.addEventListener('click', function(e) {
+  // Look for the input box
+  const input = document.getElementById('guide-input');
   
-  if (composer) {
-    // 2. If they clicked the "Send" button, let the button do its job
-    if (e.target.closest('button')) return;
+  if (input) {
+    // Get the white container holding the input
+    const container = input.parentElement;
     
-    // 3. Otherwise, force the input to focus!
-    const input = document.getElementById('guide-input');
-    if (input) {
+    // If you click the white background around the input (but NOT the Send button)
+    if (container && container.contains(e.target) && e.target !== input && e.target.tagName !== 'BUTTON') {
+      // Force the cursor to jump into the input box
       input.focus();
     }
   }
