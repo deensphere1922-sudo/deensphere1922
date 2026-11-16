@@ -2271,7 +2271,27 @@
   z-index: 100001 !important;
   pointer-events: auto !important;
   display: flex !important;
-}
+} 
+
+/* MOBILE: Theme switch above bottom navigation */
+@media screen and (max-width: 880px) {
+  #theme-toggle.theme-toggle {
+    position: fixed !important;
+    top: auto !important;
+   bottom: calc(85px + env(safe-area-inset-bottom)) !important;
+    right: 16px !important;
+    left: auto !important;
+
+    width: 44px !important;
+    height: 44px !important;
+
+    z-index: 999999 !important;
+    display: flex !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+}      
 
         </style>
       </head>
