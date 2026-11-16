@@ -2373,6 +2373,16 @@ div:has(> #guide-input) button {
   cursor: pointer !important;
 }
 
+#guide-input {
+  position: relative !important;
+  z-index: 51 !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  touch-action: auto !important;
+}
+
         </style>
       </head>
 
@@ -15090,7 +15100,7 @@ Warm, respectful, scholarly, compassionate and educational.
                         <button class="btn-text" data-guide-chip="What does the Quran say about patience?" style="color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
-              <div id="guide-composer" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10; cursor:text;">
+            <div id="guide-composer" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10;">
   <input
     id="guide-input"
     placeholder="Ask Deen Guide..."
@@ -15416,7 +15426,6 @@ if (composer && inp && !composer.dataset.focusBound) {
   composer.addEventListener('click', (e) => {
     if (e.target === composer && !inp.disabled) {
       inp.focus();
-      inp.setSelectionRange(inp.value.length, inp.value.length);
     }
   });
 }
@@ -17042,39 +17051,6 @@ if (composer && inp && !composer.dataset.focusBound) {
     } catch(e) {}
   }
 
- function focusGuideInput(e) {
-  // If the user clicks the "Send" button, let the button do its job
-  if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-
-  const input = document.getElementById('guide-input');
-  if (input) input.focus();
-}
-
-  // 1. Listen for clicks anywhere on the page
-  document.addEventListener('click', function (e) {
-    var input = document.getElementById('guide-input');
-    
-    // If we are not on the Deen Guide page, do nothing
-    if (!input) return;
-
-    // 2. Find the container box
-    var composer = document.getElementById('guide-composer') || input.parentElement;
-    if (!composer || !composer.contains(e.target)) return;
-
-    // 3. Ignore clicks on actual buttons (Send, mic, etc.) or the input itself
-    if (e.target.closest('button, a, input, textarea, select, [role="button"]')) {
-      return; 
-    }
-
-    // 4. ANY other click inside that box focuses the input
-    input.focus();
-  }, true);
-
-  // 5. EXTRA SAFETY: Some apps re-render the input. We attach a direct listener
-  // just in case the click delegation above gets blocked by your app's code.
-  document.addEventListener('focusin', function(e) {
-      // No-op, just ensuring the document doesn't steal focus
-  });
       </script>
       </body>
       </html>
