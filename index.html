@@ -2420,6 +2420,13 @@ div:has(> #guide-input) button {
   border-color: var(--green-l) !important;
 }
 
+
+#toast,
+#toast.show {
+  pointer-events: none !important;
+}
+
+
         </style>
       </head>
 
@@ -2680,7 +2687,24 @@ div:has(> #guide-input) button {
             s -= m * 60; 
             return pad(h) + ':' + pad(m) + ':' + pad(s); 
           }
-        function toast(msg) { const t = $('#toast'); t.textContent = msg; t.classList.add('show'); clearTimeout(window.__tt); window.__tt = setTimeout(() => t.classList.remove('show'), 2200); }
+      
+function toast(msg) {
+  const t = $('#toast');
+  if (!t) return;
+
+  // Never allow the toast to block typing or clicks
+  t.style.pointerEvents = 'none';
+
+  t.textContent = msg;
+  t.classList.add('show');
+
+  clearTimeout(window.__tt);
+
+  window.__tt = setTimeout(() => {
+    t.classList.remove('show');
+  }, 2200);
+}
+
 
   // Show the GPS confirmation toast ONCE PER APP SESSION (refresh resets it).
   // It appears on whichever screen the user is on when GPS resolves.
