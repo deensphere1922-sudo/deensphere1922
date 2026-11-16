@@ -15071,17 +15071,7 @@ Warm, respectful, scholarly, compassionate and educational.
                         <button class="btn-text" data-guide-chip="What does the Quran say about patience?" style="color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
-               <div id="guide-composer" style="
-  display:flex;
-  align-items:center;
-  gap:8px;
-  padding:10px 0 20px;
-  flex:0 0 auto;
-  width:100%;
-  position:relative;
-  z-index:10;
-  cursor:text;
-">
+               <div id="guide-composer" onclick="if(event.target.tagName !== 'BUTTON' && !event.target.closest('button')) document.getElementById('guide-input').focus();" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10; cursor:text;">
   <input
     id="guide-input"
     placeholder="Ask Deen Guide..."
@@ -17030,6 +17020,14 @@ if (composer && inp && !composer.dataset.focusBound) {
       }
     } catch(e) {}
   }
+
+  function focusGuideInput(e) {
+  // If the user clicks the "Send" button, let the button do its job
+  if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
+  
+  const input = document.getElementById('guide-input');
+  if (input) input.focus();
+}
       </script>
       </body>
       </html>
