@@ -15022,20 +15022,18 @@ function closeYouTubePlayer() {
     // 2. Convert *italic* (or *"quote"*) to italics
     formattedText = formattedText.replace(/\*(.*?)\*/g, '<em style="color:var(--tx);">$1</em>');
     
-    // 3. Convert bullet points (* or -) at the start of a line
-    formattedText = formattedText.replace(/^\s*[\-\*]\s+(.*)$/gm, '<li style="margin-left:16px; margin-bottom:6px; list-style-type: disc;">$1</li>');
-    
-    // 4. Wrap consecutive <li> tags in a <ul> for proper indentation
-    formattedText = formattedText.replace(/(<li.*?<\/li>)/gs, '<ul style="padding-left: 16px; margin-bottom: 10px;">$1</ul>');
+// 3. Convert bullet points with compact spacing
+formattedText = formattedText.replace(
+  /^\s*[\-\*]\s+(.*)$/gm,
+  '<div style="margin:2px 0 2px 16px; position:relative;">• $1</div>'
+);
     
     // 5. Convert code blocks `code` to styling
     formattedText = formattedText.replace(/`(.*?)`/g, '<code style="background:var(--bg); padding:2px 6px; border-radius:4px; font-family:monospace; font-size:12px;">$1</code>');
 
-    // 6. Convert newlines to <br> (but avoid breaking the list items)
-    formattedText = formattedText.replace(/\n(?!<li)/g, '<br>');
-
-    // 7. Cleanup extra breaks (like multiple <br> in a row)
-    formattedText = formattedText.replace(/(<br>\s*){3,}/g, '<br><br>');
+formattedText = formattedText.replace(/\n{2,}/g, '<br>');
+formattedText = formattedText.replace(/\n/g, ' ');
+formattedText = formattedText.replace(/(<br>\s*){2,}/g, '<br>');
 
     div.innerHTML = formattedText;
   }
