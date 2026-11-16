@@ -15090,7 +15090,7 @@ Warm, respectful, scholarly, compassionate and educational.
                         <button class="btn-text" data-guide-chip="What does the Quran say about patience?" style="color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
-               <div id="guide-composer" onclick="if(event.target.tagName !== 'BUTTON' && !event.target.closest('button')) document.getElementById('guide-input').focus();" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10; cursor:text;">
+              <div id="guide-composer" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10; cursor:text;">
   <input
     id="guide-input"
     placeholder="Ask Deen Guide..."
@@ -15414,8 +15414,10 @@ if (composer && inp && !composer.dataset.focusBound) {
   composer.dataset.focusBound = 'true';
 
   composer.addEventListener('click', (e) => {
-    if (e.target.closest('#guide-send')) return;
-    if (!inp.disabled) inp.focus();
+    if (e.target === composer && !inp.disabled) {
+      inp.focus();
+      inp.setSelectionRange(inp.value.length, inp.value.length);
+    }
   });
 }
 
@@ -17073,17 +17075,6 @@ if (composer && inp && !composer.dataset.focusBound) {
   document.addEventListener('focusin', function(e) {
       // No-op, just ensuring the document doesn't steal focus
   });
-
-  // 6. Hack for Mobile Safari/Chrome to force keyboard open on div click
-  document.addEventListener('mousedown', function (e) {
-    var input = document.getElementById('guide-input');
-    if (!input) return;
-    var composer = document.getElementById('guide-composer') || input.parentElement;
-    if (composer && composer.contains(e.target) && !e.target.closest('button, a, input, textarea, select, [role="button"]')) {
-      e.preventDefault(); // Stop the browser from blurring the input
-      input.focus();
-    }
-  }, true);
       </script>
       </body>
       </html>
