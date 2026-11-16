@@ -2354,6 +2354,12 @@
   outline-offset: 3px;
 }
 
+#guide-composer {
+  z-index: 50 !important;
+  position: relative !important;
+  pointer-events: auto !important;
+}
+
         </style>
       </head>
 
@@ -17027,6 +17033,23 @@ if (composer && inp && !composer.dataset.focusBound) {
   
   const input = document.getElementById('guide-input');
   if (input) input.focus();
+
+  // --- DEEN GUIDE CLICK FIX ---
+document.addEventListener('click', function(e) {
+  // 1. Check if the user clicked inside the composer area
+  const composer = e.target.closest('#guide-composer');
+  
+  if (composer) {
+    // 2. If they clicked the "Send" button, let the button do its job
+    if (e.target.closest('button')) return;
+    
+    // 3. Otherwise, force the input to focus!
+    const input = document.getElementById('guide-input');
+    if (input) {
+      input.focus();
+    }
+  }
+});
 }
       </script>
       </body>
