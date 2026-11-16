@@ -1411,14 +1411,38 @@
         flex-shrink: 0 !important;
       }
 
-      /* The composer (input + Send) sits OUTSIDE the scroll area, at the
-        bottom of the flex column. flex:0 0 auto keeps it from being squished
-        and the padding leaves room so nothing scrolls underneath it. */
+          /* ==================== DEEN GUIDE COMPOSER — CLICK FIX ==================== */
       div:has(> #guide-input) {
+        position: relative !important;
+        z-index: 50 !important;
+        isolation: isolate !important;
         flex: 0 0 auto !important;
-        padding-bottom: 20px !important;
-        background: var(--bg);
+        padding: 12px 0 20px 0 !important;
+        background: var(--bg) !important;
+        border-top: 1px solid var(--border) !important;
+        pointer-events: auto !important;
       }
+      div:has(> #guide-input) * {
+        pointer-events: auto !important;
+      }
+      #guide-input {
+        position: relative !important;
+        z-index: 51 !important;
+        transform: none !important;
+        cursor: text !important;
+        pointer-events: auto !important;
+      }
+      /* Composer sits above floating buttons that could steal taps */
+      body:has(#guide-thread) #theme-toggle,
+      body:has(#guide-thread) #back-to-top {
+        pointer-events: none !important;
+      }
+      @media (max-width: 880px) {
+        div:has(> #guide-input) {
+          padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
+        }
+      }
+      /* ==================== END COMPOSER FIX ==================== */
 
           @keyframes spin { to { transform: rotate(360deg); } }
           @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: .5; } }
