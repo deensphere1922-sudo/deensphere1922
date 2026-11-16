@@ -2360,21 +2360,65 @@
   pointer-events: auto !important;
 }
 
-/* ==================== MAKE ENTIRE COMPOSER CLICKABLE ==================== */
-/* This targets the container holding the input */
+/* ==================== DEEN GUIDE COMPOSER FIX ==================== */
+
+/* 1. Make the wrapper look exactly like the input box */
 div:has(> #guide-input) {
-  cursor: text !important; /* Changes the mouse to a text cursor */
+  cursor: text !important;
+  background-color: var(--card-el) !important; /* Matches input background */
+  border: 1px solid var(--border) !important;  /* Matches input border */
+  border-radius: var(--r-sm) !important;       /* Matches input corners */
+  padding: 4px 14px !important;                /* Gives it breathing room */
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  z-index: 50 !important;
 }
 
-/* This targets the input itself */
+/* Remove the ugly border-top from your previous fix */
+div:has(> #guide-input) {
+  border-top: 1px solid var(--border) !important; 
+  margin-top: 10px;
+}
+
+/* 2. Make the input itself invisible so it blends into the wrapper */
 #guide-input {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 10px 0 !important;
+  color: var(--tx) !important;
+  font-size: 15px !important;
+  flex: 1 !important;
+  outline: none !important;
   cursor: text !important;
 }
 
-/* Make the Send button behave normally */
+/* 3. Style the Send/Icon buttons so they fit inside the new box */
 div:has(> #guide-input) button {
   cursor: pointer !important;
-} 
+  background: transparent !important;
+  border: none !important;
+  color: var(--green-l) !important;
+  padding: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+/* 4. Focus state: turn the whole wrapper green when typing */
+div:has(> #guide-input):focus-within {
+  border-color: var(--green-l) !important;
+}
+
+/* 5. Fix the mobile padding so it doesn't overlap the bottom nav */
+@media (max-width: 880px) {
+  div:has(> #guide-input) {
+    padding-bottom: calc(4px + env(safe-area-inset-bottom)) !important;
+  }
+}
 
         </style>
       </head>
