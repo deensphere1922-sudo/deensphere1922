@@ -6063,7 +6063,7 @@ function toast(msg) {
     quranBookmark: { surah: 1, verse: 1 },
     bookmarks: [], tawhidProgress: {},
     screen: 'splash', dayCache: {}, countdownTimer: null, guideMsgs: [], guideThinking: false, routineViewDate: null,
-    trackerRange: 'week', completedSurahs: [], routineStruct: null,
+    trackerRange: 'week', trackerDate: null, trackerPreviousPct: null, trackerLoadId: 0, completedSurahs: [], routineStruct: null,
     deletedRoutineItems: [], 
     routineDraft: null,         // <--- ADD THIS
     routineDraftStruct: null,   // <--- ADD THIS
@@ -11838,68 +11838,114 @@ return `<div class="scr" style="
           }
 
           /* ============================= UNIFIED TRACKER ============================= */
-          function renderTracker() {
-            const range = S.trackerRange || 'week';
 
-                  // Build the containers AND their initial content synchronously from
-            // whatever is already in S.dayCache. Because go() pre-fetches the full
-            // week before render(), this is populated on the very first paint.
-            // hydrateTracker() then refreshes them in the background.
-            const initialOverall = _buildTrackerOverallHTML(range);
-            const initialGrid    = _buildTrackerGridHTML(range);
-            const initialCats    = _buildTrackerCatsHTML(range);
-
-            return `<div class="pg-head">
-                    <div class="pg-title">Tracker</div>
-                    <div class="pg-sub">Your worship consistency &mdash; week or month.</div>
-                  </div>
-
-                                  <div class="tracker-fixed-top">
-                    <div class="card" style="margin-bottom:12px;">
-                      <label class="rowsub tracker-range-label" style="display:block;margin-bottom:6px;">View range</label>
-                      <select id="tracker-range" style="width:100%;">
-                        <option value="week"  ${range === 'week' ? 'selected' : ''}>Weekly</option>
-                        <option value="month" ${range === 'month' ? 'selected' : ''}>Monthly</option>
-                      </select>
-                    </div>
-                    <div id="tracker-overall" class="card" style="margin-bottom:0;">${initialOverall}</div>
-                  </div>
-
-                  <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">Day by day</div>
-                  <div id="tracker-grid" class="card" style="margin-bottom:16px;">${initialGrid}</div>
-                  <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">Category totals</div>
-                  <div id="tracker-cats">${initialCats}</div>`;
+          function _trackerAnchorDate() {
+            const raw = S.trackerDate;
+            if (raw && /^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+              const [y, m, d] = raw.split('-').map(Number);
+              return new Date(y, m - 1, d);
+            }
+            return new Date();
           }
 
-              /* --------------------------------------------------------------
-            Synchronous Tracker builders — these read only from S.dayCache
-            so they can be called inside render() and never produce a blank
-            shell. hydrateTracker() reuses the exact same maths and then
-            refreshes the DOM after any cloud fetch resolves.
-            -------------------------------------------------------------- */
-
-          function _trackerDays(range) {
-            const now = new Date();
-            const days = [];
+          function _trackerPeriodStart(range, anchor) {
+            const d = new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
             if (range === 'week') {
-              const dayOfWeek = now.getDay();
-              const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-              const monday = new Date(now);
-              monday.setDate(now.getDate() + mondayOffset);
-              monday.setHours(0, 0, 0, 0);
-              for (let i = 0; i < 7; i++) {
-                const d = new Date(monday);
-                d.setDate(monday.getDate() + i);
-                days.push(d);
-              }
-            } else {
-              const y = now.getFullYear(), m = now.getMonth();
-              const daysInMonth = new Date(y, m + 1, 0).getDate();
-              for (let d = 1; d <= daysInMonth; d++) {
-                days.push(new Date(y, m, d));
-              }
+              const offset = d.getDay() === 0 ? -6 : 1 - d.getDay();
+              d.setDate(d.getDate() + offset);
+              return d;
+            }
+            if (range === 'month') return new Date(d.getFullYear(), d.getMonth(), 1);
+            return new Date(d.getFullYear(), 0, 1);
+          }
+
+          function _trackerDays(range, anchorDate) {
+            const anchor = anchorDate instanceof Date ? anchorDate : _trackerAnchorDate();
+            const start = _trackerPeriodStart(range, anchor);
+            const days = [];
+            const count = range === 'week' ? 7 :
+              range === 'month' ? new Date(start.getFullYear(), start.getMonth() + 1, 0).getDate() :
+              (new Date(start.getFullYear() + 1, 0, 0).getDate());
+            for (let i = 0; i < count; i++) {
+              const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
+              days.push(d);
             }
             return days;
+          }
+
+          function _trackerShiftAnchor(range, amount) {
+            const anchor = _trackerAnchorDate();
+            if (range === 'week') anchor.setDate(anchor.getDate() + amount * 7);
+            else if (range === 'month') anchor.setMonth(anchor.getMonth() + amount, 1);
+            else anchor.setFullYear(anchor.getFullYear() + amount, 0, 1);
+            const today = new Date();
+            const max = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+            if (anchor > max) {
+              if (range === 'week') {
+                const currentMonday = _trackerPeriodStart('week', today);
+                S.trackerDate = dateStr(currentMonday);
+              } else if (range === 'month') {
+                S.trackerDate = dateStr(new Date(today.getFullYear(), today.getMonth(), 1));
+              } else {
+                S.trackerDate = dateStr(new Date(today.getFullYear(), 0, 1));
+              }
+            } else {
+              S.trackerDate = dateStr(anchor);
+            }
+            try { localStorage.setItem('tracker-date', S.trackerDate); } catch (e) {}
+            S.trackerPreviousPct = null;
+            repaintTrackerFromCache();
+            hydrateTracker();
+          }
+
+          function _trackerPeriodLabel(range) {
+            const anchor = _trackerAnchorDate();
+            if (range === 'week') {
+              const days = _trackerDays('week', anchor);
+              const first = days[0], last = days[6];
+              const fmt = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              return `${fmt(first)} – ${fmt(last)}, ${last.getFullYear()}`;
+            }
+            if (range === 'month') return anchor.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            return String(anchor.getFullYear());
+          }
+
+          function renderTracker() {
+            const range = S.trackerRange || 'week';
+            const initialOverall = _buildTrackerOverallHTML(range);
+            const initialGrid = _buildTrackerGridHTML(range);
+            const initialCats = _buildTrackerCatsHTML(range);
+            return `<div class="pg-head">
+                      <div class="pg-title">Tracker</div>
+                      <div class="pg-sub">Your worship consistency — week, month or year.</div>
+                    </div>
+                    <div class="tracker-fixed-top">
+                      <div class="card" style="margin-bottom:12px;">
+                        <label class="rowsub tracker-range-label" style="display:block;margin-bottom:6px;">View range</label>
+                        <select id="tracker-range" style="width:100%;">
+                          <option value="week" ${range === 'week' ? 'selected' : ''}>Weekly</option>
+                          <option value="month" ${range === 'month' ? 'selected' : ''}>Monthly</option>
+                          <option value="year" ${range === 'year' ? 'selected' : ''}>Yearly</option>
+                        </select>
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:12px;">
+                          <button type="button" id="tracker-prev" class="btn btn-ghost" style="padding:8px 14px;min-width:44px;" aria-label="Previous period">‹</button>
+                          <div id="tracker-period-label" style="font-size:13px;font-weight:600;text-align:center;">${_trackerPeriodLabel(range)}</div>
+                          <button type="button" id="tracker-next" class="btn btn-ghost" style="padding:8px 14px;min-width:44px;" aria-label="Next period" ${_trackerIsCurrentPeriod(range) ? 'disabled' : ''}>›</button>
+                        </div>
+                      </div>
+                      <div id="tracker-overall" class="card" style="margin-bottom:0;">${initialOverall}</div>
+                    </div>
+                    <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">${range === 'year' ? 'Monthly progress' : 'Day by day'}</div>
+                    <div id="tracker-grid" class="card" style="margin-bottom:16px;">${initialGrid}</div>
+                    <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">Category totals</div>
+                    <div id="tracker-cats">${initialCats}</div>`;
+          }
+
+          function _trackerIsCurrentPeriod(range) {
+            const today = new Date();
+            const currentStart = _trackerPeriodStart(range, today);
+            const selectedStart = _trackerPeriodStart(range, _trackerAnchorDate());
+            return selectedStart.getTime() >= currentStart.getTime();
           }
 
           function _trackerEmptyDay() {
@@ -11908,123 +11954,102 @@ return `<div class="scr" style="
 
           function _trackerHasBookmarkOnDate(ds) {
             if (!Array.isArray(S.bookmarks) || !S.bookmarks.length) return false;
-            const dayStart = new Date(ds + 'T00:00:00').getTime();
-            const dayEnd = dayStart + 86400000;
+            const start = new Date(ds + 'T00:00:00').getTime();
+            const end = start + 86400000;
             return S.bookmarks.some(b => {
               if (!b || !b.date) return false;
               const t = new Date(b.date).getTime();
-              return t >= dayStart && t < dayEnd;
+              return t >= start && t < end;
             });
           }
 
-            function _computeTrackerStats(range, records) {
-    const now = new Date();
-    const days = _trackerDays(range);
+          function _computeTrackerStats(range, records, anchorDate) {
+            const now = new Date();
+            const days = _trackerDays(range, anchorDate);
+            const catTotals = { salah: 0, salahMax: 0, routine: 0, routineMax: 0, adhkar: 0, adhkarMax: 0, quranVerses: 0, quranVersesMax: 0 };
+            const dayResults = [];
+            let countedDays = 0, pctSum = 0;
 
-    const catTotals = {
-      salah: 0, salahMax: 0, routine: 0, routineMax: 0,
-      adhkar: 0, adhkarMax: 0, quranVerses: 0, quranVersesMax: 0
-    };
-    const dayResults = [];
-    let countedDays = 0;
-    let pctSum = 0;
-    let pastDays = 0;
+            for (let i = 0; i < days.length; i++) {
+              const dd = days[i], ds = dateStr(dd);
+              const isFuture = new Date(dd.getFullYear(), dd.getMonth(), dd.getDate()) > new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const rec = records[i] || _trackerEmptyDay();
+              const routineStats = _routineStatsForDate(rec, dd);
+              const routineDone = routineStats.done, routineMax = routineStats.total;
+              const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
+              const adhkarDone = (rec.adhkar?.morning ? 1 : 0) + (rec.adhkar?.evening ? 1 : 0);
+              const quranGoal = 50;
+              let quranVerses = 0;
+              if (rec.quranVersesRead && typeof rec.quranVersesRead === 'object') {
+                quranVerses = Object.values(rec.quranVersesRead).some(a => Array.isArray(a) && a.length) ? quranGoal : 0;
+              } else quranVerses = rec.quranVerses > 0 ? quranGoal : 0;
+              if (!quranVerses && _trackerHasBookmarkOnDate(ds)) quranVerses = quranGoal;
 
-    for (let i = 0; i < days.length; i++) {
-      const dd = days[i];
-      const ds = dateStr(dd);
-      const isFuture = dd > now;
-      const rec = records[i] || _trackerEmptyDay();
+              const dayPct = Math.min(100, Math.round(
+                (salahDone / 5) * 40 +
+                (routineMax ? routineDone / routineMax : 0) * 30 +
+                (adhkarDone / 2) * 15 +
+                (quranVerses / quranGoal) * 15
+              ));
 
-    const routineStats = _routineStatsForDate(rec, dd);
-  const routineDone = routineStats.done;
-  const routineMax  = routineStats.total;
-
-      const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
-      const adhkarDone = (rec.adhkar?.morning ? 1 : 0) + (rec.adhkar?.evening ? 1 : 0);
-
-      let quranVerses = 0;
-      const quranGoal = 50;
-      if (rec.quranVersesRead && typeof rec.quranVersesRead === 'object') {
-        let hasAny = false;
-        for (const sur of Object.keys(rec.quranVersesRead)) {
-          const arr = rec.quranVersesRead[sur];
-          if (Array.isArray(arr) && arr.length) { hasAny = true; break; }
-        }
-        quranVerses = hasAny ? quranGoal : 0;
-      } else {
-        quranVerses = rec.quranVerses > 0 ? quranGoal : 0;
-      }
-      if (!quranVerses && _trackerHasBookmarkOnDate(ds)) quranVerses = quranGoal;
-
-      const pS = salahDone / 5;
-      const pR = routineMax ? routineDone / routineMax : 0;
-      const pA = adhkarDone / 2;
-      const pQ = quranVerses / quranGoal;
-
-      const dayPct = Math.min(100, Math.round(pS * 40 + pR * 30 + pA * 15 + pQ * 15));
-
-      catTotals.salah += salahDone; catTotals.salahMax += 5;
-      catTotals.routine += routineDone; catTotals.routineMax += routineMax;
-      catTotals.adhkar += adhkarDone; catTotals.adhkarMax += 2;
-      catTotals.quranVerses += quranVerses; catTotals.quranVersesMax += quranGoal;
-
-      if (!isFuture) countedDays++;
-
-      dayResults.push({ ds, dayPct, rec, dd, isFuture });
-
-      if (isFuture) continue;
-      pastDays++;
-      pctSum += dayPct;
-    }
-
-    const totalDaysInPeriod = days.length;
-    const maxPossibleScore = totalDaysInPeriod * 100;
-    const currentScore = Math.round(pctSum);
-    const avgPct = maxPossibleScore > 0 ? Math.round((currentScore / maxPossibleScore) * 100) : 0;
-
-    return { catTotals, dayResults, countedDays, avgPct };
-  }
-
-              function _buildTrackerOverallHTML(range) {
-            const days = _trackerDays(range);
-            const records = days.map(dd => S.dayCache[dateStr(dd)] || _trackerEmptyDay());
-            const { countedDays, avgPct, dayResults } = _computeTrackerStats(range, records);
-
-            let trend = '';
-            if (range === 'week') {
-              const first3 = dayResults.slice(0, 3).filter(d => !d.isFuture);
-              const last3  = dayResults.slice(4, 7).filter(d => !d.isFuture);
-              const avgOf = a => a.length ? Math.round(a.reduce((s, x) => s + x.dayPct, 0) / a.length) : null;
-              const a1 = avgOf(first3), a2 = avgOf(last3);
-              if (a1 !== null && a2 !== null) {
-                const diff = a2 - a1;
-                if (diff >= 5) trend = `<span style="color:var(--green-l);font-size:13px;font-weight:600;">↑ Up ${diff}%</span>`;
-                else if (diff <= -5) trend = `<span style="color:var(--amber);font-size:13px;font-weight:600;">↓ Down ${Math.abs(diff)}%</span>`;
-                else trend = `<span style="color:var(--tx3);font-size:13px;font-weight:600;">→ Steady</span>`;
+              if (!isFuture) {
+                countedDays++;
+                pctSum += dayPct;
+                catTotals.salah += salahDone; catTotals.salahMax += 5;
+                catTotals.routine += routineDone; catTotals.routineMax += routineMax;
+                catTotals.adhkar += adhkarDone; catTotals.adhkarMax += 2;
+                catTotals.quranVerses += quranVerses; catTotals.quranVersesMax += quranGoal;
               }
+              dayResults.push({ ds, dayPct, rec, dd, isFuture });
             }
-
-            const totalDays = range === 'week' ? 7 : days.length;
-            return `
-              <div style="padding:18px 20px;">
-                <div style="position:relative;">
-                  <div class="rowsub" style="margin-bottom:2px;">${range === 'week' ? 'Weekly progress' : 'Monthly progress'}</div>
-                  <div style="font-size:30px;font-weight:800;color:var(--green-l);line-height:1.1;">${avgPct}%</div>
-                  <div class="rowsub" style="margin-top:4px;">${countedDays} of ${totalDays} day${totalDays === 1 ? '' : 's'} recorded</div>
-                  ${trend ? `<div style="position:absolute;right:0;top:50%;transform:translateY(-50%);">${trend}</div>` : ''}
-                </div>
-                <div class="progress-bar" style="margin-top:14px;"><div class="progress-fill" style="width:${avgPct}%;"></div></div>
-              </div>`;
+            const avgPct = countedDays ? Math.round(pctSum / countedDays) : 0;
+            return { catTotals, dayResults, countedDays, avgPct };
           }
 
-              function _buildTrackerGridHTML(range) {
-            const now = new Date();
-            const todayStr = dateStr(now);
-            const days = _trackerDays(range);
+          function _buildTrackerOverallHTML(range) {
+            const anchor = _trackerAnchorDate();
+            const days = _trackerDays(range, anchor);
             const records = days.map(dd => S.dayCache[dateStr(dd)] || _trackerEmptyDay());
-            const { dayResults } = _computeTrackerStats(range, records);
+            const { countedDays, avgPct } = _computeTrackerStats(range, records, anchor);
+            const previous = Number.isFinite(S.trackerPreviousPct) ? S.trackerPreviousPct : null;
+            const diff = previous === null ? null : avgPct - previous;
+            const comparison = diff === null ? 'Previous period comparison will appear when loaded.' :
+              `Previous ${range === 'week' ? 'week' : range === 'month' ? 'month' : 'year'}: ${previous}% · ${diff > 0 ? '+' : ''}${diff}% ${diff > 0 ? 'higher' : diff < 0 ? 'lower' : 'same'}`;
+            const title = range === 'week' ? 'Weekly progress' : range === 'month' ? 'Monthly progress' : 'Yearly progress';
+            return `<div style="padding:18px 20px;">
+              <div class="rowsub" style="margin-bottom:2px;">${title}</div>
+              <div style="font-size:30px;font-weight:800;color:var(--green-l);line-height:1.1;">${avgPct}%</div>
+              <div class="rowsub" style="margin-top:4px;">${countedDays} of ${days.length} days counted</div>
+              <div class="rowsub" id="tracker-previous-comparison" style="margin-top:7px;">${comparison}</div>
+              <div class="progress-bar" style="margin-top:14px;"><div class="progress-fill" style="width:${avgPct}%;"></div></div>
+            </div>`;
+          }
 
+          function _buildTrackerGridHTML(range) {
+            const anchor = _trackerAnchorDate();
+            if (range === 'year') {
+              const year = anchor.getFullYear();
+              const months = Array.from({ length: 12 }, (_, m) => {
+                const monthDate = new Date(year, m, 1);
+                const days = _trackerDays('month', monthDate);
+                const records = days.map(d => S.dayCache[dateStr(d)] || _trackerEmptyDay());
+                const stats = _computeTrackerStats('month', records, monthDate);
+                const futureMonth = monthDate > new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+                return `<button type="button" data-tracker-month="${m}" ${futureMonth ? 'disabled' : ''}
+                  style="text-align:left;padding:13px 12px;border:1px solid var(--border);border-radius:12px;background:var(--card-el);min-width:0;opacity:${futureMonth ? '.45' : '1'};">
+                  <div style="font-size:13px;font-weight:600;">${monthDate.toLocaleDateString('en-US',{month:'long'})}</div>
+                  <div style="font-size:21px;font-weight:800;color:var(--green-l);margin-top:5px;">${stats.avgPct}%</div>
+                  <div class="rowsub">${stats.countedDays} days counted</div>
+                  <div class="progress-bar" style="margin-top:9px;"><div class="progress-fill" style="width:${stats.avgPct}%;"></div></div>
+                </button>`;
+              }).join('');
+              return `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;">${months}</div>`;
+            }
+
+            const todayStr = dateStr(new Date());
+            const days = _trackerDays(range, anchor);
+            const records = days.map(d => S.dayCache[dateStr(d)] || _trackerEmptyDay());
+            const { dayResults } = _computeTrackerStats(range, records, anchor);
             const cells = dayResults.map(({ ds, dayPct, rec, dd, isFuture }) => {
               const isToday = ds === todayStr;
               const hasRec = rec && (
@@ -12032,31 +12057,24 @@ return `<div class="scr" style="
                 Object.values(rec.routine || {}).some(Boolean) ||
                 rec.adhkar?.morning || rec.adhkar?.evening ||
                 (rec.quranVersesRead && Object.keys(rec.quranVersesRead).length) ||
-                rec.quranVerses > 0 ||
-                _trackerHasBookmarkOnDate(ds)
+                rec.quranVerses > 0 || _trackerHasBookmarkOnDate(ds)
               );
               let bg = 'var(--card-el)', fg = 'var(--tx3)';
               if (isFuture) { bg = 'transparent'; fg = 'var(--tx3)'; }
-              else if (!hasRec) { bg = 'var(--card-el)'; fg = 'var(--tx3)'; }
-              else {
+              else if (hasRec) {
                 if (dayPct >= 80) { bg = 'var(--green)'; fg = '#fff'; }
                 else if (dayPct >= 50) { bg = 'var(--green-dim2)'; fg = 'var(--green-l)'; }
                 else if (dayPct >= 20) { bg = 'var(--amber-dim)'; fg = 'var(--amber)'; }
-                else { bg = 'var(--card-el)'; fg = 'var(--tx2)'; }
+                else fg = 'var(--tx2)';
               }
               const wd = dd.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2);
-              return `<button data-tracker-day="${ds}"
-                title="${dd.toDateString()} — ${isFuture ? 'future' : dayPct + '%'}"
-                style="aspect-ratio:1;min-width:0;border-radius:10px;background:${bg};color:${fg};
-                border:1px solid ${isToday ? 'var(--green-l)' : 'var(--border)'};
-                display:flex;flex-direction:column;align-items:center;justify-content:center;
-                gap:0;padding:2px;overflow:hidden;">
-                <span style="font-size:8px;opacity:.8;text-transform:uppercase;letter-spacing:.3px;line-height:1;">${wd}</span>
+              return `<button data-tracker-day="${ds}" title="${dd.toDateString()} — ${isFuture ? 'future' : dayPct + '%'}"
+                style="aspect-ratio:1;min-width:0;border-radius:10px;background:${bg};color:${fg};border:1px solid ${isToday ? 'var(--green-l)' : 'var(--border)'};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;padding:2px;overflow:hidden;">
+                <span style="font-size:8px;opacity:.8;text-transform:uppercase;line-height:1;">${wd}</span>
                 <span style="font-size:12px;font-weight:700;line-height:1.1;margin-top:1px;">${dd.getDate()}</span>
-                ${(!isFuture) ? `<span style="font-size:8px;opacity:.9;line-height:1;margin-top:1px;">${dayPct}%</span>` : ''}
+                ${!isFuture ? `<span style="font-size:8px;opacity:.9;line-height:1;margin-top:1px;">${dayPct}%</span>` : ''}
               </button>`;
             }).join('');
-
             return `<div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;overflow:hidden;">${cells}</div>
               <div class="tracker-legend-wrapper">
                 <div class="tracker-legend-grid">
@@ -12070,383 +12088,135 @@ return `<div class="scr" style="
                     <span><span style="display:inline-block;width:10px;height:10px;background:transparent;border:1px solid var(--border);border-radius:3px;margin-right:4px;"></span>Future</span>
                   </div>
                 </div>
-              <div class="tracker-formula">(Sum of Daily Scores ÷ ${range === 'week' ? '700' : days.length * 100}) × 100</div>
+                <div class="tracker-formula">Daily scores averaged across elapsed days only</div>
               </div>`;
           }
 
           function _buildTrackerCatsHTML(range) {
-            const days = _trackerDays(range);
-            const records = days.map(dd => S.dayCache[dateStr(dd)] || _trackerEmptyDay());
-            const { catTotals, countedDays } = _computeTrackerStats(range, records);
+            const anchor = _trackerAnchorDate();
+            const days = _trackerDays(range, anchor);
+            const records = days.map(d => S.dayCache[dateStr(d)] || _trackerEmptyDay());
+            const { catTotals, countedDays } = _computeTrackerStats(range, records, anchor);
             const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-
-            let displaySurah = null, displayReached = 0, displayTotal = 0, displayPct = 0;
             let bestSurah = 0, bestVerse = 0;
-            const consider = (s, v) => {
-              if (!s || !v) return;
-              if (s === 1 && v === 1) return;
-              if (s < 1 || s > 114) return;
-              if (s > bestSurah || (s === bestSurah && v > bestVerse)) { bestSurah = s; bestVerse = v; }
+            const consider = (surah, verse) => {
+              if (!surah || !verse || (surah === 1 && verse === 1) || surah < 1 || surah > 114) return;
+              if (surah > bestSurah || (surah === bestSurah && verse > bestVerse)) { bestSurah = surah; bestVerse = verse; }
             };
-            if (Array.isArray(S.bookmarks)) {
-              for (const bm of S.bookmarks) if (bm && bm.surah && bm.verse) consider(bm.surah, bm.verse);
-            }
-            if (bestSurah && bestVerse) {
-              const surMeta = SURAHS.find(x => x.num === bestSurah);
-              if (surMeta) {
-                displaySurah = surMeta;
-                displayReached = Math.min(bestVerse, surMeta.verses);
-                displayTotal = surMeta.verses;
-                displayPct = Math.min(100, Math.round((displayReached / displayTotal) * 100));
-              }
-            }
-
-            return `
-              <div class="card" style="margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                  <span class="rowtitle">Salah</span>
-                  <span style="font-weight:700;">${catTotals.salah} / ${catTotals.salahMax}</span>
-                </div>
-                <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.salah, catTotals.salahMax)}%;"></div></div>
-              </div>
-              <div class="card" style="margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                  <span class="rowtitle">Daily Routine</span>
-                  <span style="font-weight:700;">${catTotals.routine} / ${catTotals.routineMax}</span>
-                </div>
-                <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.routine, catTotals.routineMax)}%;"></div></div>
-              </div>
-              <div class="card" style="margin-bottom:10px;">
-                <div style="display:flex;justify-content:space-between;align-items:center;">
-                  <span class="rowtitle">Adhkar</span>
-                  <span style="font-weight:700;">${catTotals.adhkar} / ${catTotals.adhkarMax}</span>
-                </div>
-                <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.adhkar, catTotals.adhkarMax)}%;"></div></div>
-              </div>
-              <div class="card">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                  <span class="rowtitle">Qur'an</span>
-                  <span style="font-size:11.5px;color:var(--tx3);">${range === 'week' ? 'Weekly' : 'Monthly'}</span>
-                </div>
-                ${displaySurah ? `
-                  <div style="position:relative;margin-bottom:10px;">
-                    <div style="font-weight:600;font-size:13.5px;padding-right:60px;">${displayReached}/${displayTotal} (Surah ${displaySurah.translit})</div>
-                    <div style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;color:var(--green-l);">${displayPct}%</div>
-                  </div>
-                  <div class="progress-bar"><div class="progress-fill" style="width:${displayPct}%;"></div></div>
-                ` : `<div class="empty" style="padding:6px 0;font-size:12px;">No reading recorded this ${range === 'week' ? 'week' : 'month'}.</div>`}
-              </div>
-              ${countedDays === 0 ? `<div class="empty" style="margin-top:14px;">No entries yet. Complete a prayer or routine item to see this fill up.</div>` : ''}
-            `;
+            if (Array.isArray(S.bookmarks)) for (const bm of S.bookmarks) if (bm?.surah && bm?.verse) consider(bm.surah, bm.verse);
+            const surah = bestSurah ? SURAHS.find(x => x.num === bestSurah) : null;
+            const reached = surah ? Math.min(bestVerse, surah.verses) : 0;
+            const surahPct = surah ? Math.round(reached / surah.verses * 100) : 0;
+            const label = range === 'week' ? 'Weekly' : range === 'month' ? 'Monthly' : 'Yearly';
+            return `<div class="card" style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="rowtitle">Salah</span><span style="font-weight:700;">${catTotals.salah} / ${catTotals.salahMax}</span></div><div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.salah,catTotals.salahMax)}%;"></div></div></div>
+              <div class="card" style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="rowtitle">Daily Routine</span><span style="font-weight:700;">${catTotals.routine} / ${catTotals.routineMax}</span></div><div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.routine,catTotals.routineMax)}%;"></div></div></div>
+              <div class="card" style="margin-bottom:10px;"><div style="display:flex;justify-content:space-between;align-items:center;"><span class="rowtitle">Adhkar</span><span style="font-weight:700;">${catTotals.adhkar} / ${catTotals.adhkarMax}</span></div><div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.adhkar,catTotals.adhkarMax)}%;"></div></div></div>
+              <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span class="rowtitle">Qur'an</span><span style="font-size:11.5px;color:var(--tx3);">${label}</span></div>
+                ${surah ? `<div style="position:relative;margin-bottom:10px;"><div style="font-weight:600;font-size:13.5px;padding-right:60px;">${reached}/${surah.verses} (Surah ${surah.translit})</div><div style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;color:var(--green-l);">${surahPct}%</div></div><div class="progress-bar"><div class="progress-fill" style="width:${surahPct}%;"></div></div>` : `<div class="empty" style="padding:6px 0;font-size:12px;">No reading recorded in this ${label.toLowerCase()} period.</div>`}
+              </div>${countedDays === 0 ? `<div class="empty" style="margin-top:14px;">No entries yet. Complete a prayer or routine item to see this fill up.</div>` : ''}`;
           }
 
-                  async function hydrateTracker() {
+
+          async function hydrateTracker() {
             const range = S.trackerRange || 'week';
+            const loadId = ++S.trackerLoadId;
+            const anchor = _trackerAnchorDate();
+            const days = _trackerDays(range, anchor);
 
-          const sel = document.getElementById('tracker-range');
-  if (sel) {
-    sel.onchange = () => {
-      S.trackerRange = sel.value;
-      try { localStorage.setItem('tracker-range', sel.value); } catch(e) {}
-      // Repaint using cache instantly, then hydrate from cloud
-      repaintTrackerFromCache();
-      hydrateTracker();
-    };
-  } 
-
-            const now = new Date();
-            const todayStr = dateStr(now);
-            let days = [];
-
-            if (range === 'week') {
-              const dayOfWeek = now.getDay();
-              const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-              const monday = new Date(now);
-              monday.setDate(now.getDate() + mondayOffset);
-              monday.setHours(0, 0, 0, 0);
-              for (let i = 0; i < 7; i++) {
-                const d = new Date(monday);
-                d.setDate(monday.getDate() + i);
-                days.push(d);
-              }
-            } else {
-              const y = now.getFullYear(), m = now.getMonth();
-              const daysInMonth = new Date(y, m + 1, 0).getDate();
-              for (let d = 1; d <= daysInMonth; d++) {
-                days.push(new Date(y, m, d));
-              }
-            }
-
-            let allRecords;
-            try {
-              const weekFetch = Promise.all(days.map(dd => {
-                const ds = dateStr(dd);
-                if (S.dayCache[ds]) return Promise.resolve(S.dayCache[ds]);
-                return getJSON('day:' + ds);
-              }));
-              const weekTimeout = new Promise((resolve) =>
-                setTimeout(() => resolve(null), 6000)
+            const select = document.getElementById('tracker-range');
+            if (select) select.onchange = () => {
+              S.trackerRange = select.value;
+              S.trackerPreviousPct = null;
+              const today = new Date();
+              S.trackerDate = dateStr(
+                select.value === 'year' ? new Date(today.getFullYear(), 0, 1) :
+                select.value === 'month' ? new Date(today.getFullYear(), today.getMonth(), 1) :
+                _trackerPeriodStart('week', today)
               );
-              allRecords = await Promise.race([weekFetch, weekTimeout]);
-            } catch (e) {
-              console.warn('Tracker week fetch failed:', e);
-              allRecords = null;
-            }
-            if (!allRecords) {
-              allRecords = days.map(dd => S.dayCache[dateStr(dd)] || null);
-            }
-
-                            // ✅ CRITICAL: Save fetched records to S.dayCache so the
-            // real-time broadcast path can redraw the grid squares accurately.
-            days.forEach((dd, index) => {
-              const ds = dateStr(dd);
-              if (allRecords[index]) {
-                S.dayCache[ds] = allRecords[index];
-              }
-            });
-
-            const emptyDay = () => ({
-              salah: {}, routine: {}, adhkar: {},
-              quranVerses: 0, quranVersesRead: {}
-            });
-
-            const hasBookmarkOnDate = (ds) => {
-              if (!Array.isArray(S.bookmarks) || !S.bookmarks.length) return false;
-              const dayStart = new Date(ds + 'T00:00:00').getTime();
-              const dayEnd = dayStart + 86400000;
-              return S.bookmarks.some(b => {
-                if (!b || !b.date) return false;
-                const t = new Date(b.date).getTime();
-                return t >= dayStart && t < dayEnd;
-              });
+              try {
+                localStorage.setItem('tracker-range', S.trackerRange);
+                localStorage.setItem('tracker-date', S.trackerDate);
+              } catch (e) {}
+              repaintTrackerFromCache();
+              hydrateTracker();
             };
 
-            let totalPct = 0, countedDays = 0;
-            let catTotals = { salah: 0, salahMax: 0, routine: 0, routineMax: 0, adhkar: 0, adhkarMax: 0, quranVerses: 0, quranVersesMax: 0 };
-            let dayResults = [];
+            const prev = document.getElementById('tracker-prev');
+            if (prev) prev.onclick = () => _trackerShiftAnchor(range, -1);
+            const next = document.getElementById('tracker-next');
+            if (next) {
+              next.disabled = _trackerIsCurrentPeriod(range);
+              next.onclick = () => { if (!_trackerIsCurrentPeriod(range)) _trackerShiftAnchor(range, 1); };
+            }
+            const periodLabel = document.getElementById('tracker-period-label');
+            if (periodLabel) periodLabel.textContent = _trackerPeriodLabel(range);
 
-            for (let i = 0; i < days.length; i++) {
-              const dd = days[i];
-              const ds = dateStr(dd);
-              const isFuture = dd > now;
+            const previousAnchor = new Date(anchor);
+            if (range === 'week') previousAnchor.setDate(previousAnchor.getDate() - 7);
+            else if (range === 'month') previousAnchor.setMonth(previousAnchor.getMonth() - 1, 1);
+            else previousAnchor.setFullYear(previousAnchor.getFullYear() - 1, 0, 1);
+            const previousDays = _trackerDays(range, previousAnchor);
+            const allDates = [...new Set([...days, ...previousDays].map(dateStr))];
 
-              const rec = allRecords[i] || emptyDay();
-
-              // ✅ FIX: Get the correct routine structure and max for THIS specific day
-          const routineStats = _routineStatsForDate(rec, dd);
-  const routineDone = routineStats.done;
-  const routineMax  = routineStats.total;
-
-  const salahDone = Object.values(rec.salah || {}).filter(v => v === 'completed').length;
-
-              const adhkarDone = (rec.adhkar?.morning ? 1 : 0) + (rec.adhkar?.evening ? 1 : 0);
-
-              let quranVerses = 0, quranGoal = 50;
-              if (rec.quranVersesRead && typeof rec.quranVersesRead === 'object') {
-                let hasAny = false;
-                for (const sur of Object.keys(rec.quranVersesRead)) {
-                  const arr = rec.quranVersesRead[sur];
-                  if (Array.isArray(arr) && arr.length) {
-                    hasAny = true;
-                    break;
-                  }
-                }
-                quranVerses = hasAny ? quranGoal : 0;
-              } else {
-                quranVerses = rec.quranVerses > 0 ? quranGoal : 0;
+            const fetchMissing = async (dateStrings) => {
+              const missing = dateStrings.filter(ds => !Object.prototype.hasOwnProperty.call(S.dayCache, ds));
+              for (let i = 0; i < missing.length; i += 20) {
+                const batch = missing.slice(i, i + 20);
+                const values = await Promise.all(batch.map(ds =>
+                  getJSON('day:' + ds).catch(() => null)
+                ));
+                batch.forEach((ds, index) => {
+                  if (values[index]) S.dayCache[ds] = values[index];
+                  else if (!Object.prototype.hasOwnProperty.call(S.dayCache, ds)) S.dayCache[ds] = _trackerEmptyDay();
+                });
+                if (loadId !== S.trackerLoadId) return;
               }
+            };
 
-              if (!quranVerses && hasBookmarkOnDate(ds)) quranVerses = quranGoal;
+            try {
+              await fetchMissing(allDates);
+            } catch (e) {
+              console.warn('Tracker records could not all be loaded:', e);
+            }
+            if (loadId !== S.trackerLoadId || S.screen !== 'tracker') return;
 
-              const pS = salahDone / 5;
-              const pR = routineMax ? (routineDone / routineMax) : 0;
-              const pA = adhkarDone / 2;
-              const pQ = quranVerses / quranGoal;
-              
-              // ✅ FIX: Cap the day percentage at 100%
-              const dayPct = Math.min(100, Math.round(pS * 40 + pR * 30 + pA * 15 + pQ * 15));
-
-              catTotals.salah += salahDone; catTotals.salahMax += 5;
-              catTotals.routine += routineDone; catTotals.routineMax += routineMax;
-              catTotals.adhkar += adhkarDone; catTotals.adhkarMax += 2;
-              catTotals.quranVerses += quranVerses; catTotals.quranVersesMax += quranGoal;
-
-              if (!isFuture) {
-                totalPct += dayPct;
-                countedDays++;
-              }
-
-              dayResults.push({ ds, dayPct, rec, dd, isFuture });
+            if (previousDays.length) {
+              const previousRecords = previousDays.map(d => S.dayCache[dateStr(d)] || _trackerEmptyDay());
+              S.trackerPreviousPct = _computeTrackerStats(range, previousRecords, previousAnchor).avgPct;
+            } else {
+              S.trackerPreviousPct = null;
             }
 
-            const totalDaysInPeriod = days.length; 
-            const maxPossibleScore = totalDaysInPeriod * 100; 
-            const currentScore = Math.round(totalPct); 
-            const avgPct = maxPossibleScore > 0 ? Math.round((currentScore / maxPossibleScore) * 100) : 0;
-
-            const overall = document.getElementById('tracker-overall');
-            if (overall) {
-              let trend = '';
-              if (range === 'week') {
-                const first3 = dayResults.slice(0, 3).filter(d => !d.isFuture);
-                const last3 = dayResults.slice(4, 7).filter(d => !d.isFuture);
-                const avgOf = arr => arr.length ? Math.round(arr.reduce((s, x) => s + x.dayPct, 0) / arr.length) : null;
-                const a1 = avgOf(first3);
-                const a2 = avgOf(last3);
-                if (a1 !== null && a2 !== null) {
-                  const diff = a2 - a1;
-                  if (diff >= 5) trend = `<span style="color:var(--green-l);font-size:13px;font-weight:600;">↑ Up ${diff}%</span>`;
-                  else if (diff <= -5) trend = `<span style="color:var(--amber);font-size:13px;font-weight:600;">↓ Down ${Math.abs(diff)}%</span>`;
-                  else trend = `<span style="color:var(--tx3);font-size:13px;font-weight:600;">→ Steady</span>`;
-                }
-              }
-
-              const totalDays = range === 'week' ? 7 : days.length;
-              overall.innerHTML = `
-                <div style="padding:18px 20px;">
-                  <div style="position:relative;">
-                    <div class="rowsub" style="margin-bottom:2px;">${range === 'week' ? 'Weekly progress' : 'Monthly progress'}</div>
-                    <div style="font-size:30px;font-weight:800;color:var(--green-l);line-height:1.1;">${avgPct}%</div>
-                    <div class="rowsub" style="margin-top:4px;">${countedDays} of ${totalDays} day${totalDays === 1 ? '' : 's'} recorded</div>
-                    ${trend ? `<div style="position:absolute;right:0;top:50%;transform:translateY(-50%);">${trend}</div>` : ''}
-                  </div>
-                  <div class="progress-bar" style="margin-top:14px;"><div class="progress-fill" style="width:${avgPct}%;"></div></div>
-                </div>
-              `;
-            }
-
+            const freshOverall = document.getElementById('tracker-overall');
+            if (freshOverall) freshOverall.innerHTML = _buildTrackerOverallHTML(range);
             const grid = document.getElementById('tracker-grid');
             if (grid) {
-              const cells = dayResults.map(({ ds, dayPct, rec, dd, isFuture }) => {
-                const isToday = ds === todayStr;
-                
-                const activeRoutineStruct = getRoutineStruct(dd);
-                const hasRec = rec && (
-                  Object.values(rec.salah || {}).some(v => v === 'completed') ||
-                  activeRoutineStruct.some(([_, __, items]) => items.some(([ik]) => rec.routine?.[ik])) ||
-                  rec.adhkar?.morning || rec.adhkar?.evening ||
-                  (rec.quranVersesRead && Object.keys(rec.quranVersesRead).length) ||
-                  rec.quranVerses > 0 ||
-                  hasBookmarkOnDate(ds)
-                );
-
-                let bg = 'var(--card-el)', fg = 'var(--tx3)';
-                if (isFuture) { bg = 'transparent'; fg = 'var(--tx3)'; }
-                else if (!hasRec) { bg = 'var(--card-el)'; fg = 'var(--tx3)'; }
-                else {
-                  if (dayPct >= 80) { bg = 'var(--green)'; fg = '#fff'; }
-                  else if (dayPct >= 50) { bg = 'var(--green-dim2)'; fg = 'var(--green-l)'; }
-                  else if (dayPct >= 20) { bg = 'var(--amber-dim)'; fg = 'var(--amber)'; }
-                  else { bg = 'var(--card-el)'; fg = 'var(--tx2)'; }
-                }
-                const wd = dd.toLocaleDateString('en-US', { weekday: 'short' }).slice(0, 2);
-                return `<button data-tracker-day="${ds}"
-                  title="${dd.toDateString()} — ${isFuture ? 'future' : dayPct + '%'}"
-                  style="aspect-ratio:1;min-width:0;border-radius:10px;background:${bg};color:${fg};
-                  border:1px solid ${isToday ? 'var(--green-l)' : 'var(--border)'};
-                  display:flex;flex-direction:column;align-items:center;justify-content:center;
-                  gap:0;padding:2px;overflow:hidden;">
-                  <span style="font-size:8px;opacity:.8;text-transform:uppercase;letter-spacing:.3px;line-height:1;">${wd}</span>
-                  <span style="font-size:12px;font-weight:700;line-height:1.1;margin-top:1px;">${dd.getDate()}</span>
-                  ${(!isFuture) ? `<span style="font-size:8px;opacity:.9;line-height:1;margin-top:1px;">${dayPct}%</span>` : ''}
-                </button>`;
-              }).join('');
-
-              grid.innerHTML = `
-                <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;overflow:hidden;">${cells}</div>
-                
-                <div class="tracker-legend-wrapper">
-                  <div class="tracker-legend-grid">
-                    <div class="tracker-legend-row top-row">
-                      <span><span style="display:inline-block;width:10px;height:10px;background:var(--green);border-radius:3px;margin-right:4px;"></span>80%+</span>
-                      <span><span style="display:inline-block;width:10px;height:10px;background:var(--green-dim2);border-radius:3px;margin-right:4px;"></span>50-79%</span>
-                      <span><span style="display:inline-block;width:10px;height:10px;background:var(--amber-dim);border-radius:3px;margin-right:4px;"></span>20-49%</span>
-                    </div>
-                    <div class="tracker-legend-row bottom-row">
-                      <span><span style="display:inline-block;width:10px;height:10px;background:var(--card-el);border:1px solid var(--border);border-radius:3px;margin-right:4px;"></span>&lt;20% / missed</span>
-                      <span><span style="display:inline-block;width:10px;height:10px;background:transparent;border:1px solid var(--border);border-radius:3px;margin-right:4px;"></span>Future</span>
-                    </div>
-                  </div>
-                  <div class="tracker-formula">
-                    (Sum of Daily Scores ÷ ${range === 'week' ? '700' : days.length * 100}) × 100
-                  </div>
-                </div>`;
-
-              $$('[data-tracker-day]').forEach(b => b.onclick = () => showTrackerDay(b.dataset.trackerDay));
+              grid.innerHTML = _buildTrackerGridHTML(range);
+              document.querySelectorAll('[data-tracker-day]').forEach(b => {
+                b.onclick = () => showTrackerDay(b.dataset.trackerDay);
+              });
+              document.querySelectorAll('[data-tracker-month]').forEach(b => {
+                b.onclick = () => {
+                  const month = Number(b.dataset.trackerMonth);
+                  S.trackerRange = 'month';
+                  S.trackerDate = dateStr(new Date(anchor.getFullYear(), month, 1));
+                  S.trackerPreviousPct = null;
+                  try {
+                    localStorage.setItem('tracker-range', 'month');
+                    localStorage.setItem('tracker-date', S.trackerDate);
+                  } catch (e) {}
+                  repaintTrackerFromCache();
+                  hydrateTracker();
+                };
+              });
             }
-            
             const cats = document.getElementById('tracker-cats');
-            if (cats) {
-              const pct = (a, b) => b ? Math.round(a / b * 100) : 0;
-              let displaySurah = null, displayReached = 0, displayTotal = 0, displayPct = 0;
-              let bestSurah = 0, bestVerse = 0;
-              const consider = (surahNum, verse) => {
-                if (!surahNum || !verse) return;
-                if (surahNum === 1 && verse === 1) return;
-                if (surahNum < 1 || surahNum > 114) return;
-                if (surahNum > bestSurah || (surahNum === bestSurah && verse > bestVerse)) {
-                  bestSurah = surahNum;
-                  bestVerse = verse;
-                }
-              };
-              if (Array.isArray(S.bookmarks)) {
-                for (const bm of S.bookmarks) {
-                  if (bm && bm.surah && bm.verse) consider(bm.surah, bm.verse);
-                }
-              }
-              if (bestSurah && bestVerse) {
-                const surMeta = SURAHS.find(x => x.num === bestSurah);
-                if (surMeta) {
-                  displaySurah = surMeta;
-                  displayReached = Math.min(bestVerse, surMeta.verses);
-                  displayTotal = surMeta.verses;
-                  displayPct = Math.min(100, Math.round((displayReached / displayTotal) * 100));
-                }
-              }
-
-              cats.innerHTML = `
-                <div class="card" style="margin-bottom:10px;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span class="rowtitle">Salah</span>
-                    <span style="font-weight:700;">${catTotals.salah} / ${catTotals.salahMax}</span>
-                  </div>
-                  <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.salah, catTotals.salahMax)}%;"></div></div>
-                </div>
-                <div class="card" style="margin-bottom:10px;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span class="rowtitle">Daily Routine</span>
-                    <span style="font-weight:700;">${catTotals.routine} / ${catTotals.routineMax}</span>
-                  </div>
-                  <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.routine, catTotals.routineMax)}%;"></div></div>
-                </div>
-                <div class="card" style="margin-bottom:10px;">
-                  <div style="display:flex;justify-content:space-between;align-items:center;">
-                    <span class="rowtitle">Adhkar</span>
-                    <span style="font-weight:700;">${catTotals.adhkar} / ${catTotals.adhkarMax}</span>
-                  </div>
-                  <div class="progress-bar" style="margin-top:8px;"><div class="progress-fill" style="width:${pct(catTotals.adhkar, catTotals.adhkarMax)}%;"></div></div>
-                </div>
-                <div class="card">
-                  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
-                    <span class="rowtitle">Qur'an</span>
-                    <span style="font-size:11.5px;color:var(--tx3);">${range === 'week' ? 'Weekly' : 'Monthly'}</span>
-                  </div>
-                  ${displaySurah ? `
-                    <div style="position:relative;margin-bottom:10px;">
-                      <div style="font-weight:600;font-size:13.5px;padding-right:60px;">
-                        ${displayReached}/${displayTotal} (Surah ${displaySurah.translit})
-                      </div>
-                      <div style="position:absolute;right:0;top:50%;transform:translateY(-50%);font-size:12px;font-weight:600;color:var(--green-l);">
-                        ${displayPct}%
-                      </div>
-                    </div>
-                    <div class="progress-bar">
-                      <div class="progress-fill" style="width:${displayPct}%;"></div>
-                    </div>
-                  ` : `<div class="empty" style="padding:6px 0;font-size:12px;">No reading recorded this ${range === 'week' ? 'week' : 'month'}.</div>`}
-                </div>
-                ${countedDays === 0 ? `<div class="empty" style="margin-top:14px;">No entries yet. Complete a prayer or routine item to see this fill up.</div>` : ''}
-              `;
+            if (cats) cats.innerHTML = _buildTrackerCatsHTML(range);
+            const comparison = document.getElementById('tracker-previous-comparison');
+            if (comparison && S.trackerPreviousPct !== null) {
+              const current = _computeTrackerStats(range, days.map(d => S.dayCache[dateStr(d)] || _trackerEmptyDay()), anchor).avgPct;
+              const diff = current - S.trackerPreviousPct;
+              comparison.textContent = `Previous ${range === 'week' ? 'week' : range === 'month' ? 'month' : 'year'}: ${S.trackerPreviousPct}% · ${diff > 0 ? '+' : ''}${diff}% ${diff > 0 ? 'higher' : diff < 0 ? 'lower' : 'same'}`;
             }
           }
 
@@ -15532,48 +15302,26 @@ if (inp) {
               else if (s === 'tawhid') { bindTawhid(); }
               else if (s === 'ramadan') { bindRamadan(); hydrateRamadanCalendar(); }
               else if (s === 'reflection') { bindReflection(); }
-          else if (s === 'tracker') { 
-    // 1. Refresh the routine structure from the cloud FIRST so the math matches every device
-    getJSON('routine-struct').then(fresh => {
-      if (fresh && fresh.weekday && fresh.weekend) {
-        S.routineStruct = fresh;
-      }
-      hydrateTracker(); 
-    }).catch(() => hydrateTracker());
+          else if (s === 'tracker') {
+            getJSON('routine-struct').then(fresh => {
+              if (fresh && fresh.weekday && fresh.weekend) S.routineStruct = fresh;
+              hydrateTracker();
+            }).catch(() => hydrateTracker());
 
-    // 2. Subscribe to live updates for EVERY day in the tracker range
-    const range = S.trackerRange || 'week';
-    const now = new Date();
-    let daysToTrack = [];
-
-    if (range === 'week') {
-      const dayOfWeek = now.getDay();
-      const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-      const monday = new Date(now);
-      monday.setDate(now.getDate() + mondayOffset);
-      monday.setHours(0, 0, 0, 0);
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(monday);
-        d.setDate(monday.getDate() + i);
-        daysToTrack.push(dateStr(d));
-      }
-    } else {
-      const y = now.getFullYear(), m = now.getMonth();
-      const daysInMonth = new Date(y, m + 1, 0).getDate();
-      for (let d = 1; d <= daysInMonth; d++) {
-        daysToTrack.push(dateStr(new Date(y, m, d)));
-      }
-    }
-
-    // Live listener per day — a tick on mobile repaints desktop instantly
-    daysToTrack.forEach(ds => {
-      subscribeToKey('day:' + ds, (remoteDay) => {
-        if (!remoteDay) return;
-        S.dayCache[ds] = remoteDay;
-        if (S.screen === 'tracker') repaintTrackerFromCache();
-      });
-    });
-  }
+            const range = S.trackerRange || 'week';
+            const selectedDays = _trackerDays(range, _trackerAnchorDate());
+            const listenDays = range === 'year'
+              ? Array.from({ length: 12 }, (_, m) => _trackerDays('month', new Date(_trackerAnchorDate().getFullYear(), m, 1))).flat()
+              : selectedDays;
+            listenDays.forEach(d => {
+              const ds = dateStr(d);
+              subscribeToKey('day:' + ds, remoteDay => {
+                if (!remoteDay) return;
+                S.dayCache[ds] = remoteDay;
+                if (S.screen === 'tracker') repaintTrackerFromCache();
+              });
+            });
+          }
               else if (s === 'profile') { bindProfile(); }
               else if (s === 'settings') {
                 bindSettings();
@@ -15619,6 +15367,16 @@ if (inp) {
             try {
               const savedTrackerRange = localStorage.getItem('tracker-range');
               if (savedTrackerRange) S.trackerRange = savedTrackerRange;
+            } catch (e) {}
+            try {
+              const savedTrackerDate = localStorage.getItem('tracker-date');
+              if (savedTrackerDate && /^\d{4}-\d{2}-\d{2}$/.test(savedTrackerDate)) S.trackerDate = savedTrackerDate;
+              else {
+                const today = new Date();
+                S.trackerDate = dateStr(S.trackerRange === 'year' ? new Date(today.getFullYear(), 0, 1) :
+                  S.trackerRange === 'month' ? new Date(today.getFullYear(), today.getMonth(), 1) :
+                  _trackerPeriodStart('week', today));
+              }
             } catch (e) {}
             // One-time migration: drop old Uthmani surah caches so returning
             // users get the new Indo-Pak (Junagarhi) script.
