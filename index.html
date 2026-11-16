@@ -2293,6 +2293,43 @@
   }
 }      
 
+              
+/* Deen Guide - Circular checklist checkbox */
+.guide-task-checkbox {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  border: 1.5px solid #A1A1AA;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+}
+
+.guide-task-checkbox:checked {
+  background: transparent !important;
+  border-color: var(--green-l) !important;
+}
+
+.guide-task-checkbox:checked::after {
+  content: "";
+  width: 5px;
+  height: 9px;
+  border: solid var(--green-l);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+  margin-top: -2px;
+}
+
+.guide-task-checkbox:focus-visible {
+  outline: 2px solid var(--green-l);
+  outline-offset: 3px;
+}
+
         </style>
       </head>
 
@@ -15047,28 +15084,72 @@ Warm, respectful, scholarly, compassionate and educational.
     // Assistant message: Process Markdown into HTML
     div.style.cssText = 'align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);';
     
-    let formattedText = escapeHTML(text);
-    
-    // 1. Convert **bold** to <strong>
-    formattedText = formattedText.replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--tx); font-weight:600;">$1</strong>');
-    
-    // 2. Convert *italic* (or *"quote"*) to italics
-    formattedText = formattedText.replace(/\*(.*?)\*/g, '<em style="color:var(--tx);">$1</em>');
-    
-// 3. Convert bullet points with compact spacing
-formattedText = formattedText.replace(
-  /^\s*[\-\*]\s+(.*)$/gm,
-  '<div style="margin:2px 0 2px 16px; position:relative;">• $1</div>'
-);
-    
-    // 5. Convert code blocks `code` to styling
-    formattedText = formattedText.replace(/`(.*?)`/g, '<code style="background:var(--bg); padding:2px 6px; border-radius:4px; font-family:monospace; font-size:12px;">$1</code>');
+ 
+    // Convert assistant Markdown and interactive checklists
+    const lines = text.split('\n');
+    let totalTasks = 0;
+    let completedTasks = 0;
 
-formattedText = formattedText.replace(/\n{2,}/g, '<br>');
-formattedText = formattedText.replace(/\n/g, ' ');
-formattedText = formattedText.replace(/(<br>\s*){2,}/g, '<br>');
+    const formatText = (value) => {
+      return escapeHTML(value)
+        .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--tx);font-weight:600;">$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>')
+        .replace(/`(.*?)`/g, '<code>$1</code>');
+    };
 
-    div.innerHTML = formattedText;
+    const html = lines.map(line => {
+      const task = line.match(/^\s*(?:[•*-]\s*)?\[([ xX])\]\s*(.*)$/);
+
+      if (task) {
+        totalTasks++;
+        const checked = task[1].toLowerCase() === 'x';
+
+        if (checked) completedTasks++;
+
+      
+        return `
+          <label style="display:flex;align-items:center;gap:10px;margin:9px 0;cursor:pointer;">
+            <input type="checkbox" class="guide-task-checkbox"
+              ${checked ? 'checked' : ''}
+              style="appearance:none;-webkit-appearance:none;width:19px;height:19px;min-width:19px;flex-shrink:0;margin:0;padding:0;border:1.5px solid #A1A1AA;border-radius:50%;background:transparent;background-repeat:no-repeat;background-position:center;background-size:12px;cursor:pointer;">
+            <span>${formatText(task[2])}</span>
+          </label>`;
+      }
+
+      if (/^\s*Completed:\s*\d+\s*\/\s*\d+/i.test(line)) {
+        return `<div class="guide-task-count" style="margin-top:12px;font-weight:600;">
+          Completed: <span class="guide-completed">${completedTasks}</span>/<span class="guide-total">${totalTasks}</span>
+        </div>`;
+      }
+
+      return line ? formatText(line) : '<br>';
+    });
+
+    div.innerHTML = html.join('');
+
+    const checkboxes = div.querySelectorAll('.guide-task-checkbox');
+    const completedEl = div.querySelector('.guide-completed');
+    const totalEl = div.querySelector('.guide-total');
+
+    if (totalTasks > 0) {
+      if (!completedEl) {
+        const count = document.createElement('div');
+        count.className = 'guide-task-count';
+        count.style.cssText = 'margin-top:12px;font-weight:600;';
+        count.innerHTML = `Completed: <span class="guide-completed">${completedTasks}</span>/${totalTasks}`;
+        div.appendChild(count);
+      }
+
+      const updateCount = () => {
+        const done = [...checkboxes].filter(box => box.checked).length;
+        const count = div.querySelector('.guide-completed');
+        if (count) count.textContent = done;
+      };
+
+      checkboxes.forEach(box => {
+        box.addEventListener('change', updateCount);
+      });
+    }
   }
 
   thread.appendChild(div);
