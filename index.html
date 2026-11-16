@@ -17043,29 +17043,34 @@ if (composer && inp && !composer.dataset.focusBound) {
     } catch(e) {}
   }
 
-  function focusGuideInput(e) {
+ function focusGuideInput(e) {
   // If the user clicks the "Send" button, let the button do its job
   if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-  
+
   const input = document.getElementById('guide-input');
   if (input) input.focus();
-
-  document.addEventListener('click', function(e) {
-  // Look for the input box
-  const input = document.getElementById('guide-input');
-  
-  if (input) {
-    // Get the white container holding the input
-    const container = input.parentElement;
-    
-    // If you click the white background around the input (but NOT the Send button)
-    if (container && container.contains(e.target) && e.target !== input && e.target.tagName !== 'BUTTON') {
-      // Force the cursor to jump into the input box
-      input.focus();
-    }
-  }
-});
 }
+
+// ===== Make the ENTIRE Deen Guide composer focus the input on click =====
+// Attached once, at script load — NOT inside any function.
+document.addEventListener('click', function (e) {
+  var input = document.getElementById('guide-input');
+  if (!input) return;                                   // not on the guide page
+
+  // Find the composer wrapper (the div that directly holds the input)
+  var composer = document.getElementById('guide-composer') || input.parentElement;
+  if (!composer || !composer.contains(e.target)) return; // click was outside
+
+  // Don't hijack real interactive elements (Send button, mic, links, the input itself)
+  if (e.target.closest('button, a, input, textarea, select, label, [contenteditable="true"], [role="button"]')) {
+    return;
+  }
+
+  // Otherwise: focus the input and place the caret at the end
+  input.focus();
+  var len = input.value.length;
+  try { input.setSelectionRange(len, len); } catch (_) {}
+}, true); // capture phase = works even if inner code stops bubbling
       </script>
       </body>
       </html>
