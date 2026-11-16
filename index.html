@@ -2718,6 +2718,15 @@ div:has(> #guide-input) button {
           function pad(n) { return String(n).padStart(2, '0'); }
           function dateStr(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
         function fmtTime(d) { if (!d) return '--:--'; const c = new Date(d.getTime()); c.setSeconds(0, 0); c.setMinutes(c.getMinutes() + (d.getSeconds() >= 30 ? 1 : 0)); let h = c.getHours(), m = c.getMinutes(); let ap = h >= 12 ? 'PM' : 'AM'; let h12 = h % 12; if (h12 === 0) h12 = 12; return h12 + ':' + pad(m) + ' ' + ap; }
+        function fmtPrayerTime(d) {
+          if (!d) return '--:--';
+          return new Intl.DateTimeFormat('en-US', {
+            timeZone: getPrayerTimezone(),
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+          }).format(d);
+        }
               function fmtDur(ms) { 
             if (ms < 0) ms = 0; 
             // FIX: Use Math.ceil to round up partial seconds to the next whole second
@@ -3823,12 +3832,15 @@ function toast(msg) {
         throw new Error("Invalid calculated prayer time.");
       }
 
-      const d = new Date(baseDate);
-      d.setHours(0, 0, 0, 0);
-
-      const timeObj = new Date(
-        d.getTime() + hoursLocal * 3600000
-      );
+      // Prayer calculations return a wall-clock time in the selected
+      // location's timezone. Convert that local date/time to one absolute
+      // timestamp instead of adding it to midnight in the device timezone.
+      const year = baseDate.getFullYear();
+      const month = baseDate.getMonth();
+      const day = baseDate.getDate();
+      const utcMs = Date.UTC(year, month, day) +
+        (hoursLocal - timezone) * 3600000;
+      const timeObj = new Date(utcMs);
 
       if (Number.isNaN(timeObj.getTime())) {
         throw new Error("Invalid prayer time date.");
@@ -3906,35 +3918,50 @@ function toast(msg) {
     return (localAsUTC - Math.floor(date.getTime() / 1000) * 1000) / 3600000;
   }
 
-  function todaysTimes() {
-    const settings = S.settings;
-    const now = new Date();
-    const timezone = getPrayerTimezone();
+  function prayerDateTzOffset(locationDate) {
+    // Find the UTC instant corresponding to noon on the selected city's
+    // calendar date. This also handles daylight-saving changes on that date.
+    const wallNoonUtc = Date.UTC(
+      locationDate.getFullYear(),
+      locationDate.getMonth(),
+      locationDate.getDate(),
+      12, 0, 0, 0
+    );
+    let candidate = new Date(wallNoonUtc);
+    for (let i = 0; i < 3; i++) {
+      const offset = localTzOffset(candidate);
+      candidate = new Date(wallNoonUtc - offset * 3600000);
+    }
+    return localTzOffset(candidate);
+  }
 
+  function prayerLocalDate(referenceDate = new Date()) {
     const parts = new Intl.DateTimeFormat('en-CA', {
-      timeZone: timezone,
+      timeZone: getPrayerTimezone(),
       year: 'numeric',
       month: '2-digit',
       day: '2-digit'
-    }).formatToParts(now);
+    }).formatToParts(referenceDate);
 
     const values = {};
     for (const part of parts) {
-      if (part.type !== 'literal') values[part.type] = part.value;
+      if (part.type !== 'literal') values[part.type] = Number(part.value);
     }
 
-    const locationDate = new Date(
-      Number(values.year),
-      Number(values.month) - 1,
-      Number(values.day),
-      12, 0, 0, 0
-    );
+    // Keep the selected location's calendar date in the Date's local fields;
+    // the calculation converts the result to an absolute instant separately.
+    return new Date(values.year, values.month - 1, values.day, 12, 0, 0, 0);
+  }
+
+  function todaysTimes() {
+    const settings = S.settings;
+    const locationDate = prayerLocalDate();
 
     return computePrayerTimesFor(
       locationDate,
       settings.location.lat,
       settings.location.lng,
-      localTzOffset(locationDate),
+      prayerDateTzOffset(locationDate),
       settings.calcMethod,
       settings.asrMethod
     );
@@ -3946,7 +3973,7 @@ function toast(msg) {
       date,
       s.location.lat,
       s.location.lng,
-      localTzOffset(date),
+      prayerDateTzOffset(date),
       s.calcMethod,
       s.asrMethod
     );
@@ -8581,7 +8608,7 @@ return `<div class="scr" style="
       if (nameEl) nameEl.textContent = info.next.label;
 
       const timeEl = document.getElementById('next-prayer-time');
-      if (timeEl) timeEl.textContent = fmtTime(info.next.time);
+      if (timeEl) timeEl.textContent = fmtPrayerTime(info.next.time);
     }
 
 
@@ -8643,8 +8670,8 @@ return `<div class="scr" style="
       
     function nextPrayerInfo() {
       const now = new Date();
-      const today = new Date(now);
-      today.setHours(12, 0, 0, 0);
+      // Use the selected city's calendar date, not the computer's date.
+      const today = prayerLocalDate(now);
 
       const t = todaysTimes();
       const order = [
@@ -8742,7 +8769,7 @@ return `<div class="scr" style="
           else if (passed) tag = `<span class="tag tag-amber">Missed</span>`;
           else tag = `<span class="tag tag-muted">Upcoming</span>`;
           return `<div class="checkrow"><button class="chk ${status === 'completed' ? 'done' : ''}" data-salah="${k}"></button>
-            <div style="flex:1"><div class="rowtitle">${label}</div><div class="rowsub">${fmtTime(time)}</div></div>${tag}</div>`;
+            <div style="flex:1"><div class="rowtitle">${label}</div><div class="rowsub">${fmtPrayerTime(time)}</div></div>${tag}</div>`;
         }).join('');
         const anyMissed = order.some(([k]) => salah[k] !== 'completed' && order.find(o => o[0] === k)[2] < now);
         return rows + (anyMissed
@@ -8877,7 +8904,7 @@ return `<div class="scr" style="
                   <div>
                   <div style="color:var(--tx2);font-size:12.5px;font-weight:600;">Next Prayer</div>
                 <div id="next-prayer-name" style="font-size:24px;font-weight:800;margin-top:2px;">${info.next.label}</div>
-    <div id="next-prayer-time" style="color:var(--tx2);font-size:14px;margin-top:2px;">${fmtTime(info.next.time)}</div>
+    <div id="next-prayer-time" style="color:var(--tx2);font-size:14px;margin-top:2px;">${fmtPrayerTime(info.next.time)}</div>
                   </div>
                 <div style="text-align:right; display:flex; flex-direction:column; align-items:flex-end; justify-content:center;">
       <div id="pulse-countdown" style="font-size:26px;font-weight:800;color:var(--green-l);font-variant-numeric:tabular-nums;">${fmtDur(info.next.time - new Date())}</div>
@@ -11548,24 +11575,24 @@ return `<div class="scr" style="
                 <div class="grid2" style="margin-bottom:16px;">
                   <div class="card">
                     <div class="rowsub">Suhoor ends (Fajr)</div>
-                    <div style="font-size:22px;font-weight:800;margin-top:4px;">${fmtTime(suhoorEnd)}</div>
+                    <div style="font-size:22px;font-weight:800;margin-top:4px;">${fmtPrayerTime(suhoorEnd)}</div>
                     <div class="rowsub" style="margin-top:6px;">Stop eating before this.</div>
                   </div>
                   <div class="card">
                     <div class="rowsub">Iftar (Maghrib)</div>
-                    <div style="font-size:22px;font-weight:800;margin-top:4px;">${fmtTime(iftar)}</div>
+                    <div style="font-size:22px;font-weight:800;margin-top:4px;">${fmtPrayerTime(iftar)}</div>
                     <div class="rowsub" style="margin-top:6px;">Break the fast here.</div>
                   </div>
                 </div>
 
                 <div class="card" style="margin-bottom:16px;">
                   <div style="font-weight:600;margin-bottom:12px;">The fasting day</div>
-                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Suhoor</div><div class="rowsub">Pre-dawn meal &mdash; eat before Fajr</div></div><div style="font-weight:700;">${fmtTime(t.fajr)}</div></div>
-                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Fajr prayer</div><div class="rowsub">Begin the fast</div></div><div style="font-weight:700;">${fmtTime(t.fajr)}</div></div>
-                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Dhuhr prayer</div><div class="rowsub">Midday prayer</div></div><div style="font-weight:700;">${fmtTime(t.dhuhr)}</div></div>
-                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Asr prayer</div><div class="rowsub">Afternoon prayer</div></div><div style="font-weight:700;">${fmtTime(t.asr)}</div></div>
-                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Iftar (Maghrib)</div><div class="rowsub">Break the fast</div></div><div style="font-weight:700;color:var(--green-l)">${fmtTime(t.maghrib)}</div></div>
-                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Isha prayer</div><div class="rowsub">Night prayer</div></div><div style="font-weight:700;">${fmtTime(t.isha)}</div></div>
+                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Suhoor</div><div class="rowsub">Pre-dawn meal &mdash; eat before Fajr</div></div><div style="font-weight:700;">${fmtPrayerTime(t.fajr)}</div></div>
+                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Fajr prayer</div><div class="rowsub">Begin the fast</div></div><div style="font-weight:700;">${fmtPrayerTime(t.fajr)}</div></div>
+                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Dhuhr prayer</div><div class="rowsub">Midday prayer</div></div><div style="font-weight:700;">${fmtPrayerTime(t.dhuhr)}</div></div>
+                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Asr prayer</div><div class="rowsub">Afternoon prayer</div></div><div style="font-weight:700;">${fmtPrayerTime(t.asr)}</div></div>
+                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Iftar (Maghrib)</div><div class="rowsub">Break the fast</div></div><div style="font-weight:700;color:var(--green-l)">${fmtPrayerTime(t.maghrib)}</div></div>
+                  <div class="checkrow"><div style="flex:1"><div class="rowtitle">Isha prayer</div><div class="rowsub">Night prayer</div></div><div style="font-weight:700;">${fmtPrayerTime(t.isha)}</div></div>
                   <div class="checkrow" style="border-bottom:none;"><div style="flex:1"><div class="rowtitle">Tarawih</div><div class="rowsub">After Isha &mdash; voluntary</div></div><div style="font-weight:700;">After Isha</div></div>
                 </div>
 
