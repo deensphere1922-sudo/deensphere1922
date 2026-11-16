@@ -2383,6 +2383,43 @@ div:has(> #guide-input) button {
   touch-action: auto !important;
 }
 
+
+/* DEEN GUIDE — FULL INPUT CLICK & TYPING FIX */
+#guide-composer {
+  position: relative !important;
+  z-index: 9999 !important;
+  pointer-events: auto !important;
+  width: 100% !important;
+}
+
+#guide-input {
+  display: block !important;
+  position: relative !important;
+  z-index: 10000 !important;
+  flex: 1 1 0 !important;
+  min-width: 0 !important;
+  width: 100% !important;
+  pointer-events: auto !important;
+  user-select: text !important;
+  -webkit-user-select: text !important;
+  cursor: text !important;
+  opacity: 1 !important;
+  background: var(--card) !important;
+  color: var(--tx) !important;
+}
+
+#guide-input:disabled {
+  opacity: 1 !important;
+  cursor: text !important;
+  pointer-events: auto !important;
+  background: var(--card) !important;
+}
+
+#guide-input:focus {
+  outline: none !important;
+  border-color: var(--green-l) !important;
+}
+
         </style>
       </head>
 
@@ -15236,17 +15273,26 @@ Warm, respectful, scholarly, compassionate and educational.
               thinkingEl = null;
             };
 
-         const setInputBusy = (busy) => {
-  const inp = $('#guide-input');
-  const btn = $('#guide-send');
+       
+const setInputBusy = (busy) => {
+  const inp = document.getElementById('guide-input');
+  const btn = document.getElementById('guide-send');
 
-  if (inp) inp.disabled = busy;
+  // NEVER disable the typing area
+  if (inp) {
+    inp.disabled = false;
+    inp.readOnly = false;
+    inp.style.pointerEvents = 'auto';
+    inp.style.cursor = 'text';
+  }
 
+  // Only disable Send while generating
   if (btn) {
     btn.disabled = busy;
-    btn.textContent = busy ? '…' : 'Send';
+    btn.textContent = busy ? 'Thinking...' : 'Send';
   }
 };
+
 
             const ensureClearButton = () => {
               const hasAssistant = S.guideMsgs.some(m => m.role === 'assistant');
