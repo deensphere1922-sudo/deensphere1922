@@ -1044,7 +1044,7 @@
       /* ==================== TRACKER: sticky card pins just below the pg-head ==================== */
       .tracker-fixed-top {
         position: sticky;
-        top: 72px;
+        top: var(--tracker-sticky-base-top, 72px);
         z-index: 40;
         background: var(--bg);
         background-color: var(--bg) !important;
@@ -1057,7 +1057,8 @@
 
       @media (max-width: 880px) {
         .tracker-fixed-top {
-          top: 121px;
+          --tracker-sticky-base-top: 121px;
+          top: var(--tracker-sticky-base-top);
           padding: 10px 0 10px 0;
           margin-bottom: 10px;
         }
@@ -1071,7 +1072,7 @@
          while the following Day by day and Category totals content scrolls. */
       #tracker-period-notice:has(.tracker-period-notice-card) {
         position: sticky;
-        top: calc(72px + var(--tracker-fixed-top-height, 0px));
+        top: calc(var(--tracker-sticky-base-top, 72px) + var(--tracker-fixed-top-height, 0px));
         z-index: 45;
         display: flow-root;
         width: 100%;
@@ -1088,26 +1089,29 @@
       }
       @media (max-width: 880px) {
         #tracker-period-notice:has(.tracker-period-notice-card) {
-          top: calc(121px + var(--tracker-fixed-top-height, 0px));
+          top: calc(var(--tracker-sticky-base-top, 121px) + var(--tracker-fixed-top-height, 0px));
           z-index: 45;
         }
       }
 
-      /* Keep the Day by day label clearly visible below the sticky history banner. */
+      /* Day by day is normal document content: it scrolls with the Tracker. */
       .tracker-daybyday-heading {
         display: block;
         position: relative;
+        top: auto;
         z-index: 1;
         min-height: 24px;
         line-height: 1.5;
-        padding: 3px 0;
+        padding: 5px 0 7px;
         margin-top: 18px !important;
         margin-bottom: 8px !important;
-        background: var(--bg);
+        background: transparent;
         color: var(--tx);
+        box-shadow: none;
       }
       @media (max-width: 880px) {
         .tracker-daybyday-heading {
+          top: auto;
           margin-top: 16px !important;
           min-height: 24px;
         }
@@ -9509,16 +9513,59 @@ return `<div class="scr" style="
             const updateHeight = () => {
               if (!fixedTop.isConnected || !notice.isConnected) return;
               const height = Math.ceil(fixedTop.getBoundingClientRect().height);
+              const noticeHeight = notice.querySelector('.tracker-period-notice-card')
+                ? Math.ceil(notice.getBoundingClientRect().height)
+                : 0;
+              const heading = document.querySelector('.tracker-daybyday-heading');
               notice.style.setProperty('--tracker-fixed-top-height', `${height}px`);
+              if (heading) {
+                heading.style.setProperty('--tracker-fixed-top-height', `${height}px`);
+                heading.style.setProperty('--tracker-period-notice-height', `${noticeHeight}px`);
+              }
             };
 
+            // Re-measure after the browser applies the active Weekly/Monthly layout.
             updateHeight();
+            requestAnimationFrame(updateHeight);
+            requestAnimationFrame(() => requestAnimationFrame(updateHeight));
+
             if (typeof ResizeObserver !== 'undefined' && _trackerStickyObservedTop !== fixedTop) {
               if (_trackerStickyResizeObserver) _trackerStickyResizeObserver.disconnect();
               _trackerStickyResizeObserver = new ResizeObserver(updateHeight);
               _trackerStickyResizeObserver.observe(fixedTop);
               _trackerStickyObservedTop = fixedTop;
             }
+          }
+
+          // Return the Tracker to its initial screen after a range change.
+          // Blur the range control first so the browser cannot scroll it back
+          // into view after our reset. Reset the page and any Tracker content
+          // scroller after the updated Weekly/Monthly DOM has been painted.
+          function resetTrackerScrollPosition() {
+            const reset = () => {
+              const content = document.querySelector('.content');
+              const main = document.querySelector('.main');
+              const scrollingElement = document.scrollingElement || document.documentElement;
+              [content, main, scrollingElement, document.documentElement, document.body].forEach(el => {
+                if (!el) return;
+                try { el.scrollTop = 0; el.scrollLeft = 0; } catch (e) {}
+              });
+              try { window.scrollTo({ top: 0, left: 0, behavior: 'auto' }); } catch (e) {}
+              syncTrackerNoticeStickyOffset();
+            };
+
+            const active = document.activeElement;
+            if (active && active.id === 'tracker-range' && typeof active.blur === 'function') active.blur();
+            reset();
+            requestAnimationFrame(() => {
+              reset();
+              requestAnimationFrame(() => {
+                reset();
+                // A short final reset handles browsers that restore the select's
+                // focus scroll after the change event has completed.
+                setTimeout(reset, 60);
+              });
+            });
           }
 
           function repaintTrackerFromCache() {
@@ -9546,6 +9593,7 @@ return `<div class="scr" style="
             localStorage.setItem('tracker-period-date', S.trackerPeriodDate);
           } catch (e) {}
           render();
+          requestAnimationFrame(() => resetTrackerScrollPosition());
           hydrateTracker();
         };
       });
@@ -9561,6 +9609,9 @@ return `<div class="scr" style="
 
     const cats = document.getElementById('tracker-cats');
     if (cats) cats.innerHTML = _buildTrackerCatsHTML(range);
+
+    // Weekly and Monthly can have different heights; recalculate the sticky offset.
+    syncTrackerNoticeStickyOffset();
   }
 
                 const ROUTINE_STRUCT_DEFAULT = [
@@ -12438,6 +12489,7 @@ return `<div class="scr" style="
             S.trackerPeriodDate = dateStr(anchor);
             try { localStorage.setItem('tracker-period-date', S.trackerPeriodDate); } catch (e) {}
             repaintTrackerFromCache();
+            resetTrackerScrollPosition();
             hydrateTracker();
           }
 
@@ -12730,14 +12782,18 @@ return `<div class="scr" style="
             const sel = document.getElementById('tracker-range');
             if (sel) {
               sel.onchange = () => {
-                S.trackerRange = sel.value;
+                const selectedRange = sel.value;
+                if (typeof sel.blur === 'function') sel.blur();
+                S.trackerRange = selectedRange;
                 S.trackerPeriodDate = dateStr(new Date());
                 try {
-                  localStorage.setItem('tracker-range', sel.value);
+                  localStorage.setItem('tracker-range', selectedRange);
                   localStorage.setItem('tracker-period-date', S.trackerPeriodDate);
                 } catch (e) {}
                 repaintTrackerFromCache();
+                resetTrackerScrollPosition();
                 hydrateTracker();
+                requestAnimationFrame(() => resetTrackerScrollPosition());
               };
             }
 
