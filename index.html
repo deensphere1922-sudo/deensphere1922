@@ -940,23 +940,46 @@
         z-index: 2;
       }
 
-      /* 3. FORCE THE "JUMP TO TODAY" BUTTON TO BE WHITE */
-      .routine-past-banner button,
-      .routine-past-banner .btn,
-      .routine-past-banner .btn-ghost {
-        background-color: #FFFFFF !important;
-        color: #000000 !important;
-        border: 1px solid rgba(0, 0, 0, 0.1) !important;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05) !important;
-      }
+     
+/* JUMP TO TODAY – SAME DEENSPHERE GREEN THEME */
 
-      @media (hover: hover) {
-        .routine-past-banner button:hover,
-        .routine-past-banner .btn:hover,
-        .routine-past-banner .btn-ghost:hover {
-          background-color: #F3F4F6 !important;
-        }
-      }
+
+
+/* ===== DAILY ROUTINE – JUMP TO TODAY BUTTON ===== */
+
+/* LIGHT MODE */
+[data-theme="light"] .routine-past-banner button,
+[data-theme="light"] .routine-past-banner .btn,
+[data-theme="light"] .routine-past-banner .btn-ghost {
+    background: #FFFFFF !important;
+    color: #171717 !important;
+    border: 1px solid #E8EBE8 !important;
+    border-radius: 9px !important;
+    box-shadow: none !important;
+    font-weight: 600 !important;
+}
+
+/* DARK MODE */
+[data-theme="dark"] .routine-past-banner button,
+[data-theme="dark"] .routine-past-banner .btn,
+[data-theme="dark"] .routine-past-banner .btn-ghost {
+    background: #171717 !important;
+    color: #FFFFFF !important;
+    border: 1px solid #242424 !important;
+    border-radius: 9px !important;
+    box-shadow: none !important;
+    font-weight: 600 !important;
+}
+
+/* HOVER */
+@media (hover: hover) {
+    .routine-past-banner button:hover {
+        opacity: 0.85;
+    }
+}
+  
+
+
 
       /* Each heading sticks only for the height of its own section. The next
          section naturally replaces it when it reaches the same top position. */
