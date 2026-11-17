@@ -1043,6 +1043,53 @@
         .tracker-fixed-top #tracker-overall { padding: 14px 16px !important; }
       }
 
+      /* Tracker history notice: stay pinned directly below the range + summary
+         card. The wrapper is sticky (not just its child), so it can remain fixed
+         while the following Day by day and Category totals content scrolls. */
+      #tracker-period-notice:has(.tracker-period-notice-card) {
+        position: sticky;
+        top: calc(72px + var(--tracker-fixed-top-height, 0px));
+        z-index: 45;
+        display: flow-root;
+        width: 100%;
+        background: var(--bg);
+        isolation: isolate;
+        box-shadow: 0 10px 0 var(--bg);
+      }
+      #tracker-period-notice .tracker-period-notice-card {
+        position: relative;
+        z-index: 1;
+        background: color-mix(in srgb, var(--gold) 10%, var(--bg)) !important;
+        border: 1px solid var(--gold) !important;
+        margin: 0 0 14px !important;
+      }
+      @media (max-width: 880px) {
+        #tracker-period-notice:has(.tracker-period-notice-card) {
+          top: calc(121px + var(--tracker-fixed-top-height, 0px));
+          z-index: 45;
+        }
+      }
+
+      /* Keep the Day by day label clearly visible below the sticky history banner. */
+      .tracker-daybyday-heading {
+        display: block;
+        position: relative;
+        z-index: 1;
+        min-height: 24px;
+        line-height: 1.5;
+        padding: 3px 0;
+        margin-top: 18px !important;
+        margin-bottom: 8px !important;
+        background: var(--bg);
+        color: var(--tx);
+      }
+      @media (max-width: 880px) {
+        .tracker-daybyday-heading {
+          margin-top: 16px !important;
+          min-height: 24px;
+        }
+      }
+
           .settings-fixed-top {
             position: sticky; top: 72px; z-index: 50; background: var(--bg);
             padding: 10px 0 10px 0; margin-bottom: 8px;
@@ -9428,6 +9475,29 @@ return `<div class="scr" style="
             });
           }
 
+          let _trackerStickyResizeObserver = null;
+          let _trackerStickyObservedTop = null;
+
+          function syncTrackerNoticeStickyOffset() {
+            const fixedTop = document.querySelector('.tracker-fixed-top');
+            const notice = document.getElementById('tracker-period-notice');
+            if (!fixedTop || !notice) return;
+
+            const updateHeight = () => {
+              if (!fixedTop.isConnected || !notice.isConnected) return;
+              const height = Math.ceil(fixedTop.getBoundingClientRect().height);
+              notice.style.setProperty('--tracker-fixed-top-height', `${height}px`);
+            };
+
+            updateHeight();
+            if (typeof ResizeObserver !== 'undefined' && _trackerStickyObservedTop !== fixedTop) {
+              if (_trackerStickyResizeObserver) _trackerStickyResizeObserver.disconnect();
+              _trackerStickyResizeObserver = new ResizeObserver(updateHeight);
+              _trackerStickyResizeObserver.observe(fixedTop);
+              _trackerStickyObservedTop = fixedTop;
+            }
+          }
+
           function repaintTrackerFromCache() {
     if (S.screen !== 'tracker') return;
 
@@ -9461,6 +9531,7 @@ return `<div class="scr" style="
     const notice = document.getElementById('tracker-period-notice');
     if (notice) {
       notice.innerHTML = _trackerPeriodNoticeHTML(range);
+      syncTrackerNoticeStickyOffset();
       const jumpButton = document.getElementById('tracker-jump-current');
       if (jumpButton) jumpButton.onclick = _jumpTrackerToCurrentPeriod;
     }
@@ -12230,7 +12301,7 @@ return `<div class="scr" style="
                   </div>
                   <div id="tracker-period-notice">${_trackerPeriodNoticeHTML(range)}</div>
 
-                  <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">Day by day</div>
+                  <div class="pg-sub tracker-daybyday-heading" style="font-weight:600;color:var(--tx);">Day by day</div>
                   <div id="tracker-grid" class="card" style="margin-bottom:16px;">${initialGrid}</div>
                   <div class="pg-sub" style="font-weight:600;color:var(--tx);margin-bottom:8px;">Category totals</div>
                   <div id="tracker-cats">${initialCats}</div>`;
@@ -12295,7 +12366,7 @@ return `<div class="scr" style="
             const isWeek = range === 'week';
             const periodText = _trackerPeriodLabel(range);
             const jumpText = isWeek ? 'Jump to this week' : 'Jump to this month';
-            return `<div class="card" style="margin:0 0 14px;padding:16px 18px;border:1px solid var(--gold);background:var(--gold-dim);">
+            return `<div class="card tracker-period-notice-card" style="margin:0 0 14px;padding:16px 18px;border:1px solid var(--gold);background:var(--gold-dim);">
               <div style="font-size:14px;line-height:1.55;color:var(--tx);margin-bottom:12px;">
                 You are viewing <strong>${periodText}</strong>.
               </div>
@@ -15767,6 +15838,7 @@ if (inp) {
               else if (s === 'ramadan') { bindRamadan(); hydrateRamadanCalendar(); }
               else if (s === 'reflection') { bindReflection(); }
           else if (s === 'tracker') { 
+    syncTrackerNoticeStickyOffset();
     // 1. Refresh the routine structure from the cloud FIRST so the math matches every device
     getJSON('routine-struct').then(fresh => {
       if (fresh && fresh.weekday && fresh.weekend) {
