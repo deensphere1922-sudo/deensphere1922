@@ -12451,9 +12451,27 @@ return `<div class="scr" style="
           }
 
           function _jumpTrackerToCurrentPeriod() {
+            // Return to the actual current period without changing the selected
+            // Weekly/Monthly range or touching any historical records.
             S.trackerPeriodDate = dateStr(new Date());
             try { localStorage.setItem('tracker-period-date', S.trackerPeriodDate); } catch (e) {}
+
+            // Immediately rebuild the visible Tracker using the current period.
+            // This also removes the historical-period notice and updates the label,
+            // progress summary, daily grid and category totals.
             repaintTrackerFromCache();
+
+            // Jump back to the Tracker's initial screen after the DOM has updated.
+            // Repeat after paint to avoid the old scroll position being restored
+            // by the clicked button or by the refreshed content height.
+            resetTrackerScrollPosition();
+            requestAnimationFrame(() => {
+              resetTrackerScrollPosition();
+              requestAnimationFrame(() => resetTrackerScrollPosition());
+            });
+
+            // Fetch any uncached records for the current week/month. Hydration
+            // refreshes the same visible sections but does not reset user scrolling.
             hydrateTracker();
           }
 
