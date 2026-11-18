@@ -15024,6 +15024,7 @@ return `<div class="scr" style="
 let _ytBackgroundScrollState = null;
 
 
+
 function lockYouTubeBackgroundScroll() {
   if (_ytBackgroundScrollState) return;
 
@@ -15031,14 +15032,16 @@ function lockYouTubeBackgroundScroll() {
   const body = document.body;
 
   _ytBackgroundScrollState = {
+    scrollY: window.scrollY,
     htmlOverflow: html.style.overflow,
     bodyOverflow: body.style.overflow
   };
 
-  // Lock scrolling without moving the page or hiding its content.
   html.style.overflow = 'hidden';
   body.style.overflow = 'hidden';
 }
+
+
 
 
 
@@ -15054,7 +15057,15 @@ function unlockYouTubeBackgroundScroll() {
     state.bodyOverflow;
 
   _ytBackgroundScrollState = null;
+
+  // Restore the exact position where the video was opened.
+  window.scrollTo({
+    top: state.scrollY,
+    left: 0,
+    behavior: 'instant'
+  });
 }
+
 
 
 async function openYouTubePlayer(videoId) {
