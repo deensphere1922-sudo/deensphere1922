@@ -2840,6 +2840,252 @@ div:has(> #guide-input) button {
 }
 
 
+
+
+/* =========================================================
+   DEEN SPHERE – SITE-WIDE SOFT MOTION
+   Subtle staggered content reveal + smooth, restrained hover.
+   Layout, sizing, sticky behaviour and app logic are unchanged.
+========================================================= */
+
+@keyframes dsContentReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Animate newly rendered page content and its main sections. */
+.content > *,
+.content .pg-head,
+.content .home-fixed-header,
+.content .routine-sticky-shell,
+.content .settings-section,
+.content .card,
+.content .card-el {
+  animation: dsContentReveal .48s cubic-bezier(.22, 1, .36, 1) both;
+}
+
+/* A small, consistent stagger so content arrives one item at a time. */
+.content > *:nth-child(2),
+.content .card:nth-child(2),
+.content .card-el:nth-child(2) { animation-delay: 55ms; }
+
+.content > *:nth-child(3),
+.content .card:nth-child(3),
+.content .card-el:nth-child(3) { animation-delay: 105ms; }
+
+.content > *:nth-child(4),
+.content .card:nth-child(4),
+.content .card-el:nth-child(4) { animation-delay: 155ms; }
+
+.content > *:nth-child(5),
+.content .card:nth-child(5),
+.content .card-el:nth-child(5) { animation-delay: 205ms; }
+
+.content > *:nth-child(6),
+.content .card:nth-child(6),
+.content .card-el:nth-child(6) { animation-delay: 255ms; }
+
+.content > *:nth-child(n+7) { animation-delay: 295ms; }
+
+/* Re-enable smooth transitions where an earlier global rule disabled them. */
+body,
+.card,
+.card-el,
+.sidebar,
+.topbar,
+.bottomnav,
+.theme-toggle,
+.audio-bar:not(.dragging),
+.speed-menu,
+.btn,
+.btn-ghost,
+.btn-primary,
+.btn-text,
+.tag,
+.tag-green,
+.tag-gold,
+.tag-amber,
+.tag-muted,
+.chk,
+.rowtitle,
+.rowsub,
+.navitem {
+  transition:
+    background-color .22s ease,
+    background .22s ease,
+    color .22s ease,
+    border-color .22s ease,
+    box-shadow .24s ease,
+    opacity .22s ease,
+    transform .24s cubic-bezier(.2, .75, .25, 1) !important;
+}
+
+/* Restrained hover feedback – visible but never exaggerated. */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .content .card:not(.verse-playing):hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in srgb, var(--green-l) 24%, var(--border));
+    box-shadow: 0 8px 22px rgba(0, 0, 0, .10);
+  }
+
+  .content .card-el:hover {
+    border-color: color-mix(in srgb, var(--green-l) 22%, var(--border));
+  }
+
+  .btn,
+  .btn-ghost,
+  .btn-primary,
+  .navitem,
+  .bottomnav button,
+  .theme-toggle {
+    transition:
+      background-color .2s ease,
+      color .2s ease,
+      border-color .2s ease,
+      box-shadow .22s ease,
+      transform .22s ease !important;
+  }
+
+  .btn:hover,
+  .btn-ghost:hover,
+  .btn-primary:hover {
+    transform: translateY(-1px);
+  }
+
+  .navitem:hover {
+    transform: translateX(2px);
+  }
+
+  .bottomnav button:hover {
+    color: var(--green-l);
+  }
+}
+
+/* Smooth focus feedback without changing input dimensions. */
+input,
+select,
+textarea {
+  transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  box-shadow: 0 0 0 3px var(--green-dim);
+}
+
+/* Keep active audio dragging and all reduced-motion preferences untouched. */
+.audio-bar.dragging,
+.audio-bar .ab-seek.dragging,
+.audio-bar .ab-seek.dragging * {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .content > *,
+  .content .pg-head,
+  .content .home-fixed-header,
+  .content .routine-sticky-shell,
+  .content .settings-section,
+  .content .card,
+  .content .card-el {
+    animation: none !important;
+  }
+
+  body,
+  .card,
+  .card-el,
+  .sidebar,
+  .topbar,
+  .bottomnav,
+  .theme-toggle,
+  .audio-bar,
+  .speed-menu,
+  .btn,
+  .btn-ghost,
+  .btn-primary,
+  .btn-text,
+  .tag,
+  .tag-green,
+  .tag-gold,
+  .tag-amber,
+  .tag-muted,
+  .chk,
+  .rowtitle,
+  .rowsub,
+  .navitem,
+  input,
+  select,
+  textarea {
+    transition: none !important;
+    transform: none !important;
+  }
+}
+
+
+/* Site-wide: extremely subtle hover feedback. Keep every element in place. */
+@media (hover: hover) {
+  .content .card:not(.verse-playing):hover,
+  .content .card-el:hover,
+  .btn:hover,
+  .btn-ghost:hover,
+  .btn-primary:hover,
+  .navitem:hover,
+  .bottomnav button:hover,
+  .theme-toggle:hover {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  .content .card:not(.verse-playing):hover,
+  .content .card-el:hover {
+    border-color: var(--border) !important;
+  }
+
+  .btn:hover,
+  .btn-ghost:hover,
+  .btn-primary:hover,
+  .navitem:hover,
+  .bottomnav button:hover,
+  .theme-toggle:hover {
+    filter: none !important;
+    opacity: .96;
+  }
+}
+
+/* Tracker category totals: completely steady, with no hover movement or glow. */
+#tracker-cats .card {
+  animation: none !important;
+  transform: none !important;
+  transition: background-color .14s ease, border-color .14s ease !important;
+}
+#tracker-cats .card:hover {
+  transform: none !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+
+/* Sidebar navigation: ultra-subtle hover only; keep the active item unchanged. */
+@media (hover: hover) {
+  .sidebar .navitem:not(.active):hover {
+    background: color-mix(in srgb, var(--tx) 3%, transparent) !important;
+    color: var(--tx2) !important;
+    opacity: 1 !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+  .sidebar .navitem {
+    transition: background-color .16s ease, color .16s ease !important;
+  }
+}
+
 </style>
       <!-- Code injected by Five-server -->
   <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
