@@ -2843,58 +2843,161 @@ div:has(> #guide-input) button {
 
 
 /* =========================================================
-   DEEN SPHERE – SITE-WIDE SOFT MOTION
-   Subtle staggered content reveal + smooth, restrained hover.
-   Layout, sizing, sticky behaviour and app logic are unchanged.
+   DEEN SPHERE – STABLE SITE-WIDE MOTION
+   Screen-entry animation only; no nested/repeating animations.
+   Existing layout, sticky behaviour, UI and app logic stay unchanged.
 ========================================================= */
 
-@keyframes dsContentReveal {
+@keyframes dsScreenContentEnter {
   from {
     opacity: 0;
-    transform: translate3d(0, 12px, 0);
+    transform: translateY(4px);
   }
   to {
     opacity: 1;
-    transform: translate3d(0, 0, 0);
+    transform: translateY(0);
   }
 }
 
-/* Animate newly rendered page content and its main sections. */
-.content > *,
-.content .pg-head,
-.content .home-fixed-header,
-.content .routine-sticky-shell,
-.content .settings-section,
-.content .card,
-.content .card-el {
-  animation: dsContentReveal .48s cubic-bezier(.22, 1, .36, 1) both;
+/* Apply the same medium-speed reveal to every screen container.
+   The 0.4s ease timing matches the existing tracker date-label transition:
+   smooth enough to notice, but not slow or overly animated. */
+:is(.content, #app).ds-screen-enter > * {
+  animation: dsScreenContentEnter 0.4s ease both;
+  will-change: opacity, transform;
+}
+/* Deen Guide owns its internal sequence; prevent a second parent animation. */
+.content.ds-screen-enter > #deen-guide-screen {
+  animation: none !important;
+  transform: none !important;
+  opacity: 1 !important;
 }
 
-/* A small, consistent stagger so content arrives one item at a time. */
-.content > *:nth-child(2),
-.content .card:nth-child(2),
-.content .card-el:nth-child(2) { animation-delay: 55ms; }
+/* Sequential top-to-bottom reveal, with a consistent gentle rhythm. */
+:is(.content, #app).ds-screen-enter > *:nth-child(1) { animation-delay: 0ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(2) { animation-delay: 100ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(3) { animation-delay: 200ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(4) { animation-delay: 300ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(5) { animation-delay: 400ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(6) { animation-delay: 500ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(7) { animation-delay: 600ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(8) { animation-delay: 700ms; }
+:is(.content, #app).ds-screen-enter > *:nth-child(n+9) { animation-delay: 800ms; }
 
-.content > *:nth-child(3),
-.content .card:nth-child(3),
-.content .card-el:nth-child(3) { animation-delay: 105ms; }
+/* Daily Routine: reveal each routine section, then its checklist rows,
+   using the same Tracker-style fade and gentle upward movement. */
+#routine-body.ds-routine-sequence > .routine-past-banner,
+#routine-body.ds-routine-sequence > div > .routine-section,
+#routine-body.ds-routine-sequence > div > .card {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(1) { animation-delay: 0ms; }
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(2) { animation-delay: 100ms; }
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(3) { animation-delay: 200ms; }
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(4) { animation-delay: 300ms; }
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(5) { animation-delay: 400ms; }
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(6) { animation-delay: 500ms; }
+#routine-body.ds-routine-sequence > div > .routine-section:nth-of-type(n+7) { animation-delay: 600ms; }
 
-.content > *:nth-child(4),
-.content .card:nth-child(4),
-.content .card-el:nth-child(4) { animation-delay: 155ms; }
+#routine-body.ds-routine-sequence .routine-section .checkrow {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+#routine-body.ds-routine-sequence .routine-section .checkrow:nth-of-type(1) { animation-delay: 100ms; }
+#routine-body.ds-routine-sequence .routine-section .checkrow:nth-of-type(2) { animation-delay: 200ms; }
+#routine-body.ds-routine-sequence .routine-section .checkrow:nth-of-type(3) { animation-delay: 300ms; }
+#routine-body.ds-routine-sequence .routine-section .checkrow:nth-of-type(4) { animation-delay: 400ms; }
+#routine-body.ds-routine-sequence .routine-section .checkrow:nth-of-type(5) { animation-delay: 500ms; }
+#routine-body.ds-routine-sequence .routine-section .checkrow:nth-of-type(n+6) { animation-delay: 600ms; }
 
-.content > *:nth-child(5),
-.content .card:nth-child(5),
-.content .card-el:nth-child(5) { animation-delay: 205ms; }
+/* Ramadan screen: extend the Tracker-style one-by-one reveal into
+   the content inside each section as well as the main page sections. */
+.content.ds-screen-enter:has(#ramadan-cal) .grid2 > .card {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+.content.ds-screen-enter:has(#ramadan-cal) .grid2 > .card:nth-child(1) { animation-delay: 100ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .grid2 > .card:nth-child(2) { animation-delay: 200ms; }
 
-.content > *:nth-child(6),
-.content .card:nth-child(6),
-.content .card-el:nth-child(6) { animation-delay: 255ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(1) { animation-delay: 100ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(2) { animation-delay: 200ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(3) { animation-delay: 300ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(4) { animation-delay: 400ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(5) { animation-delay: 500ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(6) { animation-delay: 600ms; }
+.content.ds-screen-enter:has(#ramadan-cal) .card > .checkrow:nth-of-type(n+7) { animation-delay: 700ms; }
 
-.content > *:nth-child(n+7) { animation-delay: 295ms; }
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day] {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day]:nth-child(1) { animation-delay: 0ms; }
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day]:nth-child(2) { animation-delay: 70ms; }
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day]:nth-child(3) { animation-delay: 140ms; }
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day]:nth-child(4) { animation-delay: 210ms; }
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day]:nth-child(5) { animation-delay: 280ms; }
+.content.ds-screen-enter #ramadan-cal [data-ramadan-day]:nth-child(n+6) { animation-delay: 350ms; }
 
-/* Re-enable smooth transitions where an earlier global rule disabled them. */
-body,
+/* Ummah Hub: reveal the loaded news cards (or the empty/error card)
+   one by one with the same Tracker-style 0.4s fade and 4px rise. */
+#news-list.ds-news-sequence > .card,
+#news-list.ds-news-sequence .videos-grid > .card {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(1) { animation-delay: 0ms; }
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(2) { animation-delay: 100ms; }
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(3) { animation-delay: 200ms; }
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(4) { animation-delay: 300ms; }
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(5) { animation-delay: 400ms; }
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(6) { animation-delay: 500ms; }
+#news-list.ds-news-sequence .videos-grid > .card:nth-child(n+7) { animation-delay: 600ms; }
+
+/* Shared Tracker-style sequence for content nested inside the shown screens. */
+.ds-stagger-item {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+/* Adhkar list: reveal each dua card and category heading in sequence. */
+#adhkar-list > .card,
+#adhkar-list > .pg-sub {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+
+/* Deen Guide: Tracker-style entrance, activated only on actual screen navigation.
+   The .content.ds-screen-enter class is applied once when entering this screen.
+   Same-screen renders therefore never restart the animation or cause blinking. */
+.content.ds-screen-enter > #deen-guide-screen {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+.content.ds-screen-enter #deen-guide-screen > .pg-head,
+.content.ds-screen-enter #deen-guide-screen > .card,
+.content.ds-screen-enter #deen-guide-screen > #guide-composer {
+  animation: dsScreenContentEnter 0.4s ease both;
+  will-change: auto;
+}
+.content.ds-screen-enter #deen-guide-screen > .pg-head { animation-delay: 0ms; }
+.content.ds-screen-enter #deen-guide-screen > .card { animation-delay: 100ms; }
+.content.ds-screen-enter #deen-guide-screen > #guide-thread { animation: none !important; }
+.content.ds-screen-enter #deen-guide-screen > #guide-composer { animation-delay: 400ms; }
+
+.content.ds-screen-enter #guide-thread > .empty {
+  animation: dsScreenContentEnter 0.4s ease both;
+  animation-delay: 200ms;
+  will-change: auto;
+}
+.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip] {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip]:nth-of-type(1) { animation-delay: 300ms; }
+.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip]:nth-of-type(2) { animation-delay: 400ms; }
+.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip]:nth-of-type(3) { animation-delay: 500ms; }
+
+#guide-thread > .guide-message-enter {
+  animation: none !important;
+}
+
+/* Soft, consistent interaction feedback without moving elements. */
 .card,
 .card-el,
 .sidebar,
@@ -2915,72 +3018,70 @@ body,
 .chk,
 .rowtitle,
 .rowsub,
-.navitem {
+.navitem,
+.bottomnav button {
   transition:
-    background-color .22s ease,
-    background .22s ease,
-    color .22s ease,
-    border-color .22s ease,
-    box-shadow .24s ease,
-    opacity .22s ease,
-    transform .24s cubic-bezier(.2, .75, .25, 1) !important;
+    background-color .2s ease,
+    color .2s ease,
+    border-color .2s ease,
+    box-shadow .2s ease,
+    opacity .2s ease !important;
 }
 
-/* Restrained hover feedback – visible but never exaggerated. */
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
-  .content .card:not(.verse-playing):hover {
-    transform: translateY(-2px);
-    border-color: color-mix(in srgb, var(--green-l) 24%, var(--border));
-    box-shadow: 0 8px 22px rgba(0, 0, 0, .10);
-  }
-
+  /* Cards remain fixed in place; only a restrained green border tint appears. */
+  .content .card:not(.verse-playing):hover,
   .content .card-el:hover {
-    border-color: color-mix(in srgb, var(--green-l) 22%, var(--border));
-  }
-
-  .btn,
-  .btn-ghost,
-  .btn-primary,
-  .navitem,
-  .bottomnav button,
-  .theme-toggle {
-    transition:
-      background-color .2s ease,
-      color .2s ease,
-      border-color .2s ease,
-      box-shadow .22s ease,
-      transform .22s ease !important;
+    transform: none !important;
+    border-color: color-mix(in srgb, var(--green-l) 18%, var(--border));
+    box-shadow: none !important;
   }
 
   .btn:hover,
   .btn-ghost:hover,
-  .btn-primary:hover {
-    transform: translateY(-1px);
+  .btn-primary:hover,
+  .navitem:hover,
+  .bottomnav button:hover,
+  .theme-toggle:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    opacity: .97;
   }
 
-  .navitem:hover {
-    transform: translateX(2px);
-  }
+  .bottomnav button:hover { color: var(--green-l); }
 
-  .bottomnav button:hover {
-    color: var(--green-l);
+  .sidebar .navitem:not(.active):hover {
+    background: color-mix(in srgb, var(--tx) 3%, transparent);
+    color: var(--tx2);
+    opacity: 1;
   }
 }
 
-/* Smooth focus feedback without changing input dimensions. */
+/* Tracker category totals stay completely steady. */
+#tracker-cats .card {
+  animation: none !important;
+  transform: none !important;
+  transition: background-color .14s ease, border-color .14s ease !important;
+}
+#tracker-cats .card:hover {
+  transform: none !important;
+  border-color: var(--border) !important;
+  box-shadow: none !important;
+}
+
+/* Smooth focus indication without changing input dimensions. */
 input,
 select,
 textarea {
   transition: border-color .2s ease, box-shadow .2s ease, background-color .2s ease !important;
 }
-
 input:focus,
 select:focus,
 textarea:focus {
   box-shadow: 0 0 0 3px var(--green-dim);
 }
 
-/* Keep active audio dragging and all reduced-motion preferences untouched. */
+/* Never animate while the user is dragging audio controls. */
 .audio-bar.dragging,
 .audio-bar .ab-seek.dragging,
 .audio-bar .ab-seek.dragging * {
@@ -2988,17 +3089,12 @@ textarea:focus {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .content > *,
-  .content .pg-head,
-  .content .home-fixed-header,
-  .content .routine-sticky-shell,
-  .content .settings-section,
-  .content .card,
-  .content .card-el {
+  :is(.content, #app).ds-screen-enter > * {
     animation: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+    will-change: auto !important;
   }
-
-  body,
   .card,
   .card-el,
   .sidebar,
@@ -3025,64 +3121,6 @@ textarea:focus {
   textarea {
     transition: none !important;
     transform: none !important;
-  }
-}
-
-
-/* Site-wide: extremely subtle hover feedback. Keep every element in place. */
-@media (hover: hover) {
-  .content .card:not(.verse-playing):hover,
-  .content .card-el:hover,
-  .btn:hover,
-  .btn-ghost:hover,
-  .btn-primary:hover,
-  .navitem:hover,
-  .bottomnav button:hover,
-  .theme-toggle:hover {
-    transform: none !important;
-    box-shadow: none !important;
-  }
-
-  .content .card:not(.verse-playing):hover,
-  .content .card-el:hover {
-    border-color: var(--border) !important;
-  }
-
-  .btn:hover,
-  .btn-ghost:hover,
-  .btn-primary:hover,
-  .navitem:hover,
-  .bottomnav button:hover,
-  .theme-toggle:hover {
-    filter: none !important;
-    opacity: .96;
-  }
-}
-
-/* Tracker category totals: completely steady, with no hover movement or glow. */
-#tracker-cats .card {
-  animation: none !important;
-  transform: none !important;
-  transition: background-color .14s ease, border-color .14s ease !important;
-}
-#tracker-cats .card:hover {
-  transform: none !important;
-  border-color: var(--border) !important;
-  box-shadow: none !important;
-}
-
-
-/* Sidebar navigation: ultra-subtle hover only; keep the active item unchanged. */
-@media (hover: hover) {
-  .sidebar .navitem:not(.active):hover {
-    background: color-mix(in srgb, var(--tx) 3%, transparent) !important;
-    color: var(--tx2) !important;
-    opacity: 1 !important;
-    transform: none !important;
-    box-shadow: none !important;
-  }
-  .sidebar .navitem {
-    transition: background-color .16s ease, color .16s ease !important;
   }
 }
 
@@ -7484,6 +7522,14 @@ function toast(msg) {
               </a>`).join('')}</div>`;
           }
 
+          function _applyNewsOneByOneEntrance() {
+            const box = document.getElementById('news-list');
+            if (!box || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            box.classList.remove('ds-news-sequence');
+            void box.offsetWidth;
+            box.classList.add('ds-news-sequence');
+          }
+
           async function hydrateNews(force) {
             const box = document.getElementById('news-list');
             if (!box) return;
@@ -7491,6 +7537,7 @@ function toast(msg) {
             const cached = !force && _newsCacheGet();
             if (cached) {
               box.innerHTML = _buildNewsCards(cached, S.newsCat || 'All');
+              _applyNewsOneByOneEntrance();
               _bindNewsCatChips(cached);
               return;
             }
@@ -7502,6 +7549,7 @@ function toast(msg) {
               const items = Array.isArray(data.items) ? data.items : [];
               _newsCacheSet(items);
               box.innerHTML = _buildNewsCards(items, S.newsCat || 'All');
+              _applyNewsOneByOneEntrance();
               _bindNewsCatChips(items);
             } catch (e) {
               console.warn('News fetch failed:', e);
@@ -7510,6 +7558,7 @@ function toast(msg) {
                 <div class="rowsub" style="line-height:1.6;">Check your connection and try again.</div>
                 <button class="btn btn-primary" style="margin-top:14px;" id="news-retry">Retry</button>
               </div>`;
+              _applyNewsOneByOneEntrance();
               const retry = document.getElementById('news-retry');
               if (retry) retry.onclick = () => hydrateNews(true);
             }
@@ -7526,7 +7575,10 @@ function toast(msg) {
                   x.style.color = a ? 'var(--green-l)' : 'var(--tx2)';
                 });
                 const box = document.getElementById('news-list');
-                if (box) box.innerHTML = _buildNewsCards(items, S.newsCat);
+                if (box) {
+                  box.innerHTML = _buildNewsCards(items, S.newsCat);
+                  _applyNewsOneByOneEntrance();
+                }
               };
             });
           }
@@ -7690,6 +7742,15 @@ function toast(msg) {
           screen = 'home';
           arg = undefined;
           verseArg = undefined;
+        }
+
+        // Apply this to every navigation entry point (desktop sidebar,
+        // mobile bottom navigation, and in-page data-nav buttons): if the
+        // requested destination is already the current screen, do nothing.
+        // Ignore stale route arguments here so a repeated click cannot repaint
+        // the screen or restart its entrance transition.
+        if (screen === S.screen) {
+          return;
         }
 
         teardownSettingsFreeze();
@@ -7935,6 +7996,8 @@ function toast(msg) {
           }
           function logoSvg(size) { return `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none"><path d="M8 30V20a12 12 0 0124 0v10" stroke="#2FAE7B" stroke-width="2.6" stroke-linecap="round"/><circle cx="20" cy="10" r="2.4" fill="#C9A961"/></svg>`; }
 
+                let _lastRenderedAnimatedScreen = null;
+
                 function render() {
             const app = $('#app');
             
@@ -7953,16 +8016,18 @@ function toast(msg) {
         }
             document.body.classList.toggle('profile-locked', S.screen === 'profile');
             const s = S.screen;
-            if (s === 'splash') { app.innerHTML = renderSplash(); return; }
-            if (s === 'onboarding') { app.innerHTML = renderOnboarding(); bindOnboarding(); return; }
-            if (s === 'auth') { app.innerHTML = renderAuth(); bindAuth(); return; }
-            if (s === 'forgot-password') { app.innerHTML = renderForgotPassword(); bindForgotPassword(); return; }
-          if (s === 'reset-password') { app.innerHTML = renderResetPassword(); bindResetPassword(); return; }
-      if (s === 'reset-password-expired') { app.innerHTML = renderResetPasswordExpired(); bindResetPasswordExpired(); return; }
-            if (s === 'setup-location') { app.innerHTML = renderSetupLocation(); bindSetupLocation(); return; }
-            if (s === 'setup-calc') { app.innerHTML = renderSetupCalc(); bindSetupCalc(); return; }
-            if (s === 'setup-birthday') { app.innerHTML = renderSetupBirthday(); bindSetupBirthday(); return; }
-            if (s === 'setup-notif') { app.innerHTML = renderSetupNotif(); bindSetupNotif(); return; }
+            const shouldAnimateScreen = _lastRenderedAnimatedScreen !== s;
+            _lastRenderedAnimatedScreen = s;
+            if (s === 'splash') { app.innerHTML = renderSplash(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); return; }
+            if (s === 'onboarding') { app.innerHTML = renderOnboarding(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindOnboarding(); return; }
+            if (s === 'auth') { app.innerHTML = renderAuth(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindAuth(); return; }
+            if (s === 'forgot-password') { app.innerHTML = renderForgotPassword(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindForgotPassword(); return; }
+          if (s === 'reset-password') { app.innerHTML = renderResetPassword(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindResetPassword(); return; }
+      if (s === 'reset-password-expired') { app.innerHTML = renderResetPasswordExpired(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindResetPasswordExpired(); return; }
+            if (s === 'setup-location') { app.innerHTML = renderSetupLocation(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindSetupLocation(); return; }
+            if (s === 'setup-calc') { app.innerHTML = renderSetupCalc(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindSetupCalc(); return; }
+            if (s === 'setup-birthday') { app.innerHTML = renderSetupBirthday(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindSetupBirthday(); return; }
+            if (s === 'setup-notif') { app.innerHTML = renderSetupNotif(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindSetupNotif(); return; }
 
             const activeNavId = s === 'quran-reader' ? 'quran-library' : s;
             let bodyHtml = '';
@@ -7993,6 +8058,7 @@ function toast(msg) {
 
                   if (existingShell && existingContent) {
               existingContent.innerHTML = bodyHtml;
+              _applyDeenSphereScreenEntrance(existingContent, shouldAnimateScreen);
 
               // Reset scroll position when switching screens so the new screen
               // always opens at the top (desktop uses window scroll, mobile uses
@@ -8020,6 +8086,7 @@ function toast(msg) {
                     </div>
                     ${bottomNavHtml(activeNavId)}
                   </div>`;
+              _applyDeenSphereScreenEntrance(app.querySelector(".content"), shouldAnimateScreen);
             }
                     bindGlobalNav();
             bindScreenActions(s);
@@ -8030,6 +8097,130 @@ function toast(msg) {
           }
 
       
+
+          /* Run the stagger only when the user changes screens. Data refreshes
+             on the same screen do not replay the animation. */
+          function _applyDeenSphereScreenEntrance(content, shouldAnimate) {
+            if (!content) return;
+            content.classList.remove('ds-screen-enter');
+            if (!shouldAnimate || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+            const settingsPage = content.querySelector('.settings-page');
+            if (settingsPage) {
+              // Match Daily Routine: the white rounded card and its first
+              // content row enter together; each following row enters one
+              // by one while the same white card remains behind the content.
+              const sequence = [];
+              const addStep = (...elements) => {
+                const visible = elements.filter(el =>
+                  el && getComputedStyle(el).display !== 'none'
+                );
+                if (visible.length) sequence.push(visible);
+              };
+
+              addStep(settingsPage.querySelector(':scope > .pg-head'));
+
+              const sections = Array.from(settingsPage.querySelectorAll(':scope > .settings-section'));
+              sections.forEach((section, sectionIndex) => {
+                addStep(section.querySelector(':scope > .settings-fixed-top'));
+
+                const card = section.querySelector(':scope > .card');
+                if (!card) {
+                  addStep(section.querySelector(':scope > #notif-permission-warning'));
+                  return;
+                }
+
+                if (sectionIndex === 0) {
+                  const rows = Array.from(card.querySelectorAll(':scope > .checkrow'));
+                  addStep(card, rows.shift());
+                  rows.forEach(row => addStep(row));
+                  addStep(card.querySelector(':scope > button'));
+                } else if (sectionIndex === 1) {
+                  addStep(section.querySelector(':scope > #notif-permission-warning'));
+                  const rows = Array.from(card.querySelectorAll(':scope > .checkrow'));
+                  addStep(card, rows.shift());
+                  rows.forEach(row => addStep(row));
+                } else if (sectionIndex === 2) {
+                  const children = Array.from(card.children);
+                  addStep(card, children.shift());
+                  children.forEach(child => addStep(child));
+                } else if (sectionIndex === 3) {
+                  const grid = card.querySelector('.grid2');
+                  const choices = grid ? Array.from(grid.children) : [];
+                  addStep(card, choices.shift());
+                  choices.forEach(choice => addStep(choice));
+                } else {
+                  const children = Array.from(card.children);
+                  addStep(card, children.shift());
+                  children.forEach(child => addStep(child));
+                }
+              });
+
+              const items = sequence.flat();
+              if (!items.length) return;
+              content.classList.add('ds-screen-enter');
+              sequence.forEach((group, stepIndex) => {
+                group.forEach(item => {
+                  item.classList.remove('ds-settings-stagger-item');
+                  item.style.animation = 'none';
+                  item.style.opacity = '0';
+                  item.style.transform = 'translateY(4px)';
+                  item.style.animationDelay = '0ms';
+                  void item.offsetWidth;
+                  item.classList.add('ds-settings-stagger-item');
+                  item.style.willChange = 'opacity, transform';
+                  item.style.animation = 'dsScreenContentEnter 0.4s ease both';
+                  item.style.animationDelay = `${stepIndex * 100}ms`;
+                });
+              });
+
+              let cleaned = false;
+              const finishSettingsEntrance = () => {
+                if (cleaned) return;
+                cleaned = true;
+                items.forEach(item => {
+                  item.classList.remove('ds-settings-stagger-item');
+                  item.style.removeProperty('animation');
+                  item.style.removeProperty('animation-delay');
+                  item.style.removeProperty('opacity');
+                  item.style.removeProperty('transform');
+                  item.style.removeProperty('will-change');
+                });
+                content.classList.remove('ds-screen-enter');
+              };
+              const totalDuration = (sequence.length - 1) * 100 + 450;
+              window.setTimeout(finishSettingsEntrance, totalDuration);
+              return;
+            }
+
+            const lastSection = content.lastElementChild;
+            if (!lastSection) return;
+
+            content.classList.add('ds-screen-enter');
+            let entranceCleaned = false;
+            const finishEntrance = () => {
+              if (entranceCleaned) return;
+              entranceCleaned = true;
+              content.classList.remove('ds-screen-enter');
+              content.querySelectorAll(':scope > *').forEach((section) => {
+                section.style.willChange = 'auto';
+              });
+            };
+            lastSection.addEventListener('animationend', finishEntrance, { once: true });
+            window.setTimeout(finishEntrance, 1500);
+          }
+
+          function _applyDsStaggeredChildren(container, selector) {
+            if (!container || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            const items = Array.from(container.querySelectorAll(selector));
+            items.forEach((item, index) => {
+              item.classList.remove('ds-stagger-item');
+              item.style.animationDelay = '0ms';
+              void item.offsetWidth;
+              item.classList.add('ds-stagger-item');
+              item.style.animationDelay = `${Math.min(index, 12) * 100}ms`;
+            });
+          }
 
           function bindGlobalNav() {
             $$('[data-nav]').forEach(b => b.onclick = () => go(b.dataset.nav));
@@ -10389,6 +10580,15 @@ return `<div class="scr" style="
     
 
       
+          function _applyRoutineOneByOneEntrance() {
+            const body = document.getElementById('routine-body');
+            if (!body || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            body.classList.remove('ds-routine-sequence');
+            // Force a fresh sequence only after the routine content has been rebuilt.
+            void body.offsetWidth;
+            body.classList.add('ds-routine-sequence');
+          }
+
                           async function hydrateRoutine() {
         const today = dateStr(new Date());
         const ds = S.routineViewDate || today;
@@ -10397,6 +10597,7 @@ return `<div class="scr" style="
 
         // 1. ALWAYS paint the screen instantly using local memory FIRST
         el.innerHTML = _buildRoutineBodyHTML(ds, S.dayCache[ds] || null);
+        _applyRoutineOneByOneEntrance();
         _bindRoutineDelegate();
         _bindRoutineButtons();
 
@@ -10408,6 +10609,7 @@ return `<div class="scr" style="
               if (!S.dayCache[ds]) {
                 S.dayCache[ds] = day;
                 el.innerHTML = _buildRoutineBodyHTML(ds, day);
+                _applyRoutineOneByOneEntrance();
                 _bindRoutineDelegate();
                 _bindRoutineButtons();
               }
@@ -10481,6 +10683,7 @@ return `<div class="scr" style="
             const body = document.getElementById('routine-body');
             if (body) {
               body.innerHTML = _buildRoutineBodyHTML(dsNow, S.dayCache[dsNow] || null);
+              _applyRoutineOneByOneEntrance();
               _bindRoutineButtons();
             }
 
@@ -11812,7 +12015,7 @@ return `<div class="scr" style="
         container.innerHTML = '';
 
         let position = 0;
-        const batchSize = 8;
+        const batchSize = 1;
 
         if (container.dataset.listenDelegated !== '1') {
           container.dataset.listenDelegated = '1';
@@ -11865,8 +12068,13 @@ return `<div class="scr" style="
 
           container.insertAdjacentHTML('beforeend', html);
 
+          const newestRow = container.lastElementChild;
+          if (newestRow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+            newestRow.style.animationDelay = '0ms';
+          }
+
           if (position < rows.length) {
-            requestAnimationFrame(renderBatch);
+            setTimeout(renderBatch, 100);
           }
         }
 
@@ -11991,6 +12199,7 @@ return `<div class="scr" style="
               `).join('');
 
               if (container.innerHTML !== newHTML) container.innerHTML = newHTML;
+              _applyDsStaggeredChildren(container, '.pg-sub, .hadith-card');
 
               $$('[data-speak-hadith]').forEach(btn => {
                 btn.onclick = () => {
@@ -12063,6 +12272,7 @@ return `<div class="scr" style="
                     `).join('');
 
               if (container.innerHTML !== newHTML) container.innerHTML = newHTML;
+              _applyDsStaggeredChildren(container, '.pg-sub, .card');
 
               $$('[data-speak-sunnah]').forEach(btn => {
                 btn.onclick = () => {
@@ -12582,6 +12792,17 @@ return `<div class="scr" style="
                   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
                     ${cells.join('')}
                   </div>`;
+
+            // If the screen entrance is still running, newly rendered calendar
+            // days join the same staggered reveal; otherwise keep refreshes still.
+            const ramadanContent = el.closest('.content');
+            if (ramadanContent && ramadanContent.classList.contains('ds-screen-enter')) {
+              el.querySelectorAll('[data-ramadan-day]').forEach(day => {
+                day.style.animation = 'dsScreenContentEnter 0.4s ease both';
+                const index = Array.from(day.parentElement.children).indexOf(day);
+                day.style.animationDelay = `${Math.min(index, 9) * 70}ms`;
+              });
+            }
 
                 el.querySelectorAll('[data-rmd]').forEach(btn => {
         btn.addEventListener('click', async (e) => {
@@ -14522,6 +14743,7 @@ return `<div class="scr" style="
             function bindVideos() {
             // Ensure any previous YouTube player is destroyed when the screen re-renders
             closeYouTubePlayer();
+            _applyDsStaggeredChildren(document.querySelector('.content'), '.videos-grid > .card');
 
             $$('[data-vidcat]').forEach(b => {
               b.onclick = () => {
@@ -15867,7 +16089,7 @@ Warm, respectful, scholarly, compassionate and educational.
           function renderDeenGuide() {
             const msgs = S.guideMsgs || [];
             const hasAssistantReply = msgs.some(m => m.role === 'assistant');
-            return `<div style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
+            return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
                     <div>
                       <div class="pg-title">Deen Guide</div>
@@ -15887,10 +16109,11 @@ Warm, respectful, scholarly, compassionate and educational.
                   return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}</div>`;
                   }
                 }).join('')
-                                : `<div class="empty" style="margin:auto;">Try asking:<br><br>
-                        <button class="btn-text" data-guide-chip="What is the reward for forgiveness in Islam?" style="color:var(--green-l);">• What is the reward for forgiveness?</button><br>
-                        <button class="btn-text" data-guide-chip="How to pray Tahajjud?" style="color:var(--green-l);">• How to pray Tahajjud?</button><br>
-                        <button class="btn-text" data-guide-chip="What does the Quran say about patience?" style="color:var(--green-l);">• What does the Quran say about patience?</button>
+                                : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
+                        <div class="guide-suggestions-title">Try asking:</div>
+                        <button class="btn-text guide-suggestion" data-guide-chip="What is the reward for forgiveness in Islam?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What is the reward for forgiveness?</button>
+                        <button class="btn-text guide-suggestion" data-guide-chip="How to pray Tahajjud?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• How to pray Tahajjud?</button>
+                        <button class="btn-text guide-suggestion" data-guide-chip="What does the Quran say about patience?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
          <div id="guide-composer" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10;">
@@ -15906,7 +16129,39 @@ Warm, respectful, scholarly, compassionate and educational.
                   <style>
                     @keyframes spin { to { transform: rotate(360deg); } }
                     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
-                  </style>
+                  
+/* Deen Guide entrance: only animate when the app marks a genuine screen change.
+   This prevents same-screen data updates, typing, and chat rendering from flashing. */
+.content.ds-screen-enter #deen-guide-screen > .pg-head,
+.content.ds-screen-enter #deen-guide-screen > .card,
+.content.ds-screen-enter #deen-guide-screen > #guide-composer,
+.content.ds-screen-enter #guide-thread > .empty,
+.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip] {
+  animation-fill-mode: both;
+}
+#deen-guide-screen,
+#guide-thread,
+#guide-composer {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+/* Deen Guide: reveal each suggestion vertically, one after another. */
+#guide-thread .guide-suggestions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+#guide-thread .guide-suggestions > * {
+  animation: dsScreenContentEnter 0.4s ease both;
+}
+#guide-thread .guide-suggestions > :nth-child(1) { animation-delay: 0ms; }
+#guide-thread .guide-suggestions > :nth-child(2) { animation-delay: 100ms; }
+#guide-thread .guide-suggestions > :nth-child(3) { animation-delay: 200ms; }
+#guide-thread .guide-suggestions > :nth-child(4) { animation-delay: 300ms; }
+
+</style>
                 </div>`;
           }
 
@@ -16004,6 +16259,10 @@ Warm, respectful, scholarly, compassionate and educational.
     }
   }
 
+  if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    div.classList.add('guide-message-enter');
+    div.style.animationDelay = '0ms';
+  }
   thread.appendChild(div);
   scrollThread();
 };
@@ -16189,10 +16448,11 @@ const setInputBusy = (busy) => {
               hideThinking();
 
               if (thread) {
-                                thread.innerHTML = `<div class="empty" style="margin:auto;">Try asking:<br><br>
-                  <button class="btn-text" data-guide-chip="What is the reward for forgiveness in Islam?" style="color:var(--green-l);">• What is the reward for forgiveness?</button><br>
-                  <button class="btn-text" data-guide-chip="How to pray Tahajjud?" style="color:var(--green-l);">• How to pray Tahajjud?</button><br>
-                  <button class="btn-text" data-guide-chip="What does the Quran say about patience?" style="color:var(--green-l);">• What does the Quran say about patience?</button>
+                                thread.innerHTML = `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
+                  <div class="guide-suggestions-title">Try asking:</div>
+                  <button class="btn-text guide-suggestion" data-guide-chip="What is the reward for forgiveness in Islam?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What is the reward for forgiveness?</button>
+                  <button class="btn-text guide-suggestion" data-guide-chip="How to pray Tahajjud?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• How to pray Tahajjud?</button>
+                  <button class="btn-text guide-suggestion" data-guide-chip="What does the Quran say about patience?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What does the Quran say about patience?</button>
                 </div>`;
                 thread.querySelectorAll('[data-guide-chip]').forEach(c =>
                   c.onclick = () => send(c.dataset.guideChip));
@@ -16235,6 +16495,7 @@ if (inp) {
           function bindScreenActions(s) {
             try {
         if (s === 'home') {
+    _applyDsStaggeredChildren(document.getElementById('home-root'), ':scope > .home-fixed-header, :scope > .pg-sub, :scope > .card, :scope > .card-el');
     subscribeToCurrentDay();
     hydrateHome();
 
