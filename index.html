@@ -7745,8 +7745,35 @@ function toast(msg) {
             ['tracker', 'Tracker', 'progress'],
             ['profile', 'Profile', 'profile']
           ];
-          function greeting() { const h = new Date().getHours(); if (h < 12) return 'Good morning'; if (h < 17) return 'Good afternoon'; return 'Good evening'; }
-          function niceDate(d = new Date()) { return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }); }
+        
+function getHomeTimezone() {
+  return S.settings?.location?.timezone ||
+    Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
+
+function greeting() {
+  const hour = Number(
+    new Intl.DateTimeFormat('en-GB', {
+      timeZone: getHomeTimezone(),
+      hour: '2-digit',
+      hourCycle: 'h23'
+    }).format(new Date())
+  );
+
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function niceDate() {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: getHomeTimezone(),
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(new Date());
+}
 
           /* ============================= BIRTHDAY ============================= */
           function isBirthday() {
