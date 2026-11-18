@@ -7801,7 +7801,7 @@ function toast(msg) {
         // instead of allowing them to skip the visible splash animation.
         if (S.screen === 'splash' && screen !== 'splash') {
           const splashStartedAt = window.__deenSplashStartedAt || Date.now();
-          const splashMinimumDuration = 1730;
+          const splashMinimumDuration = 1630;
           const remainingSplashTime = Math.max(
             0,
             splashMinimumDuration - (Date.now() - splashStartedAt)
@@ -8325,7 +8325,7 @@ function toast(msg) {
           /* ============================= SPLASH / ONBOARDING / AUTH ============================= */
           function renderSplash() {
             // Record the first visible splash render; navigation is held until
-            // the full sequential logo/text animation and 0.5-second text hold end.
+            // the full sequential logo/text animation and 0.1-second text hold end.
             if (!window.__deenSplashStartedAt) window.__deenSplashStartedAt = Date.now();
             return `<div class="scr splash-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg)">
                   <div class="splash-logo-mark">${logoSvg(56)}</div>
@@ -8417,8 +8417,8 @@ function toast(msg) {
             // Let the logo and both text lines finish appearing, then keep the
             // completed splash visible for another 0.2 seconds before opening the app.
             // The tagline reveal finishes at about 1.53 seconds, so 1.83 seconds
-            // gives the full animation plus the requested 0.3-second hold.
-            await new Promise(resolve => setTimeout(resolve, 1730));
+            // gives the full animation plus the requested 0.1-second hold.
+            await new Promise(resolve => setTimeout(resolve, 1630));
 
             // If another startup flow has already navigated away, do not
             // override that navigation when the splash delay completes.
