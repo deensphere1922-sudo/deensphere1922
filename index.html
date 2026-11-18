@@ -920,13 +920,10 @@
         border: 1px solid var(--gold) !important;
         border-radius: var(--r-md) !important;
         
-        /* Opaque page-colour backing around the card edges and below it.
-           The 4px spread masks scrolling text at the rounded corners without
-           changing the banner size, border radius, spacing, or button. */
-        box-shadow:
-          0 0 0 4px var(--bg),
-          0 20px 0 0 var(--bg) !important;
-
+        /* THE MASK: A 20px solid shadow below the box. 
+           It perfectly blocks scrolling text without using ::before/::after */
+        box-shadow: 0 20px 0 0 var(--bg) !important;
+        
         isolation: isolate;
       }
 
@@ -2761,52 +2758,92 @@ div:has(> #guide-input) button {
   }
 }
 
+/* Previous-period notice – fully opaque background */
+.previous-period-notice {
+  position: sticky;
+  z-index: 9999;
+  background: #17140e !important;
+  opacity: 1 !important;
+  backdrop-filter: none !important;
+  isolation: isolate;
+}
+
+/* Keep notice content above its background */
+.previous-period-notice > * {
+  position: relative;
+  z-index: 1;
+}
 
 
-      /* TRACKER ONLY: glassmorphism treatment for the selected period label */
-      .tracker-range-controls #tracker-period-label {
-        display: inline-flex !important;
-        align-items: center;
-        justify-content: center;
-        justify-self: center;
-        width: fit-content !important;
-        max-width: 100%;
-        min-width: 0;
-        margin-inline: auto !important;
-        padding: 8px 12px !important;
-        border: 1px solid rgba(47, 174, 123, .28);
-        border-radius: 10px;
-        background: rgba(47, 174, 123, .12);
-        color: #55D6A0;
-        -webkit-backdrop-filter: blur(12px) saturate(145%);
-        backdrop-filter: blur(12px) saturate(145%);
-        box-shadow: 0 2px 10px rgba(47, 174, 123, .07), inset 0 1px 0 rgba(255,255,255,.06);
-        box-sizing: border-box !important;
-        text-align: center !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-      }
+/* ==========================================
+   TRACKER DATE LABEL – GLASSMORPHISM
+   Only affects the date label.
+========================================== */
 
-      [data-theme="light"] .tracker-range-controls #tracker-period-label {
-        background: rgba(30, 138, 95, .09);
-        border-color: rgba(30, 138, 95, .22);
-        color: #178653;
-        box-shadow: 0 2px 9px rgba(30, 138, 95, .06), inset 0 1px 0 rgba(255,255,255,.75);
-      }
+#tracker-period-label {
+    position: relative;
+    padding: 9px 14px !important;
+    border-radius: 10px;
 
-      @media (max-width: 880px) {
-        .tracker-fixed-top .tracker-range-controls > #tracker-period-label {
-          width: fit-content !important;
-          max-width: 100% !important;
-          justify-self: center !important;
-          padding: 7px 9px !important;
-          font-size: 12px !important;
-        }
-      }
+    /* Glass effect */
+    backdrop-filter: blur(14px) saturate(150%);
+    -webkit-backdrop-filter: blur(14px) saturate(150%);
+
+    transition:
+        background 0.35s ease,
+        border-color 0.35s ease,
+        box-shadow 0.35s ease,
+        color 0.35s ease,
+        transform 0.35s ease;
+
+    animation: trackerGlassReveal 0.4s ease both;
+}
+
+/* LIGHT MODE */
+[data-theme="light"] #tracker-period-label {
+    background: rgba(30, 138, 95, 0.09);
+    border: 1px solid rgba(30, 138, 95, 0.20);
+    color: #17945F !important;
+    box-shadow:
+        0 4px 14px rgba(30, 138, 95, 0.07),
+        inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+/* DARK MODE */
+[data-theme="dark"] #tracker-period-label {
+    background: rgba(47, 174, 123, 0.12);
+    border: 1px solid rgba(47, 174, 123, 0.24);
+    color: #2FAE7B !important;
+    box-shadow:
+        0 4px 16px rgba(47, 174, 123, 0.09),
+        inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Smooth entrance */
+@keyframes trackerGlassReveal {
+    from {
+        opacity: 0;
+        transform: translateY(4px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Respect reduced-motion settings */
+@media (prefers-reduced-motion: reduce) {
+    #tracker-period-label {
+        animation: none !important;
+        transition: none !important;
+    }
+}
+
 
 </style>
-      </head>
+      <!-- Code injected by Five-server -->
+  <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
+  </head>
 
       <body>
         <div id="app"></div>
