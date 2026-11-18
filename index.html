@@ -149,6 +149,12 @@
           * { box-sizing: border-box; margin: 0; padding: 0; }
           html, body { height: 100%; }
 
+/* Keep the desktop layout width stable when a page is clicked or re-rendered.
+   A reserved scrollbar gutter prevents the centered content from shifting sideways. */
+@media (min-width: 881px) {
+  html { scrollbar-gutter: stable; }
+}
+
           body {
             background: var(--bg);
             color: var(--tx);
