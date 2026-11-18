@@ -2743,7 +2743,13 @@ div:has(> #guide-input) button {
     white-space: nowrap !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
-    font-size: 12px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 6px 10px !important;
+    font-size: 16px !important;
     line-height: 1.3 !important;
     box-sizing: border-box !important;
   }
@@ -16245,6 +16251,21 @@ Warm, respectful, scholarly, compassionate and educational.
   align-items: center;
 }
 
+
+
+/* TRACKER MOBILE ONLY: reduce the date-range pill height while keeping it centered. */
+@media (max-width: 880px) {
+  .tracker-fixed-top .tracker-range-controls {
+    grid-template-rows: 42px 38px !important;
+  }
+  .tracker-fixed-top .tracker-range-controls > #tracker-period-label {
+    height: 38px !important;
+    min-height: 38px !important;
+    padding: 4px 10px !important;
+    line-height: 1.2 !important;
+    font-size: 15px !important;
+  }
+}
 </style>
                 </div>`;
           }
