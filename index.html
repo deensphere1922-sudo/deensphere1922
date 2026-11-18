@@ -920,10 +920,13 @@
         border: 1px solid var(--gold) !important;
         border-radius: var(--r-md) !important;
         
-        /* THE MASK: A 20px solid shadow below the box. 
-           It perfectly blocks scrolling text without using ::before/::after */
-        box-shadow: 0 20px 0 0 var(--bg) !important;
-        
+        /* Opaque page-colour backing around the card edges and below it.
+           The 4px spread masks scrolling text at the rounded corners without
+           changing the banner size, border radius, spacing, or button. */
+        box-shadow:
+          0 0 0 4px var(--bg),
+          0 20px 0 0 var(--bg) !important;
+
         isolation: isolate;
       }
 
