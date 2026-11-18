@@ -8415,8 +8415,8 @@ function toast(msg) {
             }
 
             // Let the logo and both text lines finish appearing, then keep the
-            // completed splash visible for another 0.2 seconds before opening the app.
-            // The tagline reveal finishes at about 1.53 seconds, so 1.83 seconds
+            // completed splash visible for another 0.1 seconds before opening the app.
+            // The tagline reveal finishes at about 1.53 seconds; 1.63 seconds
             // gives the full animation plus the requested 0.1-second hold.
             await new Promise(resolve => setTimeout(resolve, 1630));
 
@@ -18217,6 +18217,41 @@ if (inp) {
     } catch(e) {}
   }
 
+      </script>
+      <script>
+      /* Splash refresh recovery: restart the logo/text CSS animations when the
+         browser restores this page from refresh/BFCache. This does not alter
+         the splash duration or any other screen. */
+      (function () {
+        function restartDeenSplashAnimation() {
+          const splash = document.querySelector('.splash-screen');
+          if (!splash) return;
+          const animated = splash.querySelectorAll(
+            '.splash-logo-mark, .splash-logo-mark svg path, .splash-logo-mark svg circle, .splash-title, .splash-tagline'
+          );
+          animated.forEach((el) => {
+            el.style.animation = 'none';
+            if (el.matches('.splash-logo-mark svg path')) {
+              el.style.strokeDasharray = '64';
+              el.style.strokeDashoffset = '64';
+            }
+            if (el.matches('.splash-logo-mark svg circle, .splash-title, .splash-tagline')) {
+              el.style.opacity = '0';
+            }
+          });
+          // Force a layout pass so the browser starts each animation from frame 0.
+          void splash.offsetWidth;
+          animated.forEach((el) => {
+            el.style.removeProperty('animation');
+            el.style.removeProperty('opacity');
+            el.style.removeProperty('stroke-dasharray');
+            el.style.removeProperty('stroke-dashoffset');
+          });
+        }
+        window.addEventListener('pageshow', () => {
+          requestAnimationFrame(() => requestAnimationFrame(restartDeenSplashAnimation));
+        });
+      })();
       </script>
       </body>
       </html>
