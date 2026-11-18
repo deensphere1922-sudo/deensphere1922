@@ -15023,50 +15023,39 @@ return `<div class="scr" style="
                
 let _ytBackgroundScrollState = null;
 
+
 function lockYouTubeBackgroundScroll() {
   if (_ytBackgroundScrollState) return;
 
-  const body = document.body;
   const html = document.documentElement;
-  const scrollY = window.scrollY || window.pageYOffset;
+  const body = document.body;
 
   _ytBackgroundScrollState = {
-    scrollY,
-    bodyPosition: body.style.position,
-    bodyTop: body.style.top,
-    bodyLeft: body.style.left,
-    bodyRight: body.style.right,
-    bodyWidth: body.style.width,
-    htmlOverflow: html.style.overflow
+    htmlOverflow: html.style.overflow,
+    bodyOverflow: body.style.overflow
   };
 
+  // Lock scrolling without moving the page or hiding its content.
   html.style.overflow = 'hidden';
-
-  body.style.position = 'fixed';
-  body.style.top = `-${scrollY}px`;
-  body.style.left = '0';
-  body.style.right = '0';
-  body.style.width = '100%';
+  body.style.overflow = 'hidden';
 }
+
+
 
 function unlockYouTubeBackgroundScroll() {
   if (!_ytBackgroundScrollState) return;
 
   const state = _ytBackgroundScrollState;
-  const body = document.body;
-  const html = document.documentElement;
 
-  body.style.position = state.bodyPosition;
-  body.style.top = state.bodyTop;
-  body.style.left = state.bodyLeft;
-  body.style.right = state.bodyRight;
-  body.style.width = state.bodyWidth;
-  html.style.overflow = state.htmlOverflow;
+  document.documentElement.style.overflow =
+    state.htmlOverflow;
+
+  document.body.style.overflow =
+    state.bodyOverflow;
 
   _ytBackgroundScrollState = null;
-
-  window.scrollTo(0, state.scrollY);
 }
+
 
 async function openYouTubePlayer(videoId) {
   const overlay = document.getElementById('yt-player-overlay');
