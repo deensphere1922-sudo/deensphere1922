@@ -10831,6 +10831,23 @@ return `<div class="scr" style="
               _bindRoutineButtons();
             }
 
+            // A Holiday Mode switch replaces the entire routine structure.
+            // Always return to the top so the selected date + Holiday Mode card
+            // and the first section are visible for BOTH ON and OFF states.
+            const routineContent = document.querySelector('.content');
+            const resetRoutineScroll = () => {
+              if (routineContent) routineContent.scrollTop = 0;
+              document.documentElement.scrollTop = 0;
+              document.body.scrollTop = 0;
+              window.scrollTo(0, 0);
+            };
+            resetRoutineScroll();
+            requestAnimationFrame(() => {
+              resetRoutineScroll();
+              // Recalculate sticky offsets after the weekday/weekend content changes.
+              if (typeof initRoutineStickyLayers === 'function') initRoutineStickyLayers();
+            });
+
             toast(nextIsHoliday
               ? 'Holiday Mode ON for ' + new Date(targetDate + 'T00:00:00').toDateString()
               : 'Holiday Mode OFF for ' + new Date(targetDate + 'T00:00:00').toDateString());
