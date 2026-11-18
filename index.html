@@ -177,6 +177,44 @@
           .tag, .tag-green, .tag-gold, .tag-amber, .tag-muted,
           .chk, .rowtitle, .rowsub, .navitem { transition: none !important; }
 
+          /* Smooth, slower circular reveal for intentional theme changes.
+             The browser snapshots the current page and reveals the new theme
+             from the theme button. Unsupported browsers use the smooth fallback. */
+          html { view-transition-name: root; }
+          ::view-transition-group(root) { animation-duration: 1100ms; }
+          ::view-transition-old(root) {
+            animation: theme-snapshot-out 420ms ease-in-out both;
+            mix-blend-mode: normal;
+          }
+          ::view-transition-new(root) {
+            animation: none;
+            clip-path: circle(0 at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 50%));
+            animation: theme-circular-reveal 1100ms cubic-bezier(.16, 1, .3, 1) both;
+            mix-blend-mode: normal;
+          }
+          @keyframes theme-circular-reveal {
+            from { clip-path: circle(0 at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 50%)); }
+            to { clip-path: circle(150vmax at var(--theme-reveal-x, 50%) var(--theme-reveal-y, 50%)); }
+          }
+          @keyframes theme-snapshot-out {
+            from { opacity: 1; }
+            to { opacity: .96; }
+          }
+          /* Fallback transition for browsers without the View Transition API. */
+          html.theme-transitioning,
+          html.theme-transitioning body,
+          html.theme-transitioning #app,
+          html.theme-transitioning #app *,
+          html.theme-transitioning #app *::before,
+          html.theme-transitioning #app *::after {
+            transition-property: background-color, color, border-color, box-shadow, fill, stroke !important;
+            transition-duration: 900ms !important;
+            transition-timing-function: ease-in-out !important;
+          }
+          @media (prefers-reduced-motion: reduce) {
+            ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .01ms !important; }
+          }
+
           #app { min-height: 100vh; }
 
           button {
@@ -17043,17 +17081,54 @@ if (inp) {
 
           /* ============================= THEME TOGGLE FUNCTIONS ============================= */
           function applyTheme(mode, persist = true) {
-            document.documentElement.setAttribute('data-theme', mode);
+            const root = document.documentElement;
 
-            const meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute('content', mode === 'light' ? '#FFFFFF' : '#000000');
+            const commitTheme = () => {
+              root.setAttribute('data-theme', mode);
+              const meta = document.querySelector('meta[name="theme-color"]');
+              if (meta) meta.setAttribute('content', mode === 'light' ? '#FFFFFF' : '#000000');
+              if (persist) {
+                try {
+                  localStorage.setItem('theme', mode);
+                  localStorage.setItem('theme-date', dateStr(new Date()));
+                } catch (e) { }
+              }
+            };
 
-            if (persist) {
-              try {
-                localStorage.setItem('theme', mode);
-                localStorage.setItem('theme-date', dateStr(new Date()));
-              } catch (e) { }
+            // Initial theme setup stays instant. Only a user-triggered switch animates.
+            if (!persist) {
+              commitTheme();
+              return;
             }
+
+            // Reveal the incoming theme from the actual toggle-button position.
+            const toggle = document.getElementById('theme-toggle');
+            if (document.startViewTransition) {
+              if (toggle) {
+                const rect = toggle.getBoundingClientRect();
+                root.style.setProperty('--theme-reveal-x', `${rect.left + rect.width / 2}px`);
+                root.style.setProperty('--theme-reveal-y', `${rect.top + rect.height / 2}px`);
+              } else {
+                root.style.setProperty('--theme-reveal-x', '50vw');
+                root.style.setProperty('--theme-reveal-y', '50vh');
+              }
+              try {
+                document.startViewTransition(() => commitTheme());
+                return;
+              } catch (error) {
+                console.warn('Circular theme transition unavailable; using smooth color fade.', error);
+              }
+            }
+
+            // Accessible fallback for browsers without View Transitions.
+            root.classList.remove('theme-transitioning');
+            void root.offsetWidth;
+            root.classList.add('theme-transitioning');
+            clearTimeout(window._themeTransitionTimer);
+            window._themeTransitionTimer = setTimeout(() => {
+              root.classList.remove('theme-transitioning');
+            }, 940);
+            commitTheme();
           }
 
           function toggleTheme() {
