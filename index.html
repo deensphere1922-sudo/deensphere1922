@@ -3024,36 +3024,33 @@ div:has(> #guide-input) button {
   animation: dsScreenContentEnter 0.4s ease both;
 }
 
-/* Deen Guide: Tracker-style entrance, activated only on actual screen navigation.
-   The .content.ds-screen-enter class is applied once when entering this screen.
-   Same-screen renders therefore never restart the animation or cause blinking. */
+/* Deen Guide: one single top-to-bottom entrance sequence.
+   Every element is animated exactly once, only on genuine screen navigation.
+   The thread itself stays still; its empty-state items receive the stagger. */
 .content.ds-screen-enter > #deen-guide-screen {
   animation: none !important;
   opacity: 1 !important;
   transform: none !important;
 }
+/* Deen Guide: reveal the suggestions inside the .empty wrapper, one at a time.
+   The wrapper itself stays visible and does not animate as a group. */
 .content.ds-screen-enter #deen-guide-screen > .pg-head,
 .content.ds-screen-enter #deen-guide-screen > .card,
+.content.ds-screen-enter #guide-thread .guide-suggestions > *,
 .content.ds-screen-enter #deen-guide-screen > #guide-composer {
   animation: dsScreenContentEnter 0.4s ease both;
-  will-change: auto;
+  will-change: opacity, transform;
 }
 .content.ds-screen-enter #deen-guide-screen > .pg-head { animation-delay: 0ms; }
-.content.ds-screen-enter #deen-guide-screen > .card { animation-delay: 100ms; }
+.content.ds-screen-enter #deen-guide-screen > .card { animation-delay: 120ms; }
 .content.ds-screen-enter #deen-guide-screen > #guide-thread { animation: none !important; }
-.content.ds-screen-enter #deen-guide-screen > #guide-composer { animation-delay: 400ms; }
 
-.content.ds-screen-enter #guide-thread > .empty {
-  animation: dsScreenContentEnter 0.4s ease both;
-  animation-delay: 200ms;
-  will-change: auto;
-}
-.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip] {
-  animation: dsScreenContentEnter 0.4s ease both;
-}
-.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip]:nth-of-type(1) { animation-delay: 300ms; }
-.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip]:nth-of-type(2) { animation-delay: 400ms; }
-.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip]:nth-of-type(3) { animation-delay: 500ms; }
+/* Child 1 is the "Try asking:" label; children 2–4 are the three prompts. */
+.content.ds-screen-enter #guide-thread .guide-suggestions > :nth-child(1) { animation-delay: 240ms; }
+.content.ds-screen-enter #guide-thread .guide-suggestions > :nth-child(2) { animation-delay: 420ms; }
+.content.ds-screen-enter #guide-thread .guide-suggestions > :nth-child(3) { animation-delay: 600ms; }
+.content.ds-screen-enter #guide-thread .guide-suggestions > :nth-child(4) { animation-delay: 780ms; }
+.content.ds-screen-enter #deen-guide-screen > #guide-composer { animation-delay: 960ms; }
 
 #guide-thread > .guide-message-enter {
   animation: none !important;
@@ -16233,15 +16230,8 @@ Warm, respectful, scholarly, compassionate and educational.
                     @keyframes spin { to { transform: rotate(360deg); } }
                     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
                   
-/* Deen Guide entrance: only animate when the app marks a genuine screen change.
-   This prevents same-screen data updates, typing, and chat rendering from flashing. */
-.content.ds-screen-enter #deen-guide-screen > .pg-head,
-.content.ds-screen-enter #deen-guide-screen > .card,
-.content.ds-screen-enter #deen-guide-screen > #guide-composer,
-.content.ds-screen-enter #guide-thread > .empty,
-.content.ds-screen-enter #guide-thread > .empty > [data-guide-chip] {
-  animation-fill-mode: both;
-}
+/* Deen Guide: keep the empty-state layout stable. Its entrance animation
+   is controlled only by the single navigation sequence in the main stylesheet. */
 #deen-guide-screen,
 #guide-thread,
 #guide-composer {
@@ -16249,20 +16239,11 @@ Warm, respectful, scholarly, compassionate and educational.
   transform: none;
   will-change: auto;
 }
-
-/* Deen Guide: reveal each suggestion vertically, one after another. */
 #guide-thread .guide-suggestions {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
-#guide-thread .guide-suggestions > * {
-  animation: dsScreenContentEnter 0.4s ease both;
-}
-#guide-thread .guide-suggestions > :nth-child(1) { animation-delay: 0ms; }
-#guide-thread .guide-suggestions > :nth-child(2) { animation-delay: 100ms; }
-#guide-thread .guide-suggestions > :nth-child(3) { animation-delay: 200ms; }
-#guide-thread .guide-suggestions > :nth-child(4) { animation-delay: 300ms; }
 
 </style>
                 </div>`;
