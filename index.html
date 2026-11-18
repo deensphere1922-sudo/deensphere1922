@@ -2848,6 +2848,62 @@ div:has(> #guide-input) button {
 
 
 
+
+/* ==================== DEEN SPHERE SPLASH LOGO ANIMATION ==================== */
+.splash-screen .splash-logo-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: dsSplashLogoSettle 650ms cubic-bezier(.2,.75,.25,1) both;
+}
+.splash-screen .splash-logo-mark svg path {
+  stroke-dasharray: 64;
+  stroke-dashoffset: 64;
+  animation: dsSplashArchDraw 850ms cubic-bezier(.45,0,.2,1) 120ms forwards;
+}
+.splash-screen .splash-logo-mark svg circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  animation: dsSplashDotReveal 500ms cubic-bezier(.2,.8,.2,1) 650ms forwards;
+}
+.splash-screen .splash-title {
+  opacity: 0;
+  animation: dsSplashTextReveal 450ms ease 850ms forwards;
+}
+.splash-screen .splash-tagline {
+  opacity: 0;
+  animation: dsSplashTextReveal 450ms ease 1080ms forwards;
+}
+@keyframes dsSplashArchDraw {
+  to { stroke-dashoffset: 0; }
+}
+@keyframes dsSplashDotReveal {
+  0% { opacity: 0; transform: scale(.45); }
+  70% { opacity: 1; transform: scale(1.16); }
+  100% { opacity: 1; transform: scale(1); }
+}
+@keyframes dsSplashTextReveal {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes dsSplashLogoSettle {
+  from { opacity: 0; transform: translateY(5px) scale(.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen .splash-logo-mark,
+  .splash-screen .splash-logo-mark svg path,
+  .splash-screen .splash-logo-mark svg circle,
+  .splash-screen .splash-title,
+  .splash-screen .splash-tagline {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    stroke-dashoffset: 0 !important;
+  }
+}
+
 /* =========================================================
    DEEN SPHERE – STABLE SITE-WIDE MOTION
    Screen-entry animation only; no nested/repeating animations.
@@ -7739,6 +7795,33 @@ function toast(msg) {
           /* ============================= RENDER: SHELL ============================= */
                   function go(screen, arg, verseArg) {
 
+        // Keep the splash screen visible long enough for the logo, title and
+        // tagline to finish appearing. Some startup/auth callbacks can request
+        // the main screen before bootSplash() completes, so queue those routes
+        // instead of allowing them to skip the visible splash animation.
+        if (S.screen === 'splash' && screen !== 'splash') {
+          const splashStartedAt = window.__deenSplashStartedAt || Date.now();
+          const splashMinimumDuration = 1730;
+          const remainingSplashTime = Math.max(
+            0,
+            splashMinimumDuration - (Date.now() - splashStartedAt)
+          );
+          if (remainingSplashTime > 0) {
+            window.__deenSplashPendingNavigation = { screen, arg, verseArg };
+            if (!window.__deenSplashNavigationTimer) {
+              window.__deenSplashNavigationTimer = setTimeout(() => {
+                window.__deenSplashNavigationTimer = null;
+                const pending = window.__deenSplashPendingNavigation;
+                window.__deenSplashPendingNavigation = null;
+                if (pending && S.screen === 'splash') {
+                  go(pending.screen, pending.arg, pending.verseArg);
+                }
+              }, remainingSplashTime);
+            }
+            return;
+          }
+        }
+
                     // Prevent an older navigation request from opening the wrong screen
   const _navigationRequestId =
     window.__deenNavigationRequest =
@@ -8241,9 +8324,13 @@ function toast(msg) {
 
           /* ============================= SPLASH / ONBOARDING / AUTH ============================= */
           function renderSplash() {
-            return `<div class="scr" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg)">
-                  ${logoSvg(56)}<div style="font-size:26px;font-weight:800;letter-spacing:.5px">DEEN SPHERE</div>
-                  <div style="color:var(--tx2);font-size:13.5px">Your daily companion for Salah, Qur\u2019an and Deen.</div>
+            // Record the first visible splash render; navigation is held until
+            // the full sequential logo/text animation and 0.5-second text hold end.
+            if (!window.__deenSplashStartedAt) window.__deenSplashStartedAt = Date.now();
+            return `<div class="scr splash-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg)">
+                  <div class="splash-logo-mark">${logoSvg(56)}</div>
+                  <div class="splash-title" style="font-size:26px;font-weight:800;letter-spacing:.5px">DEEN SPHERE</div>
+                  <div class="splash-tagline" style="color:var(--tx2);font-size:13.5px">Your daily companion for Salah, Qur\u2019an and Deen.</div>
                 </div>`;
           }
 
@@ -8326,6 +8413,16 @@ function toast(msg) {
             } else {
               targetScreen = 'setup-location';
             }
+
+            // Let the logo and both text lines finish appearing, then keep the
+            // completed splash visible for another 0.2 seconds before opening the app.
+            // The tagline reveal finishes at about 1.53 seconds, so 1.83 seconds
+            // gives the full animation plus the requested 0.3-second hold.
+            await new Promise(resolve => setTimeout(resolve, 1730));
+
+            // If another startup flow has already navigated away, do not
+            // override that navigation when the splash delay completes.
+            if (S.screen !== 'splash') return;
 
             go(targetScreen, targetArg);
             applyArabicSize(S.settings && S.settings.arabicFontSize);
