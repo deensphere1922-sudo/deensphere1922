@@ -7872,7 +7872,7 @@ function niceDate() {
         // instead of allowing them to skip the visible splash animation.
         if (S.screen === 'splash' && screen !== 'splash') {
           const splashStartedAt = window.__deenSplashStartedAt || Date.now();
-          const splashMinimumDuration = 1630;
+          const splashMinimumDuration = 1530;
           const remainingSplashTime = Math.max(
             0,
             splashMinimumDuration - (Date.now() - splashStartedAt)
@@ -8463,41 +8463,64 @@ function niceDate() {
         return { screen: lastScreen, arg: undefined };
       }
 
-          async function bootSplash() {
-            subscribeToGlobalKeys();
-            subscribeToCurrentDay(true);
+         
+async function bootSplash() {
+  subscribeToGlobalKeys();
+  subscribeToCurrentDay(true);
 
-            if (S.screen !== 'splash') {
-              applyArabicSize(S.settings && S.settings.arabicFontSize);
-              return;
-            }
+  if (S.screen !== 'splash') {
+    applyArabicSize(S.settings && S.settings.arabicFontSize);
+    return;
+  }
 
-            let targetScreen;
-            let targetArg;
+  let targetScreen;
+  let targetArg;
 
-            if (S.profile && S.settings && S.settings.setupDone) {
-              const restored = readLastScreen();
-              targetScreen = restored.screen || 'home';
-              targetArg = restored.arg;
-            } else if (!S.profile) {
-              targetScreen = 'auth';
-            } else {
-              targetScreen = 'setup-location';
-            }
+  if (S.profile && S.settings && S.settings.setupDone) {
+    const restored = readLastScreen();
+    targetScreen = restored.screen || 'home';
+    targetArg = restored.arg;
+  } else if (!S.profile) {
+    targetScreen = 'auth';
+  } else {
+    targetScreen = 'setup-location';
+  }
 
-            // Let the logo and both text lines finish appearing, then keep the
-            // completed splash visible for another 0.1 seconds before opening the app.
-            // The tagline reveal finishes at about 1.53 seconds; 1.63 seconds
-            // gives the full animation plus the requested 0.1-second hold.
-            await new Promise(resolve => setTimeout(resolve, 1630));
+  // Wait only until the splash animation finishes.
+  const splashStartedAt = window.__deenSplashStartedAt || Date.now();
+  const splashAnimationDuration = 1530;
 
-            // If another startup flow has already navigated away, do not
-            // override that navigation when the splash delay completes.
-            if (S.screen !== 'splash') return;
+  const remainingTime = Math.max(
+    0,
+    splashAnimationDuration - (Date.now() - splashStartedAt)
+  );
 
-            go(targetScreen, targetArg);
-            applyArabicSize(S.settings && S.settings.arabicFontSize);
-          }
+  if (remainingTime > 0) {
+    await new Promise(resolve => setTimeout(resolve, remainingTime));
+  }
+
+  // Do not override an existing navigation.
+  if (S.screen !== 'splash') return;
+
+  // Clear duplicate navigation timer.
+  if (window.__deenSplashNavigationTimer) {
+    clearTimeout(window.__deenSplashNavigationTimer);
+    window.__deenSplashNavigationTimer = null;
+  }
+
+  const pending = window.__deenSplashPendingNavigation;
+  window.__deenSplashPendingNavigation = null;
+
+  const destination = pending || {
+    screen: targetScreen,
+    arg: targetArg
+  };
+
+  go(destination.screen, destination.arg, destination.verseArg);
+
+  applyArabicSize(S.settings && S.settings.arabicFontSize);
+}
+
 
           /* ============================= AUTHENTICATION ============================= */
           let _authMode = 'signin';
