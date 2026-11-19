@@ -2922,6 +2922,33 @@ div:has(> #guide-input) button {
 
 
 /* ==================== DEEN SPHERE SPLASH LOGO ANIMATION ==================== */
+/* Keep the complete splash content visible and centered on mobile. */
+.splash-screen {
+  min-height: 100vh;
+  min-height: 100svh;
+  width: 100%;
+  padding: 24px 20px;
+  text-align: center;
+  overflow: hidden;
+}
+.splash-screen .splash-title {
+  max-width: 100%;
+  line-height: 1.25;
+  text-align: center;
+}
+.splash-screen .splash-tagline {
+  width: 100%;
+  max-width: 320px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+@media (max-width: 480px) {
+  .splash-screen { gap: 12px !important; padding-inline: 24px; }
+  .splash-screen .splash-title { font-size: 24px !important; }
+  .splash-screen .splash-tagline { font-size: 13px !important; }
+}
 .splash-screen .splash-logo-mark {
   display: flex;
   align-items: center;
@@ -7908,7 +7935,7 @@ function niceDate() {
         // instead of allowing them to skip the visible splash animation.
         if (S.screen === 'splash' && screen !== 'splash') {
           const splashStartedAt = window.__deenSplashStartedAt || Date.now();
-          const splashMinimumDuration = 1530;
+          const splashMinimumDuration = 2530;
           const remainingSplashTime = Math.max(
             0,
             splashMinimumDuration - (Date.now() - splashStartedAt)
@@ -8432,7 +8459,7 @@ function niceDate() {
           /* ============================= SPLASH / ONBOARDING / AUTH ============================= */
           function renderSplash() {
             // Record the first visible splash render; navigation is held until
-            // the full sequential logo/text animation and 0.1-second text hold end.
+            // the full sequential logo/text animation and 1-second text hold end.
             if (!window.__deenSplashStartedAt) window.__deenSplashStartedAt = Date.now();
             return `<div class="scr splash-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg)">
                   <div class="splash-logo-mark">${logoSvg(56)}</div>
@@ -8524,7 +8551,7 @@ async function bootSplash() {
 
   // Wait only until the splash animation finishes.
   const splashStartedAt = window.__deenSplashStartedAt || Date.now();
-  const splashAnimationDuration = 1530;
+  const splashAnimationDuration = 2530;
 
   const remainingTime = Math.max(
     0,
