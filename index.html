@@ -3264,7 +3264,15 @@ textarea:focus {
   </head>
 
       <body>
-        <div id="app"></div>
+        <div id="app">
+  <!-- Show the splash immediately, before JavaScript/auth startup completes. -->
+  <div class="scr splash-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#000">
+    <div class="splash-logo-mark"><svg width="56" height="56" viewBox="0 0 40 40" fill="none"><path d="M8 30V20a12 12 0 0124 0v10" stroke="#2FAE7B" stroke-width="2.6" stroke-linecap="round"/><circle cx="20" cy="10" r="2.4" fill="#C9A961"/></svg></div>
+    <div class="splash-title" style="font-size:26px;font-weight:800;letter-spacing:.5px">DEEN SPHERE</div>
+    <div class="splash-tagline" style="color:#A1A1AA;font-size:13.5px">Your daily companion for Salah, Qur’an and Deen.</div>
+  </div>
+</div>
+<script>window.__deenSplashStartedAt = Date.now();</script>
           <!-- PRAYER LOGGING POPUP -->
       <div id="prayer-log-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); backdrop-filter:blur(3px); -webkit-backdrop-filter:blur(3px); z-index:99999; align-items:center; justify-content:center; padding:20px;">
           <div style="background:#141416; border:1px solid #27272a; border-radius:28px; padding:24px; width:100%; max-width:340px; box-shadow:0 20px 40px rgba(0,0,0,0.6);">
@@ -17003,7 +17011,7 @@ if (inp) {
             try {
               const sessionPromise = window.sb.supabase.auth.getSession();
               const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Supabase timeout')), 3000)
+                setTimeout(() => reject(new Error('Supabase timeout')), 1200)
               );
               const { data } = await Promise.race([sessionPromise, timeoutPromise]);
               user = data?.session?.user || null;
@@ -17020,16 +17028,8 @@ if (inp) {
       console.warn('Post-auth local hydration failed:', e);
     }
 
-        // ✅ FIRST: Load the existing profile from the cloud.
-        let existingProfile = null;
-        try {
-          existingProfile = await getJSON('profile');
-        } catch (e) {
-          console.warn('Could not fetch existing profile during startup:', e);
-        }
-
-        // ✅ Only overwrite the name if the existing profile has no name
-        // OR if the existing profile is for a different user (uid mismatch).
+        // Use locally hydrated profile data immediately; do not wait for cloud reads.
+        const existingProfile = S.profile || null;
         const sameUser = existingProfile && existingProfile.uid === user.id;
         const profileForCloud = {
           name: (sameUser && existingProfile.name)
@@ -17042,55 +17042,58 @@ if (inp) {
             : (user.created_at || new Date().toISOString())
         };
 
-        // ✅ Only write to cloud if the name actually changed.
+        S.profile = {
+          ...profileForCloud,
+          ...(sameUser ? existingProfile : {})
+        };
+
+        // Cloud profile save and refresh run in the background after startup.
         if (!sameUser || existingProfile.name !== profileForCloud.name) {
-          await setJSON('profile', profileForCloud);
+          setJSON('profile', profileForCloud).catch(err => {
+            console.warn('Background profile save failed:', err);
+          });
         }
+        loadAll().catch(err => {
+          console.warn('Background cloud refresh failed:', err);
+        });
 
-        S.profile = profileForCloud;
-
-        // loadAll() reads the 'pfp' record and applies the real photoURL.
-        try {
-          await Promise.race([loadAll(), new Promise(r => setTimeout(r, 2000))]);
-        } catch (e) { console.warn('Cloud load timed out:', e); }
-
-        if (!S.profile) S.profile = profileForCloud;
-        // Fall back to the Google avatar ONLY if no pfp record exists at all.
         if (!S.profile.photoURL && user.user_metadata?.avatar_url) {
           S.profile.photoURL = user.user_metadata.avatar_url;
         }
 
-              if (typeof _sbEnsureBroadcast === 'function') _sbEnsureBroadcast(user.id);
-              subscribeToGlobalKeys();
-              subscribeToCurrentDay(true);
-            }
+        if (typeof _sbEnsureBroadcast === 'function') _sbEnsureBroadcast(user.id);
+        subscribeToGlobalKeys();
+        subscribeToCurrentDay(true);
+      }
 
                                           if (user && S.settings && S.settings.setupDone) {
               const restored = readLastScreen();
-              // Pre-load today's day + the full week BEFORE the very first render
-              // so the Home/Tracker screens appear fully populated with no blank
-              // period and no "0%" flash.
-              try {
-                const ds = dateStr(new Date());
-                const now = new Date();
-                const dayOfWeek = now.getDay();
-                const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-                const monday = new Date(now);
-                monday.setDate(now.getDate() + mondayOffset);
-                monday.setHours(0, 0, 0, 0);
-                const toLoad = [];
-                for (let i = 0; i < 7; i++) {
-                  const d = new Date(monday);
-                  d.setDate(monday.getDate() + i);
-                  const key = dateStr(d);
-                  if (!S.dayCache[key]) {
-                    toLoad.push(getJSON('day:' + key).then(r => { if (r) S.dayCache[key] = r; }));
+              // Open the saved screen first; fetch the week's data in the background.
+              setTimeout(async () => {
+                try {
+                  const now = new Date();
+                  const dayOfWeek = now.getDay();
+                  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+                  const monday = new Date(now);
+                  monday.setDate(now.getDate() + mondayOffset);
+                  monday.setHours(0, 0, 0, 0);
+                  const toLoad = [];
+
+                  for (let i = 0; i < 7; i++) {
+                    const d = new Date(monday);
+                    d.setDate(monday.getDate() + i);
+                    const key = dateStr(d);
+                    if (!S.dayCache[key]) {
+                      toLoad.push(getJSON('day:' + key).then(r => {
+                        if (r) S.dayCache[key] = r;
+                      }));
+                    }
                   }
+                  if (toLoad.length) await Promise.all(toLoad);
+                } catch (e) {
+                  console.warn('Background week loading failed:', e);
                 }
-                if (toLoad.length) await Promise.all(toLoad);
-              } catch (e) {
-                console.warn('Startup pre-fetch failed; continuing:', e);
-              }
+              }, 0);
 
               go(restored.screen || 'home', restored.arg);
               syncPrayerTimesToSW();
