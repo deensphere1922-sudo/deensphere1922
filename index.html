@@ -3227,6 +3227,51 @@ textarea:focus {
   }
 }
 
+
+
+/* =========================================
+   MOBILE SPLASH SCREEN – MATCH DESKTOP TIMING
+========================================= */
+@media (max-width: 880px) {
+
+  .splash-screen {
+    min-height: 100vh;
+    min-height: 100dvh;
+    justify-content: center;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .splash-screen .splash-logo-mark {
+    animation-duration: 650ms !important;
+    animation-delay: 0ms !important;
+    will-change: transform, opacity;
+  }
+
+  .splash-screen .splash-logo-mark svg path {
+    animation-duration: 850ms !important;
+    animation-delay: 120ms !important;
+  }
+
+  .splash-screen .splash-logo-mark svg circle {
+    animation-duration: 500ms !important;
+    animation-delay: 650ms !important;
+  }
+
+  .splash-screen .splash-title {
+    animation-duration: 450ms !important;
+    animation-delay: 850ms !important;
+    will-change: transform, opacity;
+  }
+
+  .splash-screen .splash-tagline {
+    animation-duration: 450ms !important;
+    animation-delay: 1080ms !important;
+    will-change: transform, opacity;
+  }
+}
+
+
 </style>
       <!-- Code injected by Five-server -->
   <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
