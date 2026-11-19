@@ -33,6 +33,29 @@
         <link rel="preconnect" href="https://fonts.googleapis.com">
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Amiri+Quran&family=Amiri:wght@400;700&family=Noto+Naskh+Arabic:wght@400;600;700&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap" rel="stylesheet">
+        <script>
+          /* Apply the saved/automatic theme before the first mobile paint.
+             This prevents the initial splash from flashing dark in light mode. */
+          (function () {
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const today = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+            const autoTheme = (now.getHours() >= 6 && now.getHours() < 18) ? 'light' : 'dark';
+            let theme = autoTheme;
+            try {
+              const savedTheme = localStorage.getItem('theme');
+              const savedDate = localStorage.getItem('theme-date');
+              if (savedTheme && savedDate === today) theme = savedTheme;
+              else {
+                localStorage.removeItem('theme');
+                localStorage.removeItem('theme-date');
+              }
+            } catch (e) {}
+            document.documentElement.setAttribute('data-theme', theme);
+            const themeColor = document.querySelector('meta[name="theme-color"]');
+            if (themeColor) themeColor.setAttribute('content', theme === 'light' ? '#FFFFFF' : '#000000');
+          })();
+        </script>
         <script type="module">
           import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
           import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
@@ -3293,10 +3316,10 @@ textarea:focus {
       <body>
         <div id="app">
   <!-- Show the splash immediately, before JavaScript/auth startup completes. -->
-  <div class="scr splash-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:#000">
+  <div class="scr splash-screen" style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:var(--bg);color:var(--tx)">
     <div class="splash-logo-mark"><svg width="56" height="56" viewBox="0 0 40 40" fill="none"><path d="M8 30V20a12 12 0 0124 0v10" stroke="#2FAE7B" stroke-width="2.6" stroke-linecap="round"/><circle cx="20" cy="10" r="2.4" fill="#C9A961"/></svg></div>
     <div class="splash-title" style="font-size:26px;font-weight:800;letter-spacing:.5px">DEEN SPHERE</div>
-    <div class="splash-tagline" style="color:#A1A1AA;font-size:13.5px">Your daily companion for Salah, Qur’an and Deen.</div>
+    <div class="splash-tagline" style="color:var(--tx2);font-size:13.5px">Your daily companion for Salah, Qur’an and Deen.</div>
   </div>
 </div>
 <script>window.__deenSplashStartedAt = Date.now();</script>
