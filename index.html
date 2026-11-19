@@ -215,6 +215,34 @@
             ::view-transition-old(root), ::view-transition-new(root) { animation-duration: .01ms !important; }
           }
 
+              /* Keep Deen Sphere splash animation consistent on mobile */
+@media (prefers-reduced-motion: reduce) {
+  .splash-screen .splash-logo-mark {
+    animation: dsSplashLogoSettle 650ms cubic-bezier(.2,.75,.25,1) both !important;
+  }
+
+  .splash-screen .splash-logo-mark svg path {
+    stroke-dasharray: 64 !important;
+    stroke-dashoffset: 64 !important;
+    animation: dsSplashArchDraw 850ms cubic-bezier(.45,0,.2,1) 120ms forwards !important;
+  }
+
+  .splash-screen .splash-logo-mark svg circle {
+    opacity: 0 !important;
+    animation: dsSplashDotReveal 500ms cubic-bezier(.2,.8,.2,1) 650ms forwards !important;
+  }
+
+  .splash-screen .splash-title {
+    opacity: 0 !important;
+    animation: dsSplashTextReveal 450ms ease 850ms forwards !important;
+  }
+
+  .splash-screen .splash-tagline {
+    opacity: 0 !important;
+    animation: dsSplashTextReveal 450ms ease 1080ms forwards !important;
+  }
+}
+
           #app { min-height: 100vh; }
 
           button {
