@@ -15,7 +15,7 @@
         <link rel="manifest" href="./manifest.json">
         <meta name="apple-mobile-web-app-capable" content="yes">
         <meta name="apple-mobile-web-app-title" content="Deen Sphere">
-        <meta name="theme-color" content="#000000">
+        <meta name="theme-color" content="#FFFFFF">
         <meta property="og:type" content="website">
         <meta property="og:url" content="https://deensphereofficial.netlify.app/">
         <meta property="og:title" content="Deen Sphere">
@@ -108,6 +108,9 @@
         </script>
 
         <style>
+          /* Critical first-paint background: use the theme selected in the head. */
+          html, body { background-color: var(--bg, #F7F8F7); }
+
           /* ==================== THEME VARIABLES ==================== */
           :root,
           [data-theme="dark"] {
