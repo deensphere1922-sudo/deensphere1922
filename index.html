@@ -9088,22 +9088,40 @@ async function bootSplash() {
           // Skip duplicates
           if (results.some(r => r.short.toLowerCase() === cleanLabel.toLowerCase())) continue;
 
-          let tz = item.extratags?.timezone || null;
-          if (!tz) {
-            const cc = a.country_code?.toLowerCase();
-            if (cc === 'gb') tz = 'Europe/London';
-            else if (cc === 'in') tz = 'Asia/Kolkata';
-            else if (cc === 'us') tz = 'America/New_York'; 
-            else if (cc === 'sa') tz = 'Asia/Riyadh';
-            else if (cc === 'pk') tz = 'Asia/Karachi';
-            else if (cc === 'ae') tz = 'Asia/Dubai';
-            else if (cc === 'th') tz = 'Asia/Bangkok';
-            else if (cc === 'id') tz = 'Asia/Jakarta';
-            else if (cc === 'my') tz = 'Asia/Kuala_Lumpur';
-            else if (cc === 'ca') tz = 'America/Toronto';
-            else if (cc === 'za') tz = 'Africa/Johannesburg';
-            else tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-          }
+      let tz = item.extratags?.timezone || null;
+
+// Get the actual timezone from the selected city's coordinates.
+if (!tz) {
+  try {
+    const timezoneResponse = await fetch(
+      `https://timeapi.io/api/timezone/coordinate?latitude=${encodeURIComponent(item.lat)}&longitude=${encodeURIComponent(item.lon)}`
+    );
+
+    if (timezoneResponse.ok) {
+      const timezoneData = await timezoneResponse.json();
+      tz = timezoneData.timeZone || timezoneData.timezone || null;
+    }
+  } catch (error) {
+    console.warn('Could not detect city timezone:', error);
+  }
+}
+
+// Fallback only if the timezone API fails.
+if (!tz) {
+  const cc = a.country_code?.toLowerCase();
+
+  if (cc === 'gb') tz = 'Europe/London';
+  else if (cc === 'in') tz = 'Asia/Kolkata';
+  else if (cc === 'sa') tz = 'Asia/Riyadh';
+  else if (cc === 'pk') tz = 'Asia/Karachi';
+  else if (cc === 'ae') tz = 'Asia/Dubai';
+  else if (cc === 'th') tz = 'Asia/Bangkok';
+  else if (cc === 'id') tz = 'Asia/Jakarta';
+  else if (cc === 'my') tz = 'Asia/Kuala_Lumpur';
+  else if (cc === 'ca') tz = 'America/Toronto';
+  else if (cc === 'za') tz = 'Africa/Johannesburg';
+  else tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+}
 
           results.push({
             label: item.display_name,
