@@ -18428,40 +18428,6 @@ if (inp) {
   }
 
       </script>
-      <script>
-      /* Splash refresh recovery: restart the logo/text CSS animations when the
-         browser restores this page from refresh/BFCache. This does not alter
-         the splash duration or any other screen. */
-      (function () {
-        function restartDeenSplashAnimation() {
-          const splash = document.querySelector('.splash-screen');
-          if (!splash) return;
-          const animated = splash.querySelectorAll(
-            '.splash-logo-mark, .splash-logo-mark svg path, .splash-logo-mark svg circle, .splash-title, .splash-tagline'
-          );
-          animated.forEach((el) => {
-            el.style.animation = 'none';
-            if (el.matches('.splash-logo-mark svg path')) {
-              el.style.strokeDasharray = '64';
-              el.style.strokeDashoffset = '64';
-            }
-            if (el.matches('.splash-logo-mark svg circle, .splash-title, .splash-tagline')) {
-              el.style.opacity = '0';
-            }
-          });
-          // Force a layout pass so the browser starts each animation from frame 0.
-          void splash.offsetWidth;
-          animated.forEach((el) => {
-            el.style.removeProperty('animation');
-            el.style.removeProperty('opacity');
-            el.style.removeProperty('stroke-dasharray');
-            el.style.removeProperty('stroke-dashoffset');
-          });
-        }
-        window.addEventListener('pageshow', () => {
-          requestAnimationFrame(() => requestAnimationFrame(restartDeenSplashAnimation));
-        });
-      })();
-      </script>
+
       </body>
       </html>
