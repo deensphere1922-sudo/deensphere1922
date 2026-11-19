@@ -807,7 +807,7 @@
             background: rgba(10, 10, 10, 0.25);
             backdrop-filter: blur(6px);
             -webkit-backdrop-filter: blur(6px);
-            z-index: 700;
+            z-index: 99999;
             align-items: center;
             justify-content: center;
             padding: 16px;
@@ -15068,12 +15068,16 @@ function unlockYouTubeBackgroundScroll() {
 
 
 
+
 async function openYouTubePlayer(videoId) {
   const overlay = document.getElementById('yt-player-overlay');
   if (!overlay) return;
 
-  // Lock background scrolling while the video is open.
-  lockYouTubeBackgroundScroll();
+  // Move overlay outside the scrolling content container.
+  // This prevents the background from jumping to the top.
+  if (overlay.parentElement !== document.body) {
+    document.body.appendChild(overlay);
+  }
 
   try {
     if (_qAudio && !_qAudio.paused) {
@@ -15082,21 +15086,22 @@ async function openYouTubePlayer(videoId) {
       _abSyncStatus(false);
     }
 
-    if (window.speechSynthesis && window.speechSynthesis.speaking) {
+    if (window.speechSynthesis?.speaking) {
       window.speechSynthesis.pause();
     }
   } catch (e) {}
 
   overlay.style.display = 'flex';
-  requestAnimationFrame(() => overlay.classList.add('show'));
+
+  requestAnimationFrame(() => {
+    overlay.classList.add('show');
+  });
 
   try {
     await _loadYouTubeApi();
 
     if (_ytPlayer) {
-      try {
-        _ytPlayer.loadVideoById(videoId);
-      } catch (e) {}
+      _ytPlayer.loadVideoById(videoId);
       return;
     }
 
@@ -15109,17 +15114,17 @@ async function openYouTubePlayer(videoId) {
       },
       events: {
         onReady: (e) => {
-          try {
-            e.target.playVideo();
-          } catch (err) {}
+          e.target.playVideo();
         }
       }
     });
+
   } catch (error) {
     console.error('YouTube player error:', error);
     closeYouTubePlayer();
   }
 }
+
 
 function closeYouTubePlayer() {
   const overlay = document.getElementById('yt-player-overlay');
