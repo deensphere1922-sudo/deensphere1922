@@ -101,7 +101,13 @@
 
               const SUPABASE_URL = "https://ydopgiotyypnorpqkkwa.supabase.co";
           const SUPABASE_KEY = "sb_publishable_Vy1rcuDMrK0Y1redpbWjTQ_ICTpdbLh";
-          const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+         const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true
+  }
+});
           window.sb = { supabase };
 
           
@@ -16981,7 +16987,7 @@ if (inp) {
             };
 
             // Only acts if normal startup has not left the splash screen.
-            const startupFallbackTimer = setTimeout(finishStartupNavigation, 8000);
+         const startupFallbackTimer = null;
 
             const themeBtn = document.getElementById('theme-toggle');
             if (themeBtn) {
@@ -17078,18 +17084,35 @@ if (inp) {
 
             render();
 
-            let user = null;
-            try {
-              const sessionPromise = window.sb.supabase.auth.getSession();
-              const timeoutPromise = new Promise((_, reject) =>
-                setTimeout(() => reject(new Error('Supabase timeout')), 1200)
-              );
-              const { data } = await Promise.race([sessionPromise, timeoutPromise]);
-              user = data?.session?.user || null;
-            } catch (e) {
-              console.warn('Supabase session unavailable:', e.message);
-              user = null;
-            }
+           
+let user = null;
+
+try {
+  const { data, error } = await window.sb.supabase.auth.getSession();
+
+  if (error) throw error;
+
+  user = data?.session?.user || null;
+
+} catch (e) {
+  console.warn('Supabase session restoration failed:', e);
+
+  // Retry once before treating the user as logged out.
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const { data, error } = await window.sb.supabase.auth.getSession();
+
+    if (error) throw error;
+
+    user = data?.session?.user || null;
+
+  } catch (retryError) {
+    console.error('Session restoration retry failed:', retryError);
+    user = null;
+  }
+}
+
 
                     if (user) {
         window.__sbUid = user.id;
@@ -17244,10 +17267,14 @@ if (inp) {
             if (typeof _sbEnsureBroadcast === 'function') _sbEnsureBroadcast(u.id);
 
             go(S.settings && S.settings.setupDone ? 'home' : 'setup-location');
-          } else if (!u && S.screen !== 'auth') {
-            S.profile = null; S.settings = null; S.dayCache = {};
-            go('auth');
-          }
+        } else if (event === 'SIGNED_OUT') {
+  S.profile = null;
+  S.settings = null;
+  S.dayCache = {};
+  window.__sbUid = null;
+  S._lastUid = null;
+  go('auth');
+}
         });
       } catch (e) { console.warn('Auth listener failed:', e); }
 
