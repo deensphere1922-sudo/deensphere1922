@@ -17356,30 +17356,19 @@ const toggleGuideRecording = async () => {
             const isGuideIslamicQuestion = value =>
               /\\b(?:islam|islamic|muslim|allah|qur['’]?an|surah|ayah|verse|hadith|sunnah|salah|prayer|sabr|tawheed|tawhid|dua|du'a|dhikr|adhkar|wudu|wudhu|ramadan|zakat|zakah|hajj|umrah|fiqh|fatwa|prophet|rasul|masjid|halal|haram|deen|deen sphere)\\b/i.test(value);
 
+            // Normal mode always uses exactly two simple progress messages.
             const guideNormalStages = [
-              'Thinking…',
+              'Understanding your question…',
               'Preparing your answer…'
             ];
 
+            // Web mode always uses five research progress messages.
             const guideWebStages = [
-              'Analyzing your question…',
-              'Searching the web for relevant information…',
-              'Gathering information from trusted sources…',
-              'Reviewing and verifying the findings…',
-              'Preparing your answer…'
-            ];
-
-            const guideIslamicStages = [
-              'Understanding your Islamic question…',
-              'Preparing your Islamic answer…'
-            ];
-
-            const guideIslamicWebStages = [
-              'Understanding your Islamic question…',
-              'Checking the Qur’an and relevant verses…',
-              'Verifying authentic Hadith and references…',
-              'Reviewing scholarly explanations and context…',
-              'Preparing a reliable Islamic answer…'
+              'Understanding your question…',
+              'Searching trusted Islamic websites…',
+              'Gathering relevant Qur’an and Hadith sources…',
+              'Reviewing and verifying source relevance…',
+              'Preparing your answer with references…'
             ];
 
             const transitionGuideStage = stage => {
@@ -17545,10 +17534,9 @@ const toggleGuideRecording = async () => {
               const text = (forcedText || (inp ? inp.value : '')).trim();
               const attachments = pendingAttachments.slice();
               const wantsResearch = guideWebSearchEnabled;
-              const isIslamicQuestion = isGuideIslamicQuestion(text);
               const activeGuideStages = wantsResearch
-                ? (isIslamicQuestion ? guideIslamicWebStages : guideWebStages)
-                : (isIslamicQuestion ? guideIslamicStages : guideNormalStages);
+                ? guideWebStages
+                : guideNormalStages;
               if (guideWebSearchEnabled && text.length < 2) {
                 toast('Type a question of at least 2 characters to search the web.');
                 return;
