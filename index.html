@@ -16432,7 +16432,8 @@ Warm, respectful, scholarly, compassionate and educational.
             const msgs = storedMsgs.filter(message =>
               message.role !== 'assistant' ||
               typeof message.text !== 'string' ||
-              !message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.')
+              (!message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.') &&
+                !message.text.startsWith('The AI service is temporarily rate-limited.'))
             );
             if (msgs.length !== storedMsgs.length) {
               S.guideMsgs = msgs;
@@ -16939,6 +16940,8 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
             const isRateLimitNotice = message =>
               message && message.role === 'assistant' && typeof message.text === 'string' &&
               message.text.startsWith('The AI service is temporarily rate-limited.');
+            const getQuestionCount = () =>
+              (S.guideMsgs || []).filter(message => message.role === 'user').length;
 
             const renderAttachments = () => {
               const list = $('#guide-attachments');
@@ -17256,6 +17259,10 @@ const setInputBusy = (busy) => {
               const attachments = pendingAttachments.slice();
               const researchMode = selectedSearchMode;
               if (!text && !attachments.length) return;
+              if (getQuestionCount() >= 10) {
+                toast('You’ve reached the 10-question limit for this chat. Clear chat to start a new one.');
+                return;
+              }
 
               const images = [];
               const documents = [];
@@ -17431,6 +17438,11 @@ const setInputBusy = (busy) => {
                 S.guideThinkStage = '';
                 S.guideMsgs.push({ role: 'assistant', text: out });
                 appendMessage('assistant', out);
+                if (getQuestionCount() === 10) {
+                  const limitNotice = 'You’ve reached the 10-question limit for this chat. Clear chat to start a new one.';
+                  S.guideMsgs.push({ role: 'assistant', text: limitNotice });
+                  appendMessage('assistant', limitNotice);
+                }
                 setInputBusy(false);
                 ensureClearButton();
 
@@ -17450,11 +17462,12 @@ const setInputBusy = (busy) => {
                   const retryMessage = Number.isFinite(retrySeconds) && retrySeconds > 0
                     ? ` Try again in about ${Math.ceil(retrySeconds)} seconds.`
                     : ' Please wait briefly and try again.';
-                  errMsg = `The AI service is temporarily rate-limited.${retryMessage} Your chat is saved; you do not need to clear it.`;
+                    toast(`The AI service is temporarily rate-limited.${retryMessage}`);
+                  } else {
+                    S.guideMsgs.push({ role: 'assistant', text: errMsg });
+                    appendMessage('assistant', errMsg);
                 }
 
-                S.guideMsgs.push({ role: 'assistant', text: errMsg });
-                appendMessage('assistant', errMsg);
                 setInputBusy(false);
                 ensureClearButton();
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
@@ -17467,14 +17480,7 @@ const setInputBusy = (busy) => {
             const clearChat = async () => {
               localStorage.removeItem('guide_blocked_until');
 
-              let rateLimitNotice = null;
-              for (let index = (S.guideMsgs || []).length - 1; index >= 0; index--) {
-                if (isRateLimitNotice(S.guideMsgs[index])) {
-                  rateLimitNotice = S.guideMsgs[index];
-                  break;
-                }
-              }
-              S.guideMsgs = rateLimitNotice ? [rateLimitNotice] : [];
+              S.guideMsgs = [];
               S.guideThinking = false;
               S.guideThinkStage = '';
               hideThinking();
@@ -17489,20 +17495,13 @@ const setInputBusy = (busy) => {
                 thread.querySelectorAll('[data-guide-chip]').forEach(c =>
                   c.onclick = () => send(c.dataset.guideChip));
               }
-              if (thread && rateLimitNotice) {
-                const notice = document.createElement('div');
-                notice.textContent = rateLimitNotice.text;
-                notice.style.cssText = 'align-self:flex-start;flex-shrink:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:13px;line-height:1.6;color:var(--tx3);border-left:2px solid var(--amber);';
-                thread.insertBefore(notice, thread.firstChild);
-              }
-
               const cb = $('#guide-clear');
               if (cb) cb.remove();
 
               setInputBusy(false);
-              toast(rateLimitNotice ? 'Chat cleared. The rate-limit warning remains.' : 'Chat cleared.');
+              toast('Chat cleared.');
 
-              setJSON('guide-history', S.guideMsgs).catch(() => {});
+              setJSON('guide-history', []).catch(() => {});
             };
 
          const btn = $('#guide-send');
