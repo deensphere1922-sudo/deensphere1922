@@ -17569,14 +17569,12 @@ const scheduleGuideRateLimitUnlock = () => {
                     if (!isRateLimitError(error) || retries >= 1) throw error;
                     const providerDelay = getRetryDelayMs(error);
                     const retryDelay = Math.min(providerDelay, 5000);
-                    if (!researchMode) {
-                      stopProgress();
-                      stopProgress = () => {};
-                      showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
-                    }
+                    stopProgress();
+                    stopProgress = () => {};
+                    showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
                     await new Promise(resolve => setTimeout(resolve, retryDelay));
                     retries++;
-                    if (!researchMode) showThinking('Retrying your request now...');
+                    showThinking('Retrying your request now...');
                   }
                 }
               };
