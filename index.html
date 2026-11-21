@@ -17126,6 +17126,9 @@ const setInputBusy = (busy) => {
                     images.push(...content.images);
                   }
                 }
+                if (images.length > 3) {
+                  throw new Error('You can analyze up to 3 images per message. Remove extra images or send them in a separate message.');
+                }
                 if (images.reduce((size, image) => size + image.dataUrl.length, 0) > 2800000) {
                   throw new Error('Together, the attached images are too large. Remove an image and try again.');
                 }
