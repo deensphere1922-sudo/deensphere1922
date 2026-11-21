@@ -16489,7 +16489,7 @@ Warm, respectful, scholarly, compassionate and educational.
                   const messageText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}${renderGuideSourceCards(m.sources)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideSourceCards(m.sources)}${esc(m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16669,9 +16669,9 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 .guide-sources {
   display: grid;
   gap: 7px;
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--border);
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
 }
 .guide-sources-heading {
   display: flex;
@@ -17052,8 +17052,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
             const isRateLimitNotice = message =>
               message && message.role === 'assistant' && typeof message.text === 'string' &&
               message.text.startsWith('The AI service is temporarily rate-limited.');
-            const getQuestionCount = () =>
-              (S.guideMsgs || []).filter(message => message.role === 'user').length;
 
             const renderAttachments = () => {
               const list = $('#guide-attachments');
@@ -17259,7 +17257,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 
     div.innerHTML = html.join('');
     const sourceCards = renderGuideSourceCards(sources);
-    if (sourceCards) div.insertAdjacentHTML('beforeend', sourceCards);
+    if (sourceCards) div.insertAdjacentHTML('afterbegin', sourceCards);
 
     const checkboxes = div.querySelectorAll('.guide-task-checkbox');
     const completedEl = div.querySelector('.guide-completed');
@@ -17373,10 +17371,6 @@ const setInputBusy = (busy) => {
               const attachments = pendingAttachments.slice();
               const researchMode = selectedSearchMode;
               if (!text && !attachments.length) return;
-              if (getQuestionCount() >= 10) {
-                toast('You’ve reached the 10-question limit for this chat. Clear chat to start a new one.');
-                return;
-              }
 
               const images = [];
               const documents = [];
@@ -17555,11 +17549,6 @@ const setInputBusy = (busy) => {
                 const visibleSources = webSources.map(({ title, url }) => ({ title, url }));
                 S.guideMsgs.push({ role: 'assistant', text: out, sources: visibleSources });
                 appendMessage('assistant', out, visibleSources);
-                if (getQuestionCount() === 10) {
-                  const limitNotice = 'You’ve reached the 10-question limit for this chat. Clear chat to start a new one.';
-                  S.guideMsgs.push({ role: 'assistant', text: limitNotice });
-                  appendMessage('assistant', limitNotice);
-                }
                 setInputBusy(false);
                 ensureClearButton();
 
