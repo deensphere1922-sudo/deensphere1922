@@ -16400,6 +16400,8 @@ FORMATTING:
 - Use clean, natural paragraphs.
 - Keep normal answers to approximately 5 short lines.
 - Avoid unnecessary line breaks, blank spaces and large gaps.
+- Do not show numbered prefixes (1., 2., 3.) or Markdown bullet/asterisk symbols.
+- Do not use leading asterisks; write clean plain-text paragraphs.
 - Do not use the ">" blockquote symbol.
 - Do not use bullet points in normal answers.
 - Use headings and bullet points only when providing detailed answers.
@@ -16550,7 +16552,9 @@ ISLAMIC EVIDENCE AND ACCURACY:
             let html = escapeGuideSourceHtml(text)
               .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--tx);font-weight:600;">$1</strong>')
               .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-              .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+              .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+              .replace(/^\s*\*\s*/gm, '')
+              .replace(/(?<!\S)\*(?!\S)/g, '');
             citationLinks.forEach((link, index) => {
               html = html.replace(`\u0000GUIDE_CITATION_${index}\u0000`, link);
             });
@@ -16576,13 +16580,11 @@ ISLAMIC EVIDENCE AND ACCURACY:
             }
             const bullet = line.match(/^(\s*)[-*+]\s+(.+)$/);
             if (bullet) {
-              const indent = '&nbsp;'.repeat(Math.min(Math.floor(bullet[1].length / 2), 8));
-              return `${indent}• ${formatGuideInlineText(bullet[2], sources)}`;
+              return formatGuideInlineText(bullet[2], sources);
             }
             const numbered = line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
             if (numbered) {
-              const indent = '&nbsp;'.repeat(Math.min(Math.floor(numbered[1].length / 2), 8));
-              return `${indent}${numbered[2]}. ${formatGuideInlineText(numbered[3], sources)}`;
+              return formatGuideInlineText(numbered[3], sources);
             }
             return line ? formatGuideInlineText(line, sources) : '';
           }).join('<br>');
@@ -16828,14 +16830,12 @@ ISLAMIC EVIDENCE AND ACCURACY:
 
       const bullet = line.match(/^(\s*)[-*+]\s+(.+)$/);
       if (bullet) {
-        const indent = '&nbsp;'.repeat(Math.min(Math.floor(bullet[1].length / 2), 8));
-        return `${indent}• ${formatText(bullet[2])}`;
+        return formatText(bullet[2]);
       }
 
       const numbered = line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
       if (numbered) {
-        const indent = '&nbsp;'.repeat(Math.min(Math.floor(numbered[1].length / 2), 8));
-        return `${indent}${numbered[2]}. ${formatText(numbered[3])}`;
+        return formatText(numbered[3]);
       }
 
       return line ? formatText(line) : '<br>';
