@@ -1,37 +1,67 @@
+export const config = { maxDuration: 60 };
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages, systemPrompt, webContext } = req.body || {};
-  if (!Array.isArray(messages)) {
-    return res.status(400).json({ error: 'Missing messages' });
+  const query = typeof req.body?.query === 'string' ? req.body.query.trim() : '';
+  if (query.length < 2 || query.length > 500) {
+    return res.status(400).json({ error: 'Enter a search question between 2 and 500 characters.' });
   }
 
-  const GROQ_KEY = process.env.GROQ_API_KEY;
-  if (!GROQ_KEY) return res.status(500).json({ error: 'GROQ_API_KEY missing' });
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    return res.status(503).json({ error: 'Web research is not configured on the server.' });
+  }
 
   try {
-    const groqResp = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+    const response = await fetch('https://api.tavily.com/search', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + GROQ_KEY
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'openai/gpt-oss-120b',
-        temperature: 0.1,
-        max_tokens: 1000,
-        messages: [
-          { role: 'system', content: systemPrompt || '' },
-          { role: 'system', content: 'Web Research Results:\n' + (webContext || 'none') },
-          ...messages
-        ]
+        api_key: apiKey,
+        query,
+        search_depth: 'advanced',
+        max_results: 6,
+        include_answer: false,
+        include_raw_content: false
       })
     });
-    const data = await groqResp.json();
-    return res.status(200).json(data);
-  } catch (e) {
-    return res.status(500).json({ error: e.message });
+    let data;
+    try {
+      data = await response.json();
+    } catch (error) {
+      console.error('Web research provider returned invalid JSON:', error);
+      return res.status(502).json({ error: 'The web research service returned an invalid response.' });
+    }
+    if (!response.ok) {
+      console.error('Web research provider returned an error:', response.status);
+      return res.status(502).json({ error: 'The web research service could not complete this search.' });
+    }
+
+    const seenUrls = new Set();
+    const results = (Array.isArray(data.results) ? data.results : [])
+      .filter(result => result && typeof result.url === 'string' && typeof result.content === 'string')
+      .map(result => {
+        try {
+          const url = new URL(result.url);
+          if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenUrls.has(url.href)) return null;
+          seenUrls.add(url.href);
+          return {
+            title: typeof result.title === 'string' ? result.title.slice(0, 250) : url.hostname,
+            url: url.href,
+            content: result.content.slice(0, 1800)
+          };
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    return res.status(200).json({ results });
+  } catch (error) {
+    console.error('Could not reach the web research provider:', error);
+    return res.status(502).json({ error: 'Could not reach the web research service. Please try again.' });
   }
 }
