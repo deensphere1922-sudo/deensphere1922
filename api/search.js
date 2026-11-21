@@ -37,7 +37,19 @@ export default async function handler(req, res) {
     }
     if (!response.ok) {
       console.error('Web research provider returned an error:', response.status);
-      return res.status(502).json({ error: 'The web research service could not complete this search.' });
+      const retryValues = [
+        response.headers.get('retry-after'),
+        response.headers.get('x-ratelimit-reset-requests'),
+        response.headers.get('x-ratelimit-reset-tokens')
+      ].filter(Boolean);
+      const retryAfter = retryValues.find(value =>
+        !/^(?:0+(?:\.0+)?)(?:\s*(?:ms|s|sec|seconds?))?$/i.test(value.trim())
+      ) || retryValues[0] || null;
+      if (retryAfter) res.setHeader('Retry-After', retryAfter);
+      return res.status(response.status === 429 ? 429 : 502).json({
+        error: 'The web research service could not complete this search.',
+        ...(retryAfter ? { retryAfter } : {})
+      });
     }
 
     const seenUrls = new Set();
