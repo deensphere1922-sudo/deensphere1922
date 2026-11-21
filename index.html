@@ -16378,6 +16378,15 @@ RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 - Preserve all existing Adhkar formatting, exact-number and continuation instructions.
 - Never invent Arabic text, translations or references.
 
+ATTACHMENT ANALYSIS:
+- Read the visible text in images and the extracted text in documents. Say what the Islamic content appears to be and explain its meaning in the user's language.
+- If an attachment has no Islamic content, begin with: "This attachment does not appear to contain Islamic content, so I can only help with an Islamic question." Do not summarize unrelated content.
+- If an attachment contains both Islamic and unrelated content, begin with: "This attachment includes non-Islamic material; I will focus on its Islamic content." Then discuss only the Islamic material.
+- For readable Qur'an text, transcribe only the words that are clear, explain the meaning, and give the surah and ayah only when confidently identified. If unsure, say the reference could not be verified; never guess.
+- For readable Hadith, explain the meaning and give the collection and number only when confidently identified. Do not claim a grading or source that cannot be verified.
+- For other Arabic text, translate it without claiming it is Qur'an or Hadith unless that identification is reliable.
+- If text is blurry, incomplete, or unclear, say so and ask for a clearer image instead of guessing.
+
 FORMATTING:
 - Use clean, natural paragraphs.
 - Keep normal answers to approximately 5 short lines.
@@ -16447,19 +16456,301 @@ Warm, respectful, scholarly, compassionate and educational.
                         <button class="btn-text guide-suggestion" data-guide-chip="What does the Quran say about patience?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
-         <div id="guide-composer" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10;">
-  <input
-    id="guide-input"
-    placeholder="Ask Deen Guide..."
-    style="flex:1;min-width:0;cursor:text;"
-  >
-  <button class="btn btn-primary" id="guide-send" type="button">
-    Send
+         <div id="guide-composer">
+  <div id="guide-composer-controls">
+  <div id="guide-attachments" aria-live="polite"></div>
+  <button class="btn-text" id="guide-attach" type="button" aria-label="Add an attachment" title="Add an image or file" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
   </button>
+  <textarea id="guide-input" rows="1" placeholder="Ask Deen Guide..." aria-label="Message Deen Guide"></textarea>
+  <button class="btn-text" id="guide-mic" type="button" aria-label="Speak your message" title="Speak your message">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg>
+    <span class="guide-mic-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+  </button>
+  <button class="btn btn-primary" id="guide-send" type="button" aria-label="Send message">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+    <span>Send</span>
+  </button>
+  <div id="guide-attach-menu" role="menu" aria-label="Add to your message">
+    <button type="button" data-guide-file="image" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg></span><span><strong>Upload image</strong><small>PNG, JPG or WebP</small></span></button>
+    <button type="button" data-guide-file="document" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 3h7l5 5v13H7z"/><path d="M14 3v5h5M10 13h6M10 17h6"/></svg></span><span><strong>Upload document</strong><small>PDF, DOCX, TXT, MD or CSV</small></span></button>
+    <button type="button" data-guide-file="camera" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3l2-3h6l2 3h3v13H4z"/><circle cx="12" cy="13" r="4"/></svg></span><span><strong>Take a photo</strong><small>Capture a page or question</small></span></button>
+  </div>
+  </div>
+  <input id="guide-image-file" type="file" accept="image/png,image/jpeg,image/webp" hidden>
+  <input id="guide-document-file" type="file" accept=".pdf,.docx,.txt,.md,.csv,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+  <input id="guide-camera-file" type="file" accept="image/*" capture="environment" hidden>
 </div>
                   <style>
                     @keyframes spin { to { transform: rotate(360deg); } }
                     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
+
+#guide-composer {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  padding: 0 !important;
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box;
+  margin: 12px auto 24px !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#guide-attachments {
+  display: none;
+  flex: 0 0 100% !important;
+  order: -1;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+}
+#guide-attachments:not(:empty) { display: grid; }
+div:has(> #guide-input)#guide-composer-controls {
+  position: relative !important;
+  display: flex !important;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  row-gap: 10px;
+  flex: 0 1 auto !important;
+  width: 100% !important;
+  max-width: none;
+  box-sizing: border-box;
+  margin: auto;
+  padding: 12px 14px !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 24px;
+  background: var(--card) !important;
+  box-shadow: none !important;
+  transition: border-color .18s ease;
+  z-index: 51;
+}
+div:has(> #guide-input)#guide-composer-controls:hover,
+div:has(> #guide-input)#guide-composer-controls:focus-within {
+  border-color: var(--green-l) !important;
+  box-shadow: none !important;
+}
+.guide-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 6px 9px;
+  color: var(--tx2);
+  background: var(--green-dim);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  font-size: 12px;
+}
+.guide-attachment-chip span {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guide-attachment-chip button {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  color: var(--tx2);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+#guide-attach, #guide-mic {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 48px;
+  color: var(--tx2);
+  background: var(--card-el);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+#guide-attach {
+  color: var(--green-l);
+  background: var(--green-dim);
+  border-color: transparent;
+}
+#guide-attach svg, #guide-mic svg, #guide-send svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#guide-attach:hover,
+#guide-attach:focus-visible {
+  color: var(--green);
+  background: var(--green-dim);
+  border-color: var(--green-l);
+  transform: translateY(-2px) scale(1.04);
+}
+#guide-attach:hover svg,
+#guide-attach:focus-visible svg {
+  animation: guide-plus-pop .34s cubic-bezier(.2,.8,.2,1);
+}
+@keyframes guide-plus-pop {
+  0% { transform: scale(.75); }
+  65% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+#guide-mic:hover,
+#guide-mic:focus-visible {
+  color: var(--green-l);
+  background: var(--green-dim);
+  border-color: var(--green-l);
+  transform: translateY(-2px);
+}
+#guide-mic:not(.listening):hover svg,
+#guide-mic:not(.listening):focus-visible svg {
+  animation: guide-mic-hover .6s ease-in-out infinite alternate;
+}
+@keyframes guide-mic-hover {
+  to { transform: translateY(-2px); }
+}
+.guide-mic-wave {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 22px;
+  height: 22px;
+}
+.guide-mic-wave i {
+  width: 2px;
+  height: 4px;
+  background: currentColor;
+  border-radius: 2px;
+}
+#guide-mic.listening svg { display: none; }
+#guide-mic.listening .guide-mic-wave { display: flex; }
+#guide-mic.listening .guide-mic-wave i {
+  animation: guide-mic-wave 650ms ease-in-out infinite alternate;
+}
+#guide-mic.listening .guide-mic-wave i:nth-child(2),
+#guide-mic.listening .guide-mic-wave i:nth-child(4) { animation-delay: 130ms; }
+#guide-mic.listening .guide-mic-wave i:nth-child(3) { animation-delay: 260ms; }
+@keyframes guide-mic-wave {
+  to { height: 18px; }
+}
+#guide-input {
+  height: 48px !important;
+  min-height: 48px;
+  max-height: 140px;
+  flex: 1 1 80px !important;
+  width: auto !important;
+  padding: 12px 4px !important;
+  resize: none;
+  overflow-y: auto;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  font: inherit;
+  line-height: 22px;
+}
+#guide-input:focus { outline: none !important; }
+#guide-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 50px;
+  padding: 0 18px;
+  border-radius: 14px;
+}
+#guide-send svg { width: 17px; height: 17px; }
+#guide-send:disabled { opacity: .65; }
+#guide-attach-menu {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: min(320px, calc(100vw - 40px));
+  padding: 8px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgba(0,0,0,.28);
+}
+#guide-attach-menu.open { display: grid; gap: 4px; }
+#guide-attach-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px;
+  text-align: left;
+  color: var(--tx);
+  background: transparent;
+  border: 0;
+  border-radius: 11px;
+  cursor: pointer;
+}
+#guide-attach-menu button:hover { background: var(--green-dim); }
+#guide-attach-menu button > span:last-child { display: grid; gap: 3px; }
+#guide-attach-menu small { color: var(--tx3); font-size: 12px; }
+.guide-attach-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  color: var(--green-l);
+  background: var(--green-dim);
+  border-radius: 13px;
+  font-size: 22px;
+}
+.guide-attach-icon svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#guide-mic.listening {
+  color: var(--green-l);
+  border-color: var(--green);
+  background: var(--green-dim);
+}
+@media (prefers-reduced-motion: reduce) {
+  #guide-attach, #guide-mic { transition: none; }
+  #guide-attach:hover, #guide-attach:focus-visible, #guide-mic:hover, #guide-mic:focus-visible { transform: none; }
+  #guide-attach:hover svg, #guide-attach:focus-visible svg, #guide-mic:not(.listening):hover svg, #guide-mic:not(.listening):focus-visible svg,
+  #guide-mic.listening .guide-mic-wave i { animation: none; transition: none; }
+}
+@media (max-width: 480px) {
+  #guide-composer { gap: 8px; margin: 10px auto 22px !important; }
+  #guide-attachments { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  div:has(> #guide-input)#guide-composer-controls { width: calc(100% - 8px) !important; gap: 6px; padding: 8px !important; }
+  #guide-attach, #guide-mic { width: 38px; height: 38px; flex-basis: 38px; }
+  #guide-send { min-height: 38px; padding: 0 11px; }
+  #guide-send span { font-size: 13px; }
+}
+@media (min-width: 481px) and (max-width: 880px) {
+  #guide-attachments { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
                   
 /* Deen Guide: keep the empty-state layout stable. Its entrance animation
    is controlled only by the single navigation sequence in the main stylesheet. */
@@ -16497,6 +16788,151 @@ Warm, respectful, scholarly, compassionate and educational.
 
           function bindDeenGuide() {
             const thread = $('#guide-thread');
+            const pendingAttachments = [];
+            let activeRecognition = null;
+            let recognitionShouldContinue = false;
+            let preferAudioRecorder = false;
+            let activeRecorder = null;
+            let activeMicStream = null;
+            let recordingTimeout = null;
+            let requestingMicrophone = false;
+
+            const renderAttachments = () => {
+              const list = $('#guide-attachments');
+              if (!list) return;
+              list.replaceChildren();
+              pendingAttachments.forEach((file, index) => {
+                const chip = document.createElement('div');
+                chip.className = 'guide-attachment-chip';
+                const name = document.createElement('span');
+                name.textContent = file.name;
+                name.title = file.name;
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.setAttribute('aria-label', `Remove ${file.name}`);
+                remove.textContent = '×';
+                remove.onclick = () => {
+                  pendingAttachments.splice(index, 1);
+                  renderAttachments();
+                };
+                chip.append(name, remove);
+                list.appendChild(chip);
+              });
+            };
+
+            const addAttachment = file => {
+              if (!file) return;
+              if (pendingAttachments.length >= 6) {
+                toast("You've reached the 6-file limit. Remove one attachment to add another.");
+                return;
+              }
+              const extension = file.name.split('.').pop().toLowerCase();
+              const isImage = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
+                ['png', 'jpg', 'jpeg', 'webp'].includes(extension);
+              const isDocument = ['pdf', 'docx', 'txt', 'md', 'csv'].includes(extension);
+              if (!isImage && !isDocument) {
+                toast('Choose a PNG, JPG, WebP, PDF, DOCX, TXT, MD or CSV file.');
+                return;
+              }
+              if (file.size > 20 * 1024 * 1024) {
+                toast(`${file.name} is too large. Choose a file under 20 MB.`);
+                return;
+              }
+              pendingAttachments.push(file);
+              renderAttachments();
+            };
+
+            const loadDocumentText = async file => {
+              const extension = file.name.split('.').pop().toLowerCase();
+              if (['txt', 'md', 'csv'].includes(extension)) {
+                return { text: await file.text(), images: [] };
+              }
+              if (extension === 'pdf') {
+                const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
+                pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+                const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+                if (pdf.numPages > 50) throw new Error('PDF is over the 50-page reading limit.');
+                const pages = [];
+                for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+                  const page = await pdf.getPage(pageNumber);
+                  const content = await page.getTextContent();
+                  pages.push(content.items.map(item => item.str || '').join(' '));
+                }
+                const text = pages.join('\n').slice(0, 40000);
+                if (text.trim()) return { text, images: [] };
+
+                const images = [];
+                for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 3); pageNumber++) {
+                  const page = await pdf.getPage(pageNumber);
+                  const baseViewport = page.getViewport({ scale: 1 });
+                  const scale = Math.min(1.5, 1200 / baseViewport.width);
+                  const viewport = page.getViewport({ scale });
+                  const canvas = document.createElement('canvas');
+                  canvas.width = Math.ceil(viewport.width);
+                  canvas.height = Math.ceil(viewport.height);
+                  const context = canvas.getContext('2d');
+                  if (!context) throw new Error(`Could not render page ${pageNumber} of ${file.name}.`);
+                  await page.render({ canvasContext: context, viewport }).promise;
+                  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
+                  if (!blob || blob.size > 900000) {
+                    throw new Error(`Could not safely prepare page ${pageNumber} of ${file.name}.`);
+                  }
+                  const dataUrl = await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => reject(new Error(`Could not read page ${pageNumber} of ${file.name}.`));
+                    reader.readAsDataURL(blob);
+                  });
+                  images.push({ name: `${file.name} (page ${pageNumber})`, dataUrl });
+                }
+                return {
+                  text: `This scanned PDF has no selectable text. Review the attached rendered page images.${pdf.numPages > 3 ? ' Only the first 3 pages are included.' : ''}`,
+                  images
+                };
+              }
+              if (extension === 'docx') {
+                const mammothModule = await import('https://cdn.jsdelivr.net/npm/mammoth@1.9.0/+esm');
+                const mammoth = mammothModule.default || mammothModule;
+                const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
+                return { text: result.value.slice(0, 40000), images: [] };
+              }
+              throw new Error(`Unsupported document type: ${file.name}`);
+            };
+
+            const imageAsDataUrl = async file => {
+              if (typeof createImageBitmap !== 'function') {
+                if (file.size > 1500000) throw new Error(`${file.name} is too large to attach in this browser.`);
+                return new Promise((resolve, reject) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result);
+                  reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+                  reader.readAsDataURL(file);
+                });
+              }
+              const bitmap = await createImageBitmap(file);
+              const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
+              const canvas = document.createElement('canvas');
+              canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+              canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+              const context = canvas.getContext('2d');
+              if (!context) {
+                bitmap.close();
+                throw new Error('This browser could not prepare the attached image.');
+              }
+              context.fillStyle = '#fff';
+              context.fillRect(0, 0, canvas.width, canvas.height);
+              context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+              bitmap.close();
+              const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.84));
+              if (!blob) throw new Error(`Could not prepare ${file.name}.`);
+              if (blob.size > 2500000) throw new Error(`${file.name} is too large after compression.`);
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
+                reader.readAsDataURL(blob);
+              });
+            };
 
             const scrollThread = () => {
               if (thread) thread.scrollTop = thread.scrollHeight;
@@ -16634,7 +17070,8 @@ const setInputBusy = (busy) => {
   // Only disable Send while generating
   if (btn) {
     btn.disabled = busy;
-    btn.textContent = busy ? 'Thinking...' : 'Send';
+    const label = btn.querySelector('span');
+    if (label) label.textContent = busy ? 'Thinking...' : 'Send';
   }
 };
 
@@ -16671,13 +17108,69 @@ const setInputBusy = (busy) => {
 
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
-              if (!text) return;
-              if (inp) inp.value = '';
+              const attachments = pendingAttachments.slice();
+              if (!text && !attachments.length) return;
+
+              const images = [];
+              const documents = [];
+              try {
+                for (const file of attachments) {
+                  const extension = file.name.split('.').pop().toLowerCase();
+                  const isImage = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
+                    ['png', 'jpg', 'jpeg', 'webp'].includes(extension);
+                  if (isImage) {
+                    images.push({ name: file.name, dataUrl: await imageAsDataUrl(file) });
+                  } else {
+                    const content = await loadDocumentText(file);
+                    documents.push({ name: file.name, text: content.text });
+                    images.push(...content.images);
+                  }
+                }
+                if (images.reduce((size, image) => size + image.dataUrl.length, 0) > 2800000) {
+                  throw new Error('Together, the attached images are too large. Remove an image and try again.');
+                }
+              } catch (attachmentError) {
+                console.error('Deen Guide attachment error:', attachmentError);
+                toast(attachmentError.message || 'Could not read the attachment.');
+                return;
+              }
+
+              const question = text || (images.length
+                ? 'Please examine the attached image and explain any Islamic text or topic carefully. Mention uncertainty if anything cannot be read.'
+                : 'Please summarize the attached document and explain any Islamic information carefully.');
+              let modelText = question;
+              let remainingDocumentChars = 40000;
+              documents.forEach(document => {
+                const excerpt = document.text.slice(0, remainingDocumentChars);
+                remainingDocumentChars -= excerpt.length;
+                modelText += `\n\nAttached document: ${document.name}\n${excerpt}`;
+                if (excerpt.length < document.text.length) {
+                  modelText += '\n[Document text shortened to fit the message limit.]';
+                }
+              });
+              if (images.length) {
+                modelText += `\n\nPlease also examine the attached image${images.length > 1 ? 's' : ''}.`;
+              }
+              const visibleText = [
+                text,
+                attachments.length ? `Attached: ${attachments.map(file => file.name).join(', ')}` : ''
+              ].filter(Boolean).join('\n');
+
+              if (inp) {
+                inp.value = '';
+                inp.style.height = '42px';
+              }
+              pendingAttachments.splice(0, pendingAttachments.length);
+              renderAttachments();
+              const attachMenu = $('#guide-attach-menu');
+              if (attachMenu) attachMenu.classList.remove('open');
+              const attachButton = $('#guide-attach');
+              if (attachButton) attachButton.setAttribute('aria-expanded', 'false');
 
               S.guideMsgs = S.guideMsgs || [];
-              S.guideMsgs.push({ role: 'user', text });
+              S.guideMsgs.push({ role: 'user', text: visibleText });
 
-              appendMessage('user', text);
+              appendMessage('user', visibleText);
               S.guideThinking = true;
               setInputBusy(true);
               ensureClearButton();
@@ -16693,7 +17186,7 @@ const setInputBusy = (busy) => {
                   const tavilyResp = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: text })
+                    body: JSON.stringify({ query: question })
                   });
                   const tavilyData = await tavilyResp.json();
                   if (tavilyData.results && tavilyData.results.length > 0) {
@@ -16709,8 +17202,18 @@ const setInputBusy = (busy) => {
                 showThinking('Reading sources & formulating answer...');
 
                 const history = S.guideMsgs.slice(-10).map(m => ({ role: m.role, content: m.text }));
-
                 const forcedInstruction = `\n\n[SYSTEM NOTE: The user wants the exact number of items requested. If they asked for 100, list 100. If they asked for more than 500 lines, politely explain the limit and offer to do it in batches.]`;
+                const currentMessage = history[history.length - 1];
+                const currentText = modelText + forcedInstruction;
+                currentMessage.content = images.length
+                  ? [
+                    { type: 'text', text: currentText },
+                    ...images.map(image => ({
+                      type: 'image_url',
+                      image_url: { url: image.dataUrl }
+                    }))
+                  ]
+                  : currentText;
 
                 const resp = await fetch('/api/guide', {
                   method: 'POST',
@@ -16719,8 +17222,7 @@ const setInputBusy = (busy) => {
                     messages: [
                       { role: 'system', content: GUIDE_SYSTEM_PROMPT },
                       { role: 'system', content: `Web Research Results:\n${webContext}` },
-                      ...history,
-                      { role: 'user', content: text + forcedInstruction }
+                      ...history
                     ]
                   })
                 });
@@ -16802,8 +17304,287 @@ if (btn) btn.onclick = () => send();
 
 const inp = $('#guide-input');
 const composer = $('#guide-composer');
+const attachButton = $('#guide-attach');
+const attachMenu = $('#guide-attach-menu');
+const imagePicker = $('#guide-image-file');
+const documentPicker = $('#guide-document-file');
+const cameraPicker = $('#guide-camera-file');
+const micButton = $('#guide-mic');
+const defaultGuidePlaceholder = inp ? inp.placeholder : 'Ask Deen Guide...';
+
+const resetMicUI = () => {
+  if (!micButton) return;
+  micButton.classList.remove('listening');
+  micButton.setAttribute('aria-label', 'Speak your message');
+  micButton.title = 'Speak your message';
+  micButton.disabled = false;
+  if (inp) inp.placeholder = defaultGuidePlaceholder;
+};
+
+if (attachButton && attachMenu) {
+  attachButton.onclick = () => {
+    const isOpen = attachMenu.classList.toggle('open');
+    attachButton.setAttribute('aria-expanded', String(isOpen));
+  };
+  attachMenu.querySelectorAll('[data-guide-file]').forEach(option => {
+    option.onclick = () => {
+      attachMenu.classList.remove('open');
+      attachButton.setAttribute('aria-expanded', 'false');
+      const picker = option.dataset.guideFile === 'image' ? imagePicker
+        : option.dataset.guideFile === 'camera' ? cameraPicker : documentPicker;
+      if (picker) picker.click();
+    };
+  });
+}
+
+if (!document.documentElement.dataset.guideAttachDismissBound) {
+  document.documentElement.dataset.guideAttachDismissBound = 'true';
+  document.addEventListener('pointerdown', event => {
+    const controls = document.getElementById('guide-composer-controls');
+    const menu = document.getElementById('guide-attach-menu');
+    const button = document.getElementById('guide-attach');
+    const clickedInsideControls = controls && controls.contains(event.target);
+    if (!clickedInsideControls && controls && controls.contains(document.activeElement)) {
+      document.activeElement.blur();
+    }
+    if (!menu || !menu.classList.contains('open')) return;
+    if (menu.contains(event.target) || (button && button.contains(event.target))) return;
+    menu.classList.remove('open');
+    if (button) button.setAttribute('aria-expanded', 'false');
+  });
+}
+
+[
+  [imagePicker, addAttachment],
+  [documentPicker, addAttachment],
+  [cameraPicker, addAttachment]
+].forEach(([picker, onFile]) => {
+  if (!picker) return;
+  picker.onchange = () => {
+    Array.from(picker.files || []).forEach(onFile);
+    picker.value = '';
+  };
+});
+
+if (micButton) {
+  micButton.onclick = async () => {
+    if (activeRecognition) {
+      recognitionShouldContinue = false;
+      activeRecognition.stop();
+      return;
+    }
+    if (activeRecorder) {
+      if (activeRecorder.state === 'recording') activeRecorder.stop();
+      return;
+    }
+    if (requestingMicrophone) return;
+    if (!window.isSecureContext) {
+      toast('Microphone access requires a secure HTTPS connection.');
+      return;
+    }
+
+    const Recognition = preferAudioRecorder ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (Recognition) {
+      const recognition = new Recognition();
+      const startingText = inp ? inp.value : '';
+      let finalTranscript = '';
+      activeRecognition = recognition;
+      recognitionShouldContinue = true;
+      micButton.classList.add('listening');
+      micButton.setAttribute('aria-label', 'Stop recording');
+      micButton.title = 'Stop recording';
+      if (inp) inp.placeholder = 'Listening... speak now';
+      recognition.lang = navigator.language || 'en-US';
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.onresult = event => {
+        let interimTranscript = '';
+        for (let index = event.resultIndex; index < event.results.length; index++) {
+          const result = event.results[index];
+          const phrase = result[0].transcript.trim();
+          if (result.isFinal) finalTranscript += `${finalTranscript && phrase ? ' ' : ''}${phrase}`;
+          else interimTranscript += `${interimTranscript && phrase ? ' ' : ''}${phrase}`;
+        }
+        const spokenText = `${finalTranscript}${interimTranscript}`.trim();
+        if (!inp || !spokenText) return;
+        inp.value = `${startingText}${startingText && spokenText ? ' ' : ''}${spokenText}`;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.focus();
+        inp.setSelectionRange(inp.value.length, inp.value.length);
+      };
+      recognition.onerror = event => {
+        if (event.error === 'no-speech') {
+          toast('Still listening. Speak when ready.');
+          return;
+        }
+        recognitionShouldContinue = false;
+        if (event.error === 'network') {
+          if (location.protocol === 'file:') {
+            toast('Voice typing needs the HTTPS app. This local file cannot reach the transcription service.');
+            return;
+          }
+          preferAudioRecorder = true;
+          toast('Live voice typing is unavailable. Tap the mic again to record, then tap it to transcribe.');
+          return;
+        }
+        const message = event.error === 'not-allowed' || event.error === 'service-not-allowed'
+          ? 'Allow microphone access in your browser settings, then try again.'
+          : `Voice typing failed: ${event.error}.`;
+        toast(message);
+      };
+      recognition.onend = () => {
+        if (recognitionShouldContinue && activeRecognition === recognition) {
+          window.setTimeout(() => {
+            if (recognitionShouldContinue && activeRecognition === recognition) {
+              try {
+                recognition.start();
+              } catch (error) {
+                console.error('Deen Guide speech recognition error:', error);
+                recognitionShouldContinue = false;
+                activeRecognition = null;
+                resetMicUI();
+              }
+            }
+          }, 250);
+          return;
+        }
+        if (activeRecognition === recognition) activeRecognition = null;
+        resetMicUI();
+      };
+      try {
+        recognition.start();
+        toast('Listening... speak now. Tap the mic to finish.');
+      } catch (error) {
+        recognitionShouldContinue = false;
+        activeRecognition = null;
+        resetMicUI();
+        console.error('Deen Guide speech recognition error:', error);
+        toast('Could not start voice typing. Please allow microphone access and try again.');
+      }
+      return;
+    }
+
+    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+      toast('Voice typing needs a browser with microphone recording. Try an up-to-date Chrome, Edge or Safari.');
+      return;
+    }
+
+    requestingMicrophone = true;
+    try {
+      activeMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredMimeType = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus'
+      ].find(type => MediaRecorder.isTypeSupported(type));
+      const recorder = preferredMimeType
+        ? new MediaRecorder(activeMicStream, { mimeType: preferredMimeType })
+        : new MediaRecorder(activeMicStream);
+      const audioChunks = [];
+      activeRecorder = recorder;
+      recorder.ondataavailable = event => {
+        if (event.data && event.data.size) audioChunks.push(event.data);
+      };
+      recorder.onerror = event => {
+        console.error('Deen Guide recording error:', event.error);
+        toast('Recording failed. Please check microphone access and try again.');
+      };
+      recorder.onstop = async () => {
+        if (recordingTimeout) window.clearTimeout(recordingTimeout);
+        recordingTimeout = null;
+        activeRecorder = null;
+        if (activeMicStream) activeMicStream.getTracks().forEach(track => track.stop());
+        activeMicStream = null;
+        resetMicUI();
+
+        const recording = new Blob(audioChunks, { type: recorder.mimeType || 'audio/webm' });
+        if (!recording.size) {
+          toast('No audio was recorded. Please try again.');
+          return;
+        }
+
+        micButton.disabled = true;
+        toast('Transcribing your voice...');
+        try {
+          const audioDataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = () => reject(new Error('Could not read the voice recording.'));
+            reader.readAsDataURL(recording);
+          });
+          const audio = String(audioDataUrl).split(',')[1] || '';
+          const response = await fetch('/api/guide', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'transcribe',
+              audio,
+              mimeType: recording.type || recorder.mimeType
+            })
+          });
+          const result = await response.json();
+          if (!response.ok || result.error) {
+            throw new Error(result.error || 'Speech transcription failed.');
+          }
+          const transcript = (result.text || '').trim();
+          if (!transcript) {
+            toast('No speech was detected. Please try again.');
+            return;
+          }
+          if (inp) {
+            inp.value += `${inp.value && !/\s$/.test(inp.value) ? ' ' : ''}${transcript}`;
+            inp.dispatchEvent(new Event('input', { bubbles: true }));
+            inp.focus();
+          }
+          toast('Voice added to your message.');
+        } catch (error) {
+          console.error('Deen Guide transcription error:', error);
+          const message = location.protocol === 'file:' || error instanceof TypeError
+            ? 'Could not reach voice transcription. Open Deen Guide on its HTTPS site and check your connection.'
+            : error.message || 'Could not transcribe the recording.';
+          toast(message);
+        } finally {
+          micButton.disabled = false;
+        }
+      };
+      recorder.start(250);
+      micButton.classList.add('listening');
+      micButton.setAttribute('aria-label', 'Stop recording');
+      micButton.title = 'Stop recording';
+      if (inp) inp.placeholder = 'Listening... speak now';
+      toast('Listening... tap the mic again to finish.');
+      recordingTimeout = window.setTimeout(() => {
+        if (activeRecorder && activeRecorder.state === 'recording') {
+          toast('Recording stopped at 30 seconds.');
+          activeRecorder.stop();
+        }
+      }, 30000);
+    } catch (error) {
+      if (recordingTimeout) window.clearTimeout(recordingTimeout);
+      recordingTimeout = null;
+      if (activeMicStream) activeMicStream.getTracks().forEach(track => track.stop());
+      activeMicStream = null;
+      activeRecorder = null;
+      resetMicUI();
+      console.error('Deen Guide speech recognition error:', error);
+      const message = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
+        ? 'Allow microphone access in your browser settings, then try again.'
+        : error.name === 'NotFoundError'
+          ? 'No microphone was found on this device.'
+          : error.message || 'Could not start voice typing.';
+      toast(message);
+    } finally {
+      requestingMicrophone = false;
+    }
+  };
+}
 
 if (inp) {
+  inp.oninput = () => {
+    inp.style.height = '42px';
+    inp.style.height = `${Math.min(inp.scrollHeight, 140)}px`;
+  };
   inp.onkeydown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
