@@ -16451,12 +16451,53 @@ Warm, respectful, scholarly, compassionate and educational.
 
           function renderDeenGuide() {
             const storedMsgs = S.guideMsgs || [];
-            const msgs = storedMsgs.filter(message =>
-              message.role !== 'assistant' ||
-              typeof message.text !== 'string' ||
-              message.rateLimitNotice ||
-              (!message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.') &&
-                !message.text.startsWith('The AI service is temporarily rate-limited.'))
+            const fixedRateLimitMs = 3600000;
+            const existingBlockedUntil = Number(localStorage.getItem('guide_blocked_until'));
+            const hasActiveRateLimit = Number.isFinite(existingBlockedUntil) && existingBlockedUntil > Date.now();
+            let migratedRateLimitNotice = false;
+            let resetRateLimitLock = false;
+            const normalizedMsgs = storedMsgs.map(message => {
+              if (!message || message.role !== 'assistant') return message;
+              const isRateLimitNotice = message.rateLimitNotice ||
+                (typeof message.text === 'string' &&
+                  /^(?:Web Search|Deep Research|Deen Guide) is temporarily rate-limited\./.test(message.text));
+              if (!isRateLimitNotice) return message;
+              if (!hasActiveRateLimit) {
+                migratedRateLimitNotice = true;
+                return null;
+              }
+              if (message.rateLimitLockDurationMs === fixedRateLimitMs) return message;
+              const modeLabel = typeof message.text === 'string' && message.text.startsWith('Web Search')
+                ? 'Web Search'
+                : typeof message.text === 'string' && message.text.startsWith('Deep Research')
+                  ? 'Deep Research'
+                  : 'Deen Guide';
+              migratedRateLimitNotice = true;
+              resetRateLimitLock = true;
+              return {
+                ...message,
+                text: `${modeLabel} is temporarily rate-limited. Try again in 60 minutes, or clear chat to start a new one.`,
+                rateLimitNotice: true,
+                rateLimitLockDurationMs: fixedRateLimitMs
+              };
+            });
+            if (migratedRateLimitNotice) {
+              S.guideMsgs = normalizedMsgs.filter(Boolean);
+              if (resetRateLimitLock) {
+                localStorage.setItem('guide_blocked_until', String(Date.now() + fixedRateLimitMs));
+              } else if (!hasActiveRateLimit) {
+                localStorage.removeItem('guide_blocked_until');
+              }
+              setJSON('guide-history', S.guideMsgs).catch(() => {});
+            }
+            const msgs = normalizedMsgs.filter(message =>
+              message && (
+                message.role !== 'assistant' ||
+                typeof message.text !== 'string' ||
+                message.rateLimitNotice ||
+                (!message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.') &&
+                  !message.text.startsWith('The AI service is temporarily rate-limited.'))
+              )
             );
             if (msgs.length !== storedMsgs.length) {
               S.guideMsgs = msgs;
@@ -17062,19 +17103,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               return 5000;
             };
 
-            const formatRateLimitDuration = milliseconds => {
-              const seconds = Math.max(1, Math.ceil(milliseconds / 1000));
-              if (seconds >= 3600) {
-                const hours = Math.ceil(seconds / 3600);
-                return `${hours} hour${hours === 1 ? '' : 's'}`;
-              }
-              if (seconds >= 60) {
-                const minutes = Math.ceil(seconds / 60);
-                return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-              }
-              return `${seconds} second${seconds === 1 ? '' : 's'}`;
-            };
-
             const isRateLimitNotice = message =>
               message && message.role === 'assistant' &&
               (message.rateLimitNotice ||
@@ -17369,10 +17397,10 @@ const setInputBusy = (busy) => {
   const rateLimited = getGuideBlockedUntil() > Date.now();
 
   if (inp) {
-    inp.disabled = rateLimited;
-    inp.readOnly = rateLimited;
-    inp.style.pointerEvents = rateLimited ? 'none' : 'auto';
-    inp.style.cursor = rateLimited ? 'not-allowed' : 'text';
+    inp.disabled = false;
+    inp.readOnly = false;
+    inp.style.pointerEvents = 'auto';
+    inp.style.cursor = 'text';
   }
 
   if (btn) {
@@ -17660,9 +17688,14 @@ const scheduleGuideRateLimitUnlock = () => {
                   const modeLabel = researchMode === 'deep' ? 'Deep Research'
                     : researchMode === 'web' ? 'Web Search'
                       : 'Deen Guide';
-                  const limitMessage = `${modeLabel} is temporarily rate-limited. Try again in about ${formatRateLimitDuration(retryDelay)}, or clear chat to start a new one.`;
+                  const limitMessage = `${modeLabel} is temporarily rate-limited. Try again in 60 minutes, or clear chat to start a new one.`;
                   localStorage.setItem('guide_blocked_until', String(Date.now() + retryDelay));
-                  S.guideMsgs.push({ role: 'assistant', text: limitMessage, rateLimitNotice: true });
+                  S.guideMsgs.push({
+                    role: 'assistant',
+                    text: limitMessage,
+                    rateLimitNotice: true,
+                    rateLimitLockDurationMs: retryDelay
+                  });
                   appendMessage('assistant', limitMessage);
                   if (thread && thread.lastElementChild) {
                     thread.lastElementChild.classList.add('guide-rate-limit-notice');
