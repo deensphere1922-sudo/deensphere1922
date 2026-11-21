@@ -16428,8 +16428,20 @@ Warm, respectful, scholarly, compassionate and educational.
       `;
 
           function renderDeenGuide() {
-            const msgs = S.guideMsgs || [];
-            const hasAssistantReply = msgs.some(m => m.role === 'assistant');
+            const storedMsgs = S.guideMsgs || [];
+            const msgs = storedMsgs.filter(message =>
+              message.role !== 'assistant' ||
+              typeof message.text !== 'string' ||
+              !message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.')
+            );
+            if (msgs.length !== storedMsgs.length) {
+              S.guideMsgs = msgs;
+              setJSON('guide-history', msgs).catch(() => {});
+            }
+            const hasAssistantReply = msgs.some(m =>
+              m.role === 'assistant' &&
+              !(typeof m.text === 'string' && m.text.startsWith('The AI service is temporarily rate-limited.'))
+            );
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
                     <div>
@@ -16847,6 +16859,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
           }
 
           function bindDeenGuide() {
+            localStorage.removeItem('guide_blocked_until');
             const thread = $('#guide-thread');
             const pendingAttachments = [];
             let selectedSearchMode = null;
@@ -16912,10 +16925,20 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
                 throw new Error(`${serviceName} returned an invalid response. Please try again.`);
               }
               if (!response.ok || data.error) {
-                throw new Error(data.error || `${serviceName} request failed.`);
+                const message = typeof data.error === 'string'
+                  ? data.error
+                  : data.error?.message || `${serviceName} request failed.`;
+                const error = new Error(message);
+                error.status = response.status;
+                error.retryAfter = data.retryAfter || response.headers.get('retry-after');
+                throw error;
               }
               return data;
             };
+
+            const isRateLimitNotice = message =>
+              message && message.role === 'assistant' && typeof message.text === 'string' &&
+              message.text.startsWith('The AI service is temporarily rate-limited.');
 
             const renderAttachments = () => {
               const list = $('#guide-attachments');
@@ -17228,15 +17251,6 @@ const setInputBusy = (busy) => {
             const send = async (forcedText) => {
               if (S.guideThinking) return;
 
-            // --- CHECK IF THE 1-HOUR TIMER IS ACTIVE ---
-              const blockedUntil = parseInt(localStorage.getItem('guide_blocked_until') || '0', 10);
-              if (Date.now() < blockedUntil) {
-                const minsLeft = Math.ceil((blockedUntil - Date.now()) / 60000);
-                toast(`Please wait ${minsLeft} minutes, or click "Clear chat" to reset.`);
-                return; // Stops the message from sending
-              }
-              // -------------------------------------------
-
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
               const attachments = pendingAttachments.slice();
@@ -17365,7 +17379,7 @@ const setInputBusy = (busy) => {
                   ).join('\n\n');
                 }
 
-                const history = S.guideMsgs.slice(-10).map(m => ({
+                const history = S.guideMsgs.filter(m => !isRateLimitNotice(m)).slice(-10).map(m => ({
                   role: m.role,
                   content: (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '')
                 }));
@@ -17431,14 +17445,13 @@ const setInputBusy = (busy) => {
                 
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
 
-                // --- IF ERROR IS A RATE LIMIT, SAVE THE 1-HOUR TIMER ---
-                if (errMsg.includes('Rate limit') || errMsg.includes('rate limit') || errMsg.includes('tokens per minute')) {
-                  const unblockTime = Date.now() + (60 * 60 * 1000); 
-                  localStorage.setItem('guide_blocked_until', unblockTime);
-                  
-                  errMsg = `I am receiving too many messages right now. The system limit has been reached. Please try again in 60 minutes, or click "Clear chat" above to start a fresh conversation.`;
+                if (e.status === 429 || errMsg.includes('Rate limit') || errMsg.includes('rate limit') || errMsg.includes('tokens per minute')) {
+                  const retrySeconds = Number(e.retryAfter);
+                  const retryMessage = Number.isFinite(retrySeconds) && retrySeconds > 0
+                    ? ` Try again in about ${Math.ceil(retrySeconds)} seconds.`
+                    : ' Please wait briefly and try again.';
+                  errMsg = `The AI service is temporarily rate-limited.${retryMessage} Your chat is saved; you do not need to clear it.`;
                 }
-                // -------------------------------------------------------
 
                 S.guideMsgs.push({ role: 'assistant', text: errMsg });
                 appendMessage('assistant', errMsg);
@@ -17452,11 +17465,16 @@ const setInputBusy = (busy) => {
             };
 
             const clearChat = async () => {
-              // --- CRITICAL FIX: THIS REMOVES THE 1-HOUR TIMER ---
               localStorage.removeItem('guide_blocked_until');
-              // ---------------------------------------------------
 
-              S.guideMsgs = [];
+              let rateLimitNotice = null;
+              for (let index = (S.guideMsgs || []).length - 1; index >= 0; index--) {
+                if (isRateLimitNotice(S.guideMsgs[index])) {
+                  rateLimitNotice = S.guideMsgs[index];
+                  break;
+                }
+              }
+              S.guideMsgs = rateLimitNotice ? [rateLimitNotice] : [];
               S.guideThinking = false;
               S.guideThinkStage = '';
               hideThinking();
@@ -17471,14 +17489,20 @@ const setInputBusy = (busy) => {
                 thread.querySelectorAll('[data-guide-chip]').forEach(c =>
                   c.onclick = () => send(c.dataset.guideChip));
               }
+              if (thread && rateLimitNotice) {
+                const notice = document.createElement('div');
+                notice.textContent = rateLimitNotice.text;
+                notice.style.cssText = 'align-self:flex-start;flex-shrink:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:13px;line-height:1.6;color:var(--tx3);border-left:2px solid var(--amber);';
+                thread.insertBefore(notice, thread.firstChild);
+              }
 
               const cb = $('#guide-clear');
               if (cb) cb.remove();
 
               setInputBusy(false);
-              toast('Chat cleared.');
+              toast(rateLimitNotice ? 'Chat cleared. The rate-limit warning remains.' : 'Chat cleared.');
 
-              setJSON('guide-history', []).catch(() => {});
+              setJSON('guide-history', S.guideMsgs).catch(() => {});
             };
 
          const btn = $('#guide-send');
