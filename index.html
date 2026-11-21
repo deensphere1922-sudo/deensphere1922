@@ -17533,6 +17533,47 @@ const toggleGuideRecording = async () => {
               return () => window.clearInterval(timer);
             };
 
+            const waitForGuideRetry = (delay, signal) => new Promise((resolve, reject) => {
+              if (signal.aborted) {
+                const error = new Error('Request was cancelled.');
+                error.name = 'AbortError';
+                reject(error);
+                return;
+              }
+              const retryStages = [
+                'Waiting for the provider’s cooldown…',
+                'The provider has not allowed the retry yet; I’ll keep waiting…',
+                'Your question is held while the provider limit resets…',
+                'I’ll retry automatically when the provider allows it…',
+                'Still waiting for the provider’s stated reset time…'
+              ];
+              let statusIndex = 0;
+              const statusTimer = delay >= 5500
+                ? window.setInterval(() => {
+                  updateThinkingStage(retryStages[statusIndex % retryStages.length]);
+                  statusIndex++;
+                }, 5500)
+                : null;
+              let timer;
+              const cleanup = () => {
+                window.clearTimeout(timer);
+                if (statusTimer) window.clearInterval(statusTimer);
+                signal.removeEventListener('abort', onAbort);
+              };
+              const onAbort = () => {
+                cleanup();
+                const error = new Error('Request was cancelled.');
+                error.name = 'AbortError';
+                reject(error);
+              };
+              timer = window.setTimeout(() => {
+                cleanup();
+                updateThinkingStage('Retrying now…');
+                resolve();
+              }, delay);
+              signal.addEventListener('abort', onAbort, { once: true });
+            });
+
             const postGuideJson = async (endpoint, payload, signal, progressStages = []) => {
               let retried = false;
               while (true) {
@@ -17567,9 +17608,14 @@ const toggleGuideRecording = async () => {
                   retryCandidates[0] ||
                   null;
                 const retryDelay = parseGuideRetryDelay(retryAfter);
-                if (response.status === 429 && !retried) {
+                if (response.status === 429 && !retried && retryDelay > 0 && retryDelay <= 24 * 60 * 60 * 1000) {
+                  showThinking(retryDelay <= 5000
+                    ? 'Please wait a moment…'
+                    : retryDelay <= 60000
+                      ? 'The service is taking a little longer. Please wait…'
+                      : 'Please wait while I reconnect when the provider is ready…');
+                  await waitForGuideRetry(retryDelay, signal);
                   retried = true;
-                  await new Promise(resolve => window.setTimeout(resolve, 350));
                   continue;
                 }
                 return { response, data, retryAfter };
@@ -17774,8 +17820,9 @@ const toggleGuideRecording = async () => {
                 S.guideThinking = false;
                 S.guideThinkStage = '';
                 hideThinking();
+                const retryWaitText = formatGuideRetryDelay(error.retryAfter);
                 const errorText = error.status === 429
-                  ? 'The AI service is busy right now. Please try again in a moment.'
+                  ? `Deen Guide is still rate-limited. ${retryWaitText ? `The provider asked us to wait ${retryWaitText}.` : 'Please try again shortly.'}`
                   : `Error: ${error.message || 'Deen Guide could not complete this request.'}`;
                 S.guideMsgs.push({ role: 'assistant', text: errorText, requestError: true });
                 appendMessage('assistant', errorText);
