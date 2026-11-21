@@ -1,15 +1,16 @@
 export const config = { maxDuration: 60 };
 
-const trustedIslamicDomains = [
-  'quran.com',
-  'quranenc.com',
-  'sunnah.com',
-  'dorar.net',
-  'islamweb.net',
-  'islamqa.info',
-  'islamqa.org',
-  'seekersguidance.org',
-  'yaqeeninstitute.org'
+const sourceGroups = [
+  {
+    type: 'Primary Qur’an and Hadith text',
+    domains: ['quran.com', 'quranenc.com', 'sunnah.com', 'dorar.net'],
+    query: query => `${query} Quran verse or Hadith direct textual evidence`
+  },
+  {
+    type: 'Scholarly explanation',
+    domains: ['islamweb.net', 'islamqa.info', 'islamqa.org', 'seekersguidance.org', 'yaqeeninstitute.org'],
+    query: query => `${query} Islamic scholarly explanation with textual evidence`
+  }
 ];
 
 export default async function handler(req, res) {
@@ -28,62 +29,73 @@ export default async function handler(req, res) {
   }
 
   try {
-    const response = await fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        search_depth: 'fast',
-        max_results: 6,
-        include_domains: trustedIslamicDomains,
-        include_domains_mode: 'restrict',
-        include_answer: false,
-        include_raw_content: false
+    const responses = await Promise.all(sourceGroups.map(group =>
+      fetch('https://api.tavily.com/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query: group.query(query),
+          search_depth: 'fast',
+          max_results: 3,
+          include_domains: group.domains,
+          include_domains_mode: 'restrict',
+          include_answer: false,
+          include_raw_content: false
+        })
       })
-    });
-    let data;
-    try {
-      data = await response.json();
-    } catch (error) {
-      console.error('Web research provider returned invalid JSON:', error);
-      return res.status(502).json({ error: 'The web research service returned an invalid response.' });
-    }
-    if (!response.ok) {
-      console.error('Web research provider returned an error:', response.status);
-      const retryValues = [
-        response.headers.get('retry-after'),
-        response.headers.get('x-ratelimit-reset-requests'),
-        response.headers.get('x-ratelimit-reset-tokens')
-      ].filter(Boolean);
-      const retryAfter = retryValues.find(value =>
-        !/^(?:0+(?:\.0+)?)(?:\s*(?:ms|s|sec|seconds?))?$/i.test(value.trim())
-      ) || retryValues[0] || null;
-      if (retryAfter) res.setHeader('Retry-After', retryAfter);
-      return res.status(response.status === 429 ? 429 : 502).json({
-        error: 'The web research service could not complete this search.',
-        ...(retryAfter ? { retryAfter } : {})
-      });
-    }
+    ));
 
     const seenUrls = new Set();
-    const results = (Array.isArray(data.results) ? data.results : [])
-      .filter(result => result && typeof result.url === 'string' && typeof result.content === 'string')
-      .map(result => {
+    const results = [];
+    for (let index = 0; index < responses.length; index++) {
+      const response = responses[index];
+      let data;
+      try {
+        data = await response.json();
+      } catch (error) {
+        console.error('Web research provider returned invalid JSON:', error);
+        return res.status(502).json({ error: 'The web research service returned an invalid response.' });
+      }
+      if (!response.ok) {
+        console.error('Web research provider returned an error:', response.status);
+        const retryValues = [
+          response.headers.get('retry-after'),
+          response.headers.get('x-ratelimit-reset-requests'),
+          response.headers.get('x-ratelimit-reset-tokens')
+        ].filter(Boolean);
+        const retryAfter = retryValues.find(value =>
+          !/^(?:0+(?:\.0+)?)(?:\s*(?:ms|s|sec|seconds?))?$/i.test(value.trim())
+        ) || retryValues[0] || null;
+        if (retryAfter) res.setHeader('Retry-After', retryAfter);
+        return res.status(response.status === 429 ? 429 : 502).json({
+          error: 'The web research service could not complete this search.',
+          ...(retryAfter ? { retryAfter } : {})
+        });
+      }
+
+      const group = sourceGroups[index];
+      for (const result of Array.isArray(data.results) ? data.results : []) {
+        if (!result || typeof result.url !== 'string' || typeof result.content !== 'string') continue;
         try {
           const url = new URL(result.url);
-          if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenUrls.has(url.href)) return null;
+          const trustedHost = group.domains.some(domain =>
+            url.hostname === domain || url.hostname.endsWith(`.${domain}`)
+          );
+          if ((url.protocol !== 'https:' && url.protocol !== 'http:') ||
+            !trustedHost || seenUrls.has(url.href)) continue;
           seenUrls.add(url.href);
-          return {
+          results.push({
             title: typeof result.title === 'string' ? result.title.slice(0, 250) : url.hostname,
             url: url.href,
-            content: result.content.slice(0, 1800)
-          };
+            content: result.content.slice(0, 1800),
+            sourceType: group.type
+          });
         } catch {
-          return null;
+          continue;
         }
-      })
-      .filter(Boolean);
+      }
+    }
 
     return res.status(200).json({ results });
   } catch (error) {
