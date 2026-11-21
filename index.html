@@ -16338,8 +16338,9 @@ function closeYouTubePlayer() {
       - Provide the exact link: https://deensphere1922.vercel.app
       - Keep it short and friendly.
 
-      - If Web search or Deep research is active, use only the live results supplied in the context for web-supported claims. Cite results as [Source title](URL), and never invent sources, URLs, or quotations.
-      - In Web search mode, answer from the retrieved Islamic websites only. If they do not support an answer, say that the search did not find enough evidence.
+      - If Web search or Deep research is active, use the live results supplied in the context for web-supported claims. Prioritize primary Islamic sources and recognized scholarship, and use other relevant sources for context when helpful. Cite results as [Source title](URL), and never invent sources, URLs, or quotations.
+      - If the supplied search context says some searches failed or results may be incomplete, disclose that limitation briefly.
+      - In Web search mode, ground claims in retrieved sources. If they do not support an answer, say that the search did not find enough evidence.
       - In Deep research mode, synthesize distinct sources (use at least five when that many relevant results are supplied), distinguish Qur'an/Hadith evidence from scholarly interpretation, and explain genuine differences of opinion without presenting one view as universal consensus.
       - If the user asks for current Islamic apps while a search mode is active, use only the supplied results and never make up a link. Without search results, explain that current recommendations have not been verified.
 
@@ -16428,13 +16429,26 @@ Warm, respectful, scholarly, compassionate and educational.
       `;
 
           function renderDeenGuide() {
-            const msgs = S.guideMsgs || [];
+            const storedMsgs = S.guideMsgs || [];
+            const msgs = storedMsgs.filter(message =>
+              message &&
+              (message.requestError ||
+                (!message.rateLimitNotice &&
+                  !(message.role === 'assistant' && typeof message.text === 'string' &&
+                    /(?:temporarily rate-limited|system limit has been reached|please wait \d+ minutes|try again in \d+\s*(?:minutes?|hours?))/i.test(message.text))))
+            );
+            localStorage.removeItem('guide_blocked_until');
+            if (msgs.length !== storedMsgs.length) {
+              S.guideMsgs = msgs;
+              setJSON('guide-history', msgs).catch(error =>
+                console.error('Could not remove the old Deen Guide rate-limit notice:', error));
+            }
             const hasAssistantReply = msgs.some(m => m.role === 'assistant');
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
                     <div>
                       <div class="pg-title">Deen Guide</div>
-                      <div class="pg-sub">Ask about Islam — deep research from Qur'an, Sunnah & trusted web sources.</div>
+                      <div class="pg-sub">Ask about Islam — get clear answers, web sources, and deeper research.</div>
                     </div>
                     ${hasAssistantReply && !S.guideThinking ? `<button class="btn-text" id="guide-clear" style="font-size:12px;color:var(--amber);border:1px solid var(--border);padding:6px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap;">Clear chat</button>` : ''}
                   </div>
@@ -16475,8 +16489,8 @@ Warm, respectful, scholarly, compassionate and educational.
   </button>
   <div id="guide-attach-menu" role="menu" aria-label="Add to your message">
     <button type="button" data-guide-file="all" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z"/></svg></span><span><strong>Add photos &amp; files</strong><small>Images, PDF, DOCX, TXT, MD or CSV</small></span></button>
-    <button type="button" data-guide-mode="web" aria-pressed="false" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span><strong>Web search</strong><small>Search trusted Islamic websites</small></span></button>
-    <button type="button" data-guide-mode="deep" aria-pressed="false" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M8 10.5h5M10.5 8v5"/></svg></span><span><strong>Deep research</strong><small>Compare up to 12 Islamic sources</small></span></button>
+    <button type="button" data-guide-mode="web" aria-pressed="false" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span><strong>Web search</strong><small>Search relevant sources across the web</small></span></button>
+    <button type="button" data-guide-mode="deep" aria-pressed="false" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5M8 10.5h5M10.5 8v5"/></svg></span><span><strong>Deep research</strong><small>Compare up to 18 distinct web sources</small></span></button>
   </div>
   </div>
   <input id="guide-all-file" type="file" accept="image/png,image/jpeg,image/webp,.pdf,.docx,.txt,.md,.csv,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
@@ -17180,6 +17194,87 @@ const setInputBusy = (busy) => {
   }
 };
 
+const parseRetryAfterMs = (value) => {
+  if (value === null || value === undefined) return null;
+  const raw = String(value).trim();
+  if (!raw) return null;
+  const seconds = Number(raw);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const duration = raw.match(/^(\d+(?:\.\d+)?)\s*(ms|s|m|h)$/i);
+  if (duration) {
+    const factors = { ms: 1, s: 1000, m: 60000, h: 3600000 };
+    return Math.max(0, Number(duration[1]) * factors[duration[2].toLowerCase()]);
+  }
+  const retryAt = Date.parse(raw);
+  return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : null;
+};
+
+const formatRetryDelay = (milliseconds) => {
+  if (!Number.isFinite(milliseconds) || milliseconds <= 0) return '';
+  const units = milliseconds < 60000
+    ? [Math.ceil(milliseconds / 1000), 'second']
+    : milliseconds < 3600000
+      ? [Math.ceil(milliseconds / 60000), 'minute']
+      : [Math.ceil(milliseconds / 3600000), 'hour'];
+  return `${units[0]} ${units[1]}${units[0] === 1 ? '' : 's'}`;
+};
+
+const requestGuideJson = async (url, options, serviceName, requestVersion) => {
+  let attempt = 0;
+  while (true) {
+    if (requestVersion !== guideRequestVersion) return null;
+
+    let response;
+    try {
+      response = await fetch(url, options);
+    } catch (error) {
+      if (attempt > 0) throw new Error(`${serviceName} could not be reached. Check your connection and try again.`);
+      const retryDelay = 2000;
+      showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
+      await new Promise(resolve => window.setTimeout(resolve, retryDelay));
+      if (requestVersion !== guideRequestVersion) return null;
+      attempt++;
+      showThinking('Retrying your request now...');
+      continue;
+    }
+
+    let data;
+    try {
+      data = await response.json();
+    } catch {
+      data = {};
+    }
+    if (requestVersion !== guideRequestVersion) return null;
+    if (response.ok && !data.error) return data;
+
+    const providerError = data.error;
+    const error = new Error(
+      typeof providerError === 'string'
+        ? providerError
+        : providerError?.message || data.message || `${serviceName} request failed.`
+    );
+    error.status = response.status;
+    error.retryAfterMs =
+      parseRetryAfterMs(response.headers.get('Retry-After')) ??
+      parseRetryAfterMs(data.retryAfter) ??
+      parseRetryAfterMs(data.retry_after);
+
+    const canRetry = response.status === 429 || [502, 503, 504].includes(response.status);
+    if (attempt > 0 || !canRetry) throw error;
+    if (response.status === 429 && error.retryAfterMs !== null && error.retryAfterMs > 30000) {
+      throw error;
+    }
+
+    const retryDelay = error.retryAfterMs ??
+      (response.status === 429 ? 5000 : 2000);
+    showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
+    await new Promise(resolve => window.setTimeout(resolve, retryDelay));
+    if (requestVersion !== guideRequestVersion) return null;
+    attempt++;
+    showThinking('Retrying your request now...');
+  }
+};
+
 
             const ensureClearButton = () => {
               const hasAssistant = S.guideMsgs.some(m => m.role === 'assistant');
@@ -17201,15 +17296,6 @@ const setInputBusy = (busy) => {
 
             const send = async (forcedText) => {
               if (S.guideThinking) return;
-
-            // --- CHECK IF THE 1-HOUR TIMER IS ACTIVE ---
-              const blockedUntil = parseInt(localStorage.getItem('guide_blocked_until') || '0', 10);
-              if (Date.now() < blockedUntil) {
-                const minsLeft = Math.ceil((blockedUntil - Date.now()) / 60000);
-                toast(`Please wait ${minsLeft} minutes, or click "Clear chat" to reset.`);
-                return; // Stops the message from sending
-              }
-              // -------------------------------------------
               const requestVersion = ++guideRequestVersion;
 
               const inp = $('#guide-input');
@@ -17273,9 +17359,9 @@ const setInputBusy = (busy) => {
                 modelText += `\n\nDocument-only analysis: use the extracted text and rendered pages from ${documents.map(document => document.name).join(', ')}. Do not describe unrelated UI or infer content from filenames.`;
               }
               if (researchMode === 'web') {
-                modelText += '\n\nWeb search mode: answer from the live Islamic web results supplied with this request only. Cite relevant results as [Source title](URL). If the results are insufficient, say so instead of filling gaps from memory.';
+                modelText += '\n\nWeb search mode: provide a useful, detailed answer grounded in the relevant live web results supplied with this request. Prioritize primary Islamic sources and recognized scholarship, but use other relevant sources for context. Cite supported claims inline as [Source title](URL). If the results are insufficient, explain the gap instead of filling it from memory.';
               } else if (researchMode === 'deep') {
-                modelText += '\n\nDeep research mode: compare the distinct live Islamic sources supplied with this request, using at least five when available. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite every web-supported claim as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
+                modelText += '\n\nDeep research mode: provide a thorough, structured synthesis of the distinct live web sources supplied with this request. Use multiple sources when available, separate primary Qur\'an/Hadith evidence from scholarly interpretation, explain meaningful differences of opinion, and cite web-supported claims inline as [Source title](URL). Do not restrict the answer to the normal short-answer length. Never invent sources or claim the results establish consensus when they do not.';
               }
               const visibleText = [
                 text,
@@ -17312,31 +17398,33 @@ const setInputBusy = (busy) => {
                 let webContext = 'No web search was requested for this message.';
                 if (researchMode) {
                   showThinking(researchMode === 'deep'
-                    ? 'Researching trusted Islamic sources...'
-                    : 'Searching trusted Islamic websites...');
+                    ? 'Researching relevant sources across the web...'
+                    : 'Searching relevant websites...');
                   const searchQuery = (text || question).slice(0, 1000);
-                  const searchResp = await fetch('/api/search', {
+                  const searchData = await requestGuideJson('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery, mode: researchMode })
-                  });
+                  }, researchMode === 'deep' ? 'Deep Research' : 'Web Search', requestVersion);
                   if (requestVersion !== guideRequestVersion) return;
-                  const searchData = await searchResp.json();
-                  if (requestVersion !== guideRequestVersion) return;
-                  if (!searchResp.ok || searchData.error) {
-                    throw new Error(searchData.error || 'Live Islamic web search failed.');
-                  }
                   if (!Array.isArray(searchData.results) || !searchData.results.length) {
                     throw new Error('No matching Islamic web sources were found. Try a more specific question.');
                   }
                   webContext = searchData.results.map((result, index) =>
                     `Source ${index + 1}\nTitle: ${result.title}\nURL: ${result.url}\nContent: ${result.content}`
                   ).join('\n\n');
+                  if (searchData.warning) webContext += `\n\nSearch note: ${searchData.warning}`;
                 }
 
                 if (researchMode) showThinking('Reading sources & formulating answer...');
 
-                const history = S.guideMsgs.slice(-10).map(m => ({ role: m.role, content: m.text }));
+                const history = S.guideMsgs
+                  .filter(message => !message.requestError && !message.rateLimitNotice)
+                  .slice(-10)
+                  .map(message => ({
+                    role: message.role,
+                    content: message.text.replace(/\nMode: (?:Deep research|Web search)\s*$/, '')
+                  }));
                 const forcedInstruction = `\n\n[SYSTEM NOTE: The user wants the exact number of items requested. If they asked for 100, list 100. If they asked for more than 500 lines, politely explain the limit and offer to do it in batches.]`;
                 const currentMessage = history[history.length - 1];
                 const currentText = modelText + forcedInstruction;
@@ -17350,7 +17438,7 @@ const setInputBusy = (busy) => {
                   ]
                   : currentText;
 
-                const resp = await fetch('/api/guide', {
+                const data = await requestGuideJson('/api/guide', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -17358,12 +17446,8 @@ const setInputBusy = (busy) => {
                     webContext,
                     messages: history
                   })
-                });
+                }, 'Deen Guide AI', requestVersion);
                 if (requestVersion !== guideRequestVersion) return;
-                
-                const data = await resp.json();
-                if (requestVersion !== guideRequestVersion) return;
-                if (data.error) throw new Error('Groq API error: ' + (data.error.message || JSON.stringify(data.error)));
                 const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
 
                 hideThinking();
@@ -17384,17 +17468,17 @@ const setInputBusy = (busy) => {
                 S.guideThinkStage = '';
                 
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
-
-                // --- IF ERROR IS A RATE LIMIT, SAVE THE 1-HOUR TIMER ---
-                if (errMsg.includes('Rate limit') || errMsg.includes('rate limit') || errMsg.includes('tokens per minute')) {
-                  const unblockTime = Date.now() + (60 * 60 * 1000); 
-                  localStorage.setItem('guide_blocked_until', unblockTime);
-                  
-                  errMsg = `I am receiving too many messages right now. The system limit has been reached. Please try again in 60 minutes, or click "Clear chat" above to start a fresh conversation.`;
+                if (e.status === 429) {
+                  const modeLabel = researchMode === 'deep' ? 'Deep Research'
+                    : researchMode === 'web' ? 'Web Search'
+                      : 'Deen Guide AI';
+                  const retryHint = e.retryAfterMs
+                    ? ` Try again in ${formatRetryDelay(e.retryAfterMs)}.`
+                    : ' Please try again shortly.';
+                  errMsg = `${modeLabel} is temporarily rate-limited.${retryHint} This request did not lock the chat.`;
                 }
-                // -------------------------------------------------------
 
-                S.guideMsgs.push({ role: 'assistant', text: errMsg });
+                S.guideMsgs.push({ role: 'assistant', text: errMsg, requestError: true });
                 appendMessage('assistant', errMsg);
                 setInputBusy(false);
                 ensureClearButton();
@@ -17419,6 +17503,15 @@ const setInputBusy = (busy) => {
               renderAttachments();
               selectedSearchMode = null;
               renderSearchMode();
+              const input = $('#guide-input');
+              if (input) {
+                input.value = '';
+                input.style.height = '42px';
+              }
+              const attachMenu = $('#guide-attach-menu');
+              if (attachMenu) attachMenu.classList.remove('open');
+              const attachButton = $('#guide-attach');
+              if (attachButton) attachButton.setAttribute('aria-expanded', 'false');
 
               if (thread) {
                                 thread.innerHTML = `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -17435,7 +17528,6 @@ const setInputBusy = (busy) => {
               if (cb) cb.remove();
 
               setInputBusy(false);
-              const input = $('#guide-input');
               if (input) {
                 input.disabled = false;
                 input.readOnly = false;
