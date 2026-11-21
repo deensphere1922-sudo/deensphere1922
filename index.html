@@ -16454,6 +16454,8 @@ ISLAMIC EVIDENCE AND ACCURACY:
 - State what each source actually says, and clearly distinguish primary text from a scholar's explanation or opinion. Represent differences fairly and do not imply consensus unless the supplied sources establish it.
 - Only describe a Hadith as authentic or give a grade when a supplied source explicitly supports that claim. A website's domain alone is not proof of authenticity. If the evidence does not let you verify a claim, say so plainly.
 - Cross-check important claims against independent supplied sources when available. If sources disagree, explain the disagreement instead of hiding it. Do not say something was verified beyond what the excerpts support.
+- STRICT TOPIC RELEVANCE: Identify the exact subject and intent of the user's question before answering. Keep the entire answer focused on that subject. For example, if the user asks about forgiveness, discuss forgiveness, tawbah, Allah's mercy, and directly relevant Qur'an/Hadith evidence only. Do not drift into unrelated topics such as patience, gratitude, prayer, or general virtues unless the user asks or a brief connection is essential to explain the answer. Apply this rule to every topic, not only forgiveness.
+- SOURCE RELEVANCE: Include a source only when its actual title or excerpt directly supports the user's exact question. Do not include a source merely because it is Islamic, from a generally trusted website, or contains a loosely related keyword. Prefer fewer highly relevant sources over filling all five slots. A maximum of five sources is a ceiling, not a target.
 - Cite factual and interpretive claims inline as [1], [2], using only sources that directly support them. Do not cite irrelevant sources to increase the source count.
 - If an exact short Qur'an or Hadith quotation is present in the excerpts, place it on its own line inside [[QURAN]]...[[/QURAN]] or [[HADITH]]...[[/HADITH]], followed by its citation. Use [[ARABIC]]...[[/ARABIC]] only for exact Arabic text present in the excerpts; otherwise omit Arabic. Do not use quotation markers for paraphrases.
 - When the retrieved evidence is insufficient, say what could not be established and limit the answer to supported information.
@@ -17635,7 +17637,7 @@ const toggleGuideRecording = async () => {
                   try {
                     searchResult = await postGuideJson(
                       '/api/search',
-                      { query: text },
+                      { query: `Exact question: ${text}\n\nSearch ONLY for sources directly relevant to the exact subject and intent of this question. Find relevant evidence from BOTH the Qur'an and reliable Hadith collections (including Sahih al-Bukhari and Sahih Muslim where relevant), plus scholarly explanations only when they directly clarify this subject. Do not broaden the search into general Islamic topics. Return up to five highly relevant, distinct sources; fewer is better than unrelated results. Include Qur'an chapter:verse and Hadith collection/reference numbers only when supported by the source. Do not invent references or authenticity grades.` },
                       controller.signal
                     );
                   } finally {
@@ -17666,7 +17668,7 @@ const toggleGuideRecording = async () => {
                         return false;
                       }
                     })
-                    .slice(0, 6);
+                    .slice(0, 5);
                   if (researchSources.length < 1) {
                     throw new Error('I could not find a relevant source for this question. Please rephrase it and try again.');
                   }
