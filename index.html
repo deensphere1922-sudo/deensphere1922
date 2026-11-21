@@ -17485,11 +17485,9 @@ const setInputBusy = (busy) => {
                   try {
                     return await readApiResponse(response, serviceName);
                   } catch (error) {
-                    const maxRetries = researchMode ? 1 : 2;
-                    if (!isRateLimitError(error) || retries >= maxRetries) throw error;
+                    if (!isRateLimitError(error) || retries >= 1) throw error;
                     const providerDelay = getRetryDelayMs(error);
-                    if (!researchMode && providerDelay > 120000) throw error;
-                    const retryDelay = researchMode ? Math.min(providerDelay, 5000) : providerDelay;
+                    const retryDelay = Math.min(providerDelay, 5000);
                     if (!researchMode) {
                       stopProgress();
                       stopProgress = () => {};
@@ -17606,12 +17604,9 @@ const setInputBusy = (busy) => {
 
                 if (isRateLimitError(e)) {
                   if (researchMode) {
-                    toast('Research is still temporarily rate-limited. Please try again shortly.');
+                    toast('Research is still temporarily rate-limited. Your chat is not locked; Clear chat is not required.');
                   } else {
-                    const retryMessage = e.retryAfter
-                      ? ` The provider is still limiting requests. Please wait about ${Math.ceil(getRetryDelayMs(e) / 1000)} seconds before trying again.`
-                      : ' The provider is still limiting requests. Please wait briefly before trying again.';
-                    toast(`Automatic retries could not complete this request.${retryMessage}`);
+                    toast('The AI service is still temporarily rate-limited. Your chat is not locked; Clear chat is not required.');
                   }
                 } else {
                   S.guideMsgs.push({ role: 'assistant', text: errMsg });
