@@ -3952,8 +3952,6 @@ function toast(msg) {
                 if (S.screen === 'deenguide') {
                   render();
                   bindDeenGuide();
-                  const thread = document.getElementById('guide-thread');
-                  if (thread) thread.scrollTop = thread.scrollHeight;
                 }
                 return;
               }
@@ -4433,8 +4431,6 @@ function toast(msg) {
                 if (S.screen === 'deenguide') {
                   render();
                   bindDeenGuide();
-                  const thread = document.getElementById('guide-thread');
-                  if (thread) thread.scrollTop = thread.scrollHeight;
                 }
                 return;
               }
@@ -7540,8 +7536,6 @@ function toast(msg) {
               if (S.screen === 'deenguide') {
                 render();
                 bindDeenGuide();
-                const thread = document.getElementById('guide-thread');
-                if (thread) thread.scrollTop = thread.scrollHeight;
               }
             });
 
@@ -16460,6 +16454,7 @@ Warm, respectful, scholarly, compassionate and educational.
             const msgs = storedMsgs.filter(message =>
               message.role !== 'assistant' ||
               typeof message.text !== 'string' ||
+              message.rateLimitNotice ||
               (!message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.') &&
                 !message.text.startsWith('The AI service is temporarily rate-limited.'))
             );
@@ -16469,7 +16464,7 @@ Warm, respectful, scholarly, compassionate and educational.
             }
             const hasAssistantReply = msgs.some(m =>
               m.role === 'assistant' &&
-              !(typeof m.text === 'string' && m.text.startsWith('The AI service is temporarily rate-limited.'))
+              (m.rateLimitNotice || !(typeof m.text === 'string' && m.text.startsWith('The AI service is temporarily rate-limited.')))
             );
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
@@ -16487,9 +16482,9 @@ Warm, respectful, scholarly, compassionate and educational.
                 ? msgs.map(m => {
                   if (m.role === 'user') {
                   const messageText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
-                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
+                  return `<div class="guide-user-message" style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
                   } else {
-                  return `<div class="guide-assistant-message" style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideSourceCards(m.sources)}${esc(m.text)}</div>`;
+                  return `<div class="guide-assistant-message${m.rateLimitNotice ? ' guide-rate-limit-notice' : ''}" style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideSourceCards(m.sources)}${esc(m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16972,7 +16967,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
           }
 
           function bindDeenGuide() {
-            localStorage.removeItem('guide_blocked_until');
             const thread = $('#guide-thread');
             const pendingAttachments = [];
             let selectedSearchMode = null;
@@ -17052,6 +17046,11 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
             const isRateLimitError = error =>
               !!error && (error.status === 429 || /rate[\s-]?limit|tokens per minute/i.test(error.message || ''));
 
+            const getGuideBlockedUntil = () => {
+              const blockedUntil = Number(localStorage.getItem('guide_blocked_until'));
+              return Number.isFinite(blockedUntil) ? blockedUntil : 0;
+            };
+
             const getRetryDelayMs = error => {
               const retryAfter = error && error.retryAfter;
               if (typeof retryAfter === 'string' && retryAfter.trim()) {
@@ -17063,9 +17062,23 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               return 5000;
             };
 
+            const formatRateLimitDuration = milliseconds => {
+              const seconds = Math.max(1, Math.ceil(milliseconds / 1000));
+              if (seconds >= 3600) {
+                const hours = Math.ceil(seconds / 3600);
+                return `${hours} hour${hours === 1 ? '' : 's'}`;
+              }
+              if (seconds >= 60) {
+                const minutes = Math.ceil(seconds / 60);
+                return `${minutes} minute${minutes === 1 ? '' : 's'}`;
+              }
+              return `${seconds} second${seconds === 1 ? '' : 's'}`;
+            };
+
             const isRateLimitNotice = message =>
-              message && message.role === 'assistant' && typeof message.text === 'string' &&
-              message.text.startsWith('The AI service is temporarily rate-limited.');
+              message && message.role === 'assistant' &&
+              (message.rateLimitNotice ||
+                (typeof message.text === 'string' && message.text.startsWith('The AI service is temporarily rate-limited.')));
 
             const renderAttachments = () => {
               const list = $('#guide-attachments');
@@ -17213,6 +17226,11 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               thread.scrollTop = thread.scrollHeight;
             };
 
+            const latestUserMessage = () => {
+              const messages = thread ? thread.querySelectorAll('.guide-user-message') : [];
+              return messages.length ? messages[messages.length - 1] : null;
+            };
+
            const appendMessage = (role, text, sources = []) => {
   if (!thread) return;
   const empty = thread.querySelector('.empty');
@@ -17220,6 +17238,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 
   const div = document.createElement('div');
   if (role === 'assistant') div.classList.add('guide-assistant-message');
+  else if (role === 'user') div.classList.add('guide-user-message');
   
   // Helper to escape HTML safely
   const escapeHTML = (str) => str.replace(/[&<>'"]/g, 
@@ -17309,7 +17328,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
     div.style.animationDelay = '0ms';
   }
   thread.appendChild(div);
-  scrollThread(role === 'assistant' ? div : null);
+  scrollThread(role === 'assistant' ? (latestUserMessage() || div) : null);
 };
 
             let thinkingEl = null;
@@ -17347,21 +17366,53 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 const setInputBusy = (busy) => {
   const inp = document.getElementById('guide-input');
   const btn = document.getElementById('guide-send');
+  const rateLimited = getGuideBlockedUntil() > Date.now();
 
-  // NEVER disable the typing area
   if (inp) {
-    inp.disabled = false;
-    inp.readOnly = false;
-    inp.style.pointerEvents = 'auto';
-    inp.style.cursor = 'text';
+    inp.disabled = rateLimited;
+    inp.readOnly = rateLimited;
+    inp.style.pointerEvents = rateLimited ? 'none' : 'auto';
+    inp.style.cursor = rateLimited ? 'not-allowed' : 'text';
   }
 
-  // Only disable Send while generating
   if (btn) {
-    btn.disabled = busy;
+    btn.disabled = busy || rateLimited;
     const label = btn.querySelector('span');
     if (label) label.textContent = busy ? 'Thinking...' : 'Send';
   }
+};
+
+const scheduleGuideRateLimitUnlock = () => {
+  if (window.__guideRateLimitUnlockTimer) {
+    clearTimeout(window.__guideRateLimitUnlockTimer);
+    window.__guideRateLimitUnlockTimer = null;
+  }
+  const blockedUntil = getGuideBlockedUntil();
+  const remaining = blockedUntil - Date.now();
+  if (remaining <= 0) {
+    if (blockedUntil) {
+      localStorage.removeItem('guide_blocked_until');
+      S.guideMsgs = (S.guideMsgs || []).filter(message => !message.rateLimitNotice);
+      const notice = thread && thread.querySelector('.guide-rate-limit-notice');
+      if (notice) notice.remove();
+      setJSON('guide-history', S.guideMsgs).catch(() => {});
+      ensureClearButton();
+    }
+    setInputBusy(S.guideThinking);
+    return;
+  }
+
+  setInputBusy(S.guideThinking);
+  window.__guideRateLimitUnlockTimer = setTimeout(() => {
+    window.__guideRateLimitUnlockTimer = null;
+    localStorage.removeItem('guide_blocked_until');
+    S.guideMsgs = (S.guideMsgs || []).filter(message => !message.rateLimitNotice);
+    const notice = thread && thread.querySelector('.guide-rate-limit-notice');
+    if (notice) notice.remove();
+    setJSON('guide-history', S.guideMsgs).catch(() => {});
+    setInputBusy(S.guideThinking);
+    ensureClearButton();
+  }, remaining);
 };
 
 
@@ -17385,6 +17436,8 @@ const setInputBusy = (busy) => {
 
             const send = async (forcedText) => {
               if (S.guideThinking) return;
+              if (getGuideBlockedUntil() > Date.now()) return;
+              if (getGuideBlockedUntil()) scheduleGuideRateLimitUnlock();
 
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
@@ -17603,11 +17656,18 @@ const setInputBusy = (busy) => {
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
 
                 if (isRateLimitError(e)) {
-                  if (researchMode) {
-                    toast('Research is still temporarily rate-limited. Your chat is not locked; Clear chat is not required.');
-                  } else {
-                    toast('The AI service is still temporarily rate-limited. Your chat is not locked; Clear chat is not required.');
+                  const retryDelay = e.retryAfter ? getRetryDelayMs(e) : 3600000;
+                  const modeLabel = researchMode === 'deep' ? 'Deep Research'
+                    : researchMode === 'web' ? 'Web Search'
+                      : 'Deen Guide';
+                  const limitMessage = `${modeLabel} is temporarily rate-limited. Try again in about ${formatRateLimitDuration(retryDelay)}, or clear chat to start a new one.`;
+                  localStorage.setItem('guide_blocked_until', String(Date.now() + retryDelay));
+                  S.guideMsgs.push({ role: 'assistant', text: limitMessage, rateLimitNotice: true });
+                  appendMessage('assistant', limitMessage);
+                  if (thread && thread.lastElementChild) {
+                    thread.lastElementChild.classList.add('guide-rate-limit-notice');
                   }
+                  scheduleGuideRateLimitUnlock();
                 } else {
                   S.guideMsgs.push({ role: 'assistant', text: errMsg });
                   appendMessage('assistant', errMsg);
@@ -17623,6 +17683,10 @@ const setInputBusy = (busy) => {
             };
 
             const clearChat = async () => {
+              if (window.__guideRateLimitUnlockTimer) {
+                clearTimeout(window.__guideRateLimitUnlockTimer);
+                window.__guideRateLimitUnlockTimer = null;
+              }
               localStorage.removeItem('guide_blocked_until');
 
               S.guideMsgs = [];
@@ -17950,8 +18014,8 @@ if (inp) {
             const clearBtn = $('#guide-clear');
             if (clearBtn) clearBtn.onclick = clearChat;
 
-            const assistantMessages = thread ? thread.querySelectorAll('.guide-assistant-message') : [];
-            scrollThread(assistantMessages.length ? assistantMessages[assistantMessages.length - 1] : null);
+            scheduleGuideRateLimitUnlock();
+            scrollThread(latestUserMessage());
           }
           /* ============================= SCREEN ACTION BINDER ============================= */
           function bindScreenActions(s) {
