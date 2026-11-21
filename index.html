@@ -16469,29 +16469,53 @@ ISLAMIC EVIDENCE AND ACCURACY:
             })[character]);
 
           const renderGuideSources = (sources, answerText) => {
-            if (!Array.isArray(sources)) return '';
+            if (!Array.isArray(sources) || !sources.length) return '';
+
+            // Show cited sources when inline citations exist. If the AI omits
+            // citation markers, fall back to all valid sources from web search.
             const citedNumbers = [...new Set(
               [...String(answerText || '').matchAll(/\[(\d+)\]/g)]
                 .map(match => Number(match[1]))
                 .filter(number => Number.isSafeInteger(number) && number > 0 && number <= sources.length)
             )];
-            const links = citedNumbers.map(number => {
+            const sourceNumbers = citedNumbers.length
+              ? citedNumbers
+              : sources.map((source, index) => index + 1);
+
+            const seenUrls = new Set();
+            const links = sourceNumbers.map(number => {
               const source = sources[number - 1];
               if (!source || typeof source.url !== 'string') return '';
               try {
                 const url = new URL(source.url);
-                if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+                if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenUrls.has(url.href)) return '';
+                seenUrls.add(url.href);
+
                 const title = typeof source.title === 'string' && source.title.trim()
                   ? source.title.trim()
                   : url.hostname;
-                const sourceType = typeof source.sourceType === 'string' ? source.sourceType : 'Islamic source';
-                return `<a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a><span style="color:var(--tx3);font-size:11px;"> (${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)})</span>`;
+                const sourceType = typeof source.sourceType === 'string' && source.sourceType.trim()
+                  ? source.sourceType.trim()
+                  : 'Web source';
+
+                return `<div style="display:flex;align-items:flex-start;gap:7px;margin-top:7px;min-width:0;">
+                  <span style="color:var(--tx3);flex:0 0 auto;">${number}.</span>
+                  <span style="min-width:0;overflow-wrap:anywhere;">
+                    <a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a>
+                    <span style="display:block;color:var(--tx3);font-size:11px;">${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)}</span>
+                  </span>
+                  <span aria-hidden="true" style="margin-left:auto;color:var(--tx3);font-size:11px;flex:0 0 auto;">↗</span>
+                </div>`;
               } catch {
                 return '';
               }
             }).filter(Boolean);
+
             return links.length
-              ? `<div style="margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:12px;line-height:1.7;overflow-wrap:anywhere;"><strong style="color:var(--tx);">Sources:</strong> ${links.join('<span style="color:var(--tx3);"> · </span>')}</div>`
+              ? `<div class="guide-sources" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;line-height:1.55;overflow-wrap:anywhere;">
+                  <strong style="display:block;color:var(--tx);margin-bottom:5px;">Sources</strong>
+                  ${links.join('')}
+                </div>`
               : '';
           };
 
