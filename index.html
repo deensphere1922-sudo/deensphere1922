@@ -17148,6 +17148,9 @@ const setInputBusy = (busy) => {
                   modelText += '\n[Document text shortened to fit the message limit.]';
                 }
               });
+              if (attachments.length) {
+                modelText += '\n\nAttachment task: identify and explain any Islamic content. Translate readable Arabic. For Qur\'an, give the surah and ayah; for Hadith, give its collection and number only when confidently verified. If no Islamic content is present, begin with a one-line notice that the attachment is not related to Islamic content and do not summarize unrelated material. Never guess unclear text or references.';
+              }
               if (images.length) {
                 modelText += `\n\nPlease also examine the attached image${images.length > 1 ? 's' : ''}.`;
               }
