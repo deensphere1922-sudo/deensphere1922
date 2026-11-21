@@ -16339,8 +16339,8 @@ function closeYouTubePlayer() {
       - Keep it short and friendly.
 
       - If Web search or Deep research is active, use only the live results supplied in the context for web-supported claims. Cite results as [Source title](URL), and never invent sources, URLs, or quotations.
-      - In Web search mode, provide a detailed, clear synthesis from the retrieved Islamic websites only, drawing on at least five distinct sources when available. Cite relevant claims inline and explain meaningful differences; if evidence is insufficient, say so.
-      - In Deep research mode, provide a thorough synthesis of distinct sources (use at least five when that many relevant results are supplied), distinguish Qur'an/Hadith evidence from scholarly interpretation, and explain genuine differences of opinion without presenting one view as universal consensus.
+      - In Web search mode, provide a detailed, clear synthesis from all relevant retrieved Islamic websites. Aim to use five distinct source domains when available, but this is not a minimum: answer from the useful evidence supplied even when fewer sources were found. Never refuse solely because fewer than five domains are available; explain real evidence gaps instead.
+      - In Deep research mode, provide a thorough synthesis of all relevant distinct sources, aiming for five or more when available but never treating that as a minimum. Distinguish Qur'an/Hadith evidence from scholarly interpretation and explain genuine differences of opinion without presenting one view as universal consensus.
       - If the user asks for current Islamic apps while a search mode is active, use only the supplied results and never make up a link. Without search results, explain that current recommendations have not been verified.
 
      
@@ -16489,7 +16489,7 @@ Warm, respectful, scholarly, compassionate and educational.
                   const messageText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideSourceCards(m.sources)}${esc(m.text)}</div>`;
+                  return `<div class="guide-assistant-message" style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideSourceCards(m.sources)}${esc(m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -17190,8 +17190,13 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               });
             };
 
-            const scrollThread = () => {
-              if (thread) thread.scrollTop = thread.scrollHeight;
+            const scrollThread = (target = null) => {
+              if (!thread) return;
+              if (target) {
+                thread.scrollTop += target.getBoundingClientRect().top - thread.getBoundingClientRect().top;
+                return;
+              }
+              thread.scrollTop = thread.scrollHeight;
             };
 
            const appendMessage = (role, text, sources = []) => {
@@ -17200,6 +17205,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
   if (empty) empty.remove();
 
   const div = document.createElement('div');
+  if (role === 'assistant') div.classList.add('guide-assistant-message');
   
   // Helper to escape HTML safely
   const escapeHTML = (str) => str.replace(/[&<>'"]/g, 
@@ -17289,7 +17295,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
     div.style.animationDelay = '0ms';
   }
   thread.appendChild(div);
-  scrollThread();
+  scrollThread(role === 'assistant' ? div : null);
 };
 
             let thinkingEl = null;
@@ -17425,9 +17431,9 @@ const setInputBusy = (busy) => {
                 modelText += `\n\nDocument-only analysis: use the extracted text and rendered pages from ${documents.map(document => document.name).join(', ')}. Do not describe unrelated UI or infer content from filenames.`;
               }
               if (researchMode === 'web') {
-                modelText += '\n\nWeb search mode: provide a detailed, evidence-led synthesis from the live Islamic web results supplied with this request only. Draw on at least five distinct source domains when available, cite relevant claims inline as [Source title](URL), and explain important differences or evidence gaps. If the results are insufficient, say so instead of filling gaps from memory.';
+                modelText += '\n\nWeb search mode: provide a detailed, evidence-led synthesis using all relevant live Islamic web results supplied with this request only. Aim for five distinct source domains when available, but this is not a minimum. Never refuse or say the answer cannot be given solely because fewer than five domains were found. Cite supported claims inline as [Source title](URL), explain meaningful differences, and clearly note any actual evidence gaps without filling them from memory.';
               } else if (researchMode === 'deep') {
-                modelText += '\n\nDeep research mode: provide a thorough, structured synthesis of the distinct live Islamic sources supplied with this request, using at least five when available. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite every web-supported claim as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
+                modelText += '\n\nDeep research mode: provide a thorough, structured synthesis using all relevant distinct live Islamic sources supplied with this request. Aim for five or more sources when available, but do not treat that as a minimum or refuse solely because fewer were found. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite web-supported claims as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
               }
               const visibleText = [
                 text,
@@ -17911,7 +17917,8 @@ if (inp) {
             const clearBtn = $('#guide-clear');
             if (clearBtn) clearBtn.onclick = clearChat;
 
-            scrollThread();
+            const assistantMessages = thread ? thread.querySelectorAll('.guide-assistant-message') : [];
+            scrollThread(assistantMessages.length ? assistantMessages[assistantMessages.length - 1] : null);
           }
           /* ============================= SCREEN ACTION BINDER ============================= */
           function bindScreenActions(s) {
