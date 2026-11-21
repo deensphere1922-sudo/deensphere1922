@@ -16485,56 +16485,83 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   ? source.title.trim()
                   : url.hostname;
                 const sourceType = typeof source.sourceType === 'string' ? source.sourceType : 'Islamic source';
-                return `<li value="${number}" style="margin:4px 0;overflow-wrap:anywhere;"><a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a><span style="color:var(--tx3);font-size:11px;"> · ${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)}</span></li>`;
+                return `<a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a><span style="color:var(--tx3);font-size:11px;"> (${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)})</span>`;
               } catch {
                 return '';
               }
             }).filter(Boolean);
             return links.length
-              ? `<div style="margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:12px;line-height:1.5;"><strong style="color:var(--tx);">Sources cited</strong><ol style="margin:4px 0 0;padding-left:20px;">${links.join('')}</ol></div>`
+              ? `<div style="margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:12px;line-height:1.7;overflow-wrap:anywhere;"><strong style="color:var(--tx);">Sources:</strong> ${links.join('<span style="color:var(--tx3);"> · </span>')}</div>`
               : '';
           };
 
-          const formatGuidePlainText = value =>
-            escapeGuideSourceHtml(String(value || ''))
+          const formatGuidePlainText = (value, sources = []) => {
+            const citationLinks = [];
+            const text = String(value || '').replace(/\[(\d+)\]/g, (citation, rawNumber) => {
+              const number = Number(rawNumber);
+              const source = sources[number - 1];
+              if (!Number.isSafeInteger(number) || number < 1 || !source || typeof source.url !== 'string') {
+                return citation;
+              }
+              try {
+                const url = new URL(source.url);
+                if (url.protocol !== 'https:' && url.protocol !== 'http:') return citation;
+                const title = typeof source.title === 'string' && source.title.trim()
+                  ? source.title.trim()
+                  : `Source ${number}`;
+                const placeholder = `\u0000GUIDE_CITATION_${citationLinks.length}\u0000`;
+                citationLinks.push(
+                  `<a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeGuideSourceHtml(title)}" style="color:var(--green-l);text-decoration:underline;">[${number}]</a>`
+                );
+                return placeholder;
+              } catch {
+                return citation;
+              }
+            });
+            let html = escapeGuideSourceHtml(text)
               .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--tx);font-weight:600;">$1</strong>')
               .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
               .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+            citationLinks.forEach((link, index) => {
+              html = html.replace(`\u0000GUIDE_CITATION_${index}\u0000`, link);
+            });
+            return html;
+          };
 
-          const formatGuideInlineText = value => {
+          const formatGuideInlineText = (value, sources = []) => {
             const text = String(value || '');
             const arabic = text.match(/^\[\[ARABIC\]\](.*?)\[\[\/ARABIC\]\](.*)$/i);
             if (arabic) {
               const citation = arabic[2]
-                ? `<span style="display:block;text-align:left;font-family:Inter,sans-serif;font-size:12px;">${formatGuidePlainText(arabic[2])}</span>`
+                ? `<span style="display:block;text-align:left;font-family:Inter,sans-serif;font-size:12px;">${formatGuidePlainText(arabic[2], sources)}</span>`
                 : '';
               return `<span class="arabic-q" dir="rtl" lang="ar" style="display:block;margin:8px 0;padding:4px 8px;border-left:2px solid var(--green);font-size:22px;">${escapeGuideSourceHtml(arabic[1])}</span>${citation}`;
             }
             const quotation = text.match(/^\[\[(QURAN|HADITH)\]\](.*?)\[\[\/\1\]\](.*)$/i);
             if (quotation) {
               const label = quotation[1].toUpperCase() === 'QURAN' ? "Qur'an" : 'Hadith';
-              const citation = quotation[3] ? ` ${formatGuidePlainText(quotation[3])}` : '';
-              return `<div style="margin:8px 0;padding:7px 10px;border-left:2px solid var(--green);background:var(--green-dim);border-radius:0 8px 8px 0;"><strong style="display:block;margin-bottom:3px;color:var(--tx3);font-size:11px;">${label}</strong>${formatGuidePlainText(quotation[2])}</div>${citation}`;
+              const citation = quotation[3] ? ` ${formatGuidePlainText(quotation[3], sources)}` : '';
+              return `<div style="margin:8px 0;padding:7px 10px;border-left:2px solid var(--green);background:var(--green-dim);border-radius:0 8px 8px 0;"><strong style="display:block;margin-bottom:3px;color:var(--tx3);font-size:11px;">${label}</strong>${formatGuidePlainText(quotation[2], sources)}</div>${citation}`;
             }
-            return formatGuidePlainText(text);
+            return formatGuidePlainText(text, sources);
           };
 
-          const renderGuideMessageText = value => String(value || '').split('\n').map(line => {
+          const renderGuideMessageText = (value, sources) => String(value || '').split('\n').map(line => {
             const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
             if (heading) {
-              return `<strong style="display:inline-block;margin-top:4px;color:var(--tx);font-weight:600;">${formatGuideInlineText(heading[1])}</strong>`;
+              return `<strong style="display:inline-block;margin-top:4px;color:var(--tx);font-weight:600;">${formatGuideInlineText(heading[1], sources)}</strong>`;
             }
             const bullet = line.match(/^(\s*)[-*+]\s+(.+)$/);
             if (bullet) {
               const indent = '&nbsp;'.repeat(Math.min(Math.floor(bullet[1].length / 2), 8));
-              return `${indent}• ${formatGuideInlineText(bullet[2])}`;
+              return `${indent}• ${formatGuideInlineText(bullet[2], sources)}`;
             }
             const numbered = line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
             if (numbered) {
               const indent = '&nbsp;'.repeat(Math.min(Math.floor(numbered[1].length / 2), 8));
-              return `${indent}${numbered[2]}. ${formatGuideInlineText(numbered[3])}`;
+              return `${indent}${numbered[2]}. ${formatGuideInlineText(numbered[3], sources)}`;
             }
-            return line ? formatGuideInlineText(line) : '';
+            return line ? formatGuideInlineText(line, sources) : '';
           }).join('<br>');
 
           function renderDeenGuide() {
@@ -16564,7 +16591,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   if (m.role === 'user') {
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text || '')}${renderAttachments(m.attachments)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideMessageText(m.text)}${renderGuideSources(m.sources, m.text)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideMessageText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16691,6 +16718,8 @@ ISLAMIC EVIDENCE AND ACCURACY:
             let recordingTimer = null;
             let recordingChunks = [];
             let voiceRequestVersion = 0;
+            let liveRecognition = null;
+            let liveRecognitionFinal = '';
             let attachmentVersion = 0;
             let pdfJsPromise = null;
 
@@ -16742,7 +16771,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
     let totalTasks = 0;
     let completedTasks = 0;
 
-    const formatText = value => formatGuideInlineText(value);
+    const formatText = value => formatGuideInlineText(value, sources);
 
     const html = lines.map(line => {
       const task = line.match(/^\s*(?:[•*-]\s*)?\[([ xX])\]\s*(.*)$/);
@@ -17121,6 +17150,12 @@ const transcribeRecording = async (blob, requestVersion) => {
 };
 
 const toggleGuideRecording = async () => {
+  if (liveRecognition) {
+    liveRecognition.stop();
+    liveRecognition = null;
+    resetMicButton();
+    return;
+  }
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     return;
@@ -17130,11 +17165,80 @@ const toggleGuideRecording = async () => {
     toast('Voice input needs the deployed app or a secure local server.');
     return;
   }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    try {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-IN';
+      liveRecognitionFinal = '';
+      const input = $('#guide-input');
+      if (input) liveRecognitionFinal = input.value;
+      const button = $('#guide-mic');
+      if (button) {
+        button.classList.add('is-recording');
+        button.setAttribute('aria-label', 'Stop listening');
+        button.title = 'Stop listening';
+        button.style.color = 'var(--red, #ef4444)';
+      }
+      if (input) input.placeholder = 'Listening… speak now';
+      recognition.onresult = event => {
+        let interimText = '';
+        let finalText = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const text = event.results[i][0].transcript;
+          if (event.results[i].isFinal) finalText += text;
+          else interimText += text;
+        }
+        if (finalText) liveRecognitionFinal = `${liveRecognitionFinal.trim()}${liveRecognitionFinal.trim() ? ' ' : ''}${finalText.trim()}`;
+        if (input) {
+          input.value = `${liveRecognitionFinal}${interimText ? `${liveRecognitionFinal ? ' ' : ''}${interimText}` : ''}`;
+          input.focus();
+          input.setSelectionRange(input.value.length, input.value.length);
+        }
+      };
+      recognition.onend = () => {
+        if (liveRecognition !== recognition) return;
+        liveRecognition = null;
+        resetMicButton();
+      };
+      recognition.onerror = event => {
+        console.warn('Live speech recognition unavailable:', event.error);
+        if (liveRecognition === recognition) {
+          liveRecognition = null;
+          recognition.stop();
+        }
+        resetMicButton();
+        if (event.error === 'network' || event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+          if (event.error === 'network') toast('Live recognition unavailable. Try recording again.');
+          else toast('Microphone permission or speech recognition access is required.');
+        } else if (event.error === 'no-speech') {
+          toast('No speech detected. Try again.');
+        }
+      };
+      liveRecognition = recognition;
+      recognition.start();
+      return;
+    } catch (error) {
+      console.warn('Could not start live speech recognition:', error);
+      liveRecognition = null;
+    }
+  }
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     toast('Voice recording is not supported in this browser.');
     return;
   }
-  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch (error) {
+    const message = error?.name === 'NotAllowedError'
+      ? 'Microphone permission was denied. Allow microphone access and try again.'
+      : 'Could not access the microphone.';
+    toast(message);
+    return;
+  }
   recordingStream = stream;
   recordingChunks = [];
   voiceRequestVersion++;
@@ -17223,16 +17327,56 @@ const toggleGuideRecording = async () => {
               if (!hasMessages && existing) existing.remove();
             };
 
-            const isGuideResearchQuestion = value =>
-              /\b(?:sources?|references?|citations?|resources?|links?|evidence|research|authentic(?:ity)?|verify|verified|qur['’]?an|hadith|sunnah|fatwa)\b/i.test(value);
+            const isGuideIslamicQuestion = value =>
+              /\\b(?:islam|islamic|muslim|allah|qur['’]?an|surah|ayah|verse|hadith|sunnah|salah|prayer|sabr|tawheed|tawhid|dua|du'a|dhikr|adhkar|wudu|wudhu|ramadan|zakat|zakah|hajj|umrah|fiqh|fatwa|prophet|rasul|masjid|halal|haram|deen|deen sphere)\\b/i.test(value);
 
-            const guideResearchStages = [
-              'Searching trusted Islamic websites...\nFinding relevant Islamic sources.',
-              "Exploring Qur'an and Hadith references...\nLooking for relevant primary references.",
-              'Gathering scholarly explanations...\nFinding relevant scholarly discussions.',
-              'Reviewing and cross-checking sources...\nChecking the retrieved information.',
-              'Preparing your researched answer...\nOrganising findings with source citations.'
+            const guideNormalStages = [
+              'Thinking…',
+              'Preparing your answer…'
             ];
+
+            const guideWebStages = [
+              'Analyzing your question…',
+              'Searching the web for relevant information…',
+              'Gathering information from trusted sources…',
+              'Reviewing and verifying the findings…',
+              'Preparing your answer…'
+            ];
+
+            const guideIslamicStages = [
+              'Understanding your Islamic question…',
+              'Preparing your Islamic answer…'
+            ];
+
+            const guideIslamicWebStages = [
+              'Understanding your Islamic question…',
+              'Checking the Qur’an and relevant verses…',
+              'Verifying authentic Hadith and references…',
+              'Reviewing scholarly explanations and context…',
+              'Preparing a reliable Islamic answer…'
+            ];
+
+            const transitionGuideStage = stage => {
+              const label = $('#guide-thinking-text');
+              if (!label) {
+                showThinking(stage);
+                return;
+              }
+              label.style.opacity = '0';
+              label.style.transform = 'translateY(3px)';
+              window.setTimeout(() => {
+                if (!label.isConnected) return;
+                label.textContent = stage;
+                label.style.transition = 'opacity 220ms ease, transform 220ms ease';
+                label.style.opacity = '1';
+                label.style.transform = 'translateY(0)';
+              }, 120);
+            };
+
+            const showGuideStage = (stages, index) => {
+              const safeIndex = Math.max(0, Math.min(index, stages.length - 1));
+              transitionGuideStage(stages[safeIndex]);
+            };
 
             const parseGuideRetryDelay = value => {
               if (typeof value !== 'string' && typeof value !== 'number') return null;
@@ -17374,8 +17518,11 @@ const toggleGuideRecording = async () => {
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
               const attachments = pendingAttachments.slice();
-              const wantsResearch = guideWebSearchEnabled ||
-                (!attachments.length && isGuideResearchQuestion(text));
+              const wantsResearch = guideWebSearchEnabled;
+              const isIslamicQuestion = isGuideIslamicQuestion(text);
+              const activeGuideStages = wantsResearch
+                ? (isIslamicQuestion ? guideIslamicWebStages : guideWebStages)
+                : (isIslamicQuestion ? guideIslamicStages : guideNormalStages);
               if (guideWebSearchEnabled && text.length < 2) {
                 toast('Type a question of at least 2 characters to search the web.');
                 return;
@@ -17424,7 +17571,8 @@ const toggleGuideRecording = async () => {
               setJSON('guide-history', S.guideMsgs).catch(error =>
                 console.error('Could not save Deen Guide history:', error));
               let researchSources = [];
-              showThinking(wantsResearch ? guideResearchStages[0] : 'Analyzing your question…');
+              let activeStageIndex = 0;
+              showThinking(activeGuideStages[0]);
               await new Promise(resolve => window.requestAnimationFrame(resolve));
               if (requestVersion !== guideRequestVersion) return;
 
@@ -17453,11 +17601,27 @@ const toggleGuideRecording = async () => {
                 let requestHistory = history;
                 let requestSystemPrompt = GUIDE_SYSTEM_PROMPT;
                 if (wantsResearch) {
-                  const { response: searchResponse, data: searchData, retryAfter: searchRetryAfter } =
-                      await postGuideJson('/api/search', { query: text }, controller.signal, [
-                        guideResearchStages[1],
-                        guideResearchStages[2]
-                      ]);
+                  // Advance only while the corresponding search work is actually running.
+                  activeStageIndex = 1;
+                  showGuideStage(activeGuideStages, activeStageIndex);
+                  const sourceProgressTimer = window.setTimeout(() => {
+                    showGuideStage(activeGuideStages, 2);
+                  }, 900);
+                  let searchResult;
+                  try {
+                    searchResult = await postGuideJson(
+                      '/api/search',
+                      { query: text },
+                      controller.signal
+                    );
+                  } finally {
+                    window.clearTimeout(sourceProgressTimer);
+                  }
+                  const {
+                    response: searchResponse,
+                    data: searchData,
+                    retryAfter: searchRetryAfter
+                  } = searchResult;
                   if (requestVersion !== guideRequestVersion) return;
                   if (!searchResponse.ok || searchData.error) {
                     const error = new Error(searchData.error || `Source search failed (${searchResponse.status}).`);
@@ -17482,7 +17646,8 @@ const toggleGuideRecording = async () => {
                   if (researchSources.length < 1) {
                     throw new Error('I could not find a relevant source for this question. Please rephrase it and try again.');
                   }
-                  showThinking(guideResearchStages[3]);
+                  activeStageIndex = 3;
+                  showGuideStage(activeGuideStages, activeStageIndex);
                   await new Promise(resolve => window.requestAnimationFrame(resolve));
                   if (requestVersion !== guideRequestVersion) return;
                   const sourceExcerpts = researchSources.map((source, index) =>
@@ -17495,18 +17660,8 @@ const toggleGuideRecording = async () => {
                   });
                   requestSystemPrompt += GUIDE_WEB_RESEARCH_PROMPT;
                 }
-                showThinking(wantsResearch ? guideResearchStages[4] : 'Preparing your answer…');
-                const answerProgress = wantsResearch
-                  ? [
-                    guideResearchStages[4],
-                    'Still preparing your researched answer...\nOrganising findings with source citations.'
-                  ]
-                  : [
-                    'Generating your answer…',
-                    'Still working on your answer…',
-                    'This is taking longer than usual…',
-                    'The AI is still preparing your response…'
-                  ];
+                activeStageIndex = activeGuideStages.length - 1;
+                showGuideStage(activeGuideStages, activeStageIndex);
                 const { response, data, retryAfter } = await postGuideJson(
                   '/api/guide',
                   {
@@ -17515,8 +17670,7 @@ const toggleGuideRecording = async () => {
                     research: wantsResearch,
                     hasAttachments: attachments.length > 0
                   },
-                  controller.signal,
-                  answerProgress
+                  controller.signal
                 );
                 if (requestVersion !== guideRequestVersion) return;
                 const providerError = typeof data.error === 'string'
@@ -17594,6 +17748,12 @@ const toggleGuideRecording = async () => {
               if (recordingStream) {
                 recordingStream.getTracks().forEach(track => track.stop());
                 recordingStream = null;
+              }
+              if (liveRecognition) {
+                liveRecognition.onend = null;
+                liveRecognition.onerror = null;
+                liveRecognition.stop();
+                liveRecognition = null;
               }
               recordingChunks = [];
               resetMicButton();
