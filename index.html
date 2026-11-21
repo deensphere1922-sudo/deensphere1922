@@ -16339,8 +16339,8 @@ function closeYouTubePlayer() {
       - Keep it short and friendly.
 
       - If Web search or Deep research is active, use only the live results supplied in the context for web-supported claims. Cite results as [Source title](URL), and never invent sources, URLs, or quotations.
-      - In Web search mode, answer from the retrieved Islamic websites only. If they do not support an answer, say that the search did not find enough evidence.
-      - In Deep research mode, synthesize distinct sources (use at least five when that many relevant results are supplied), distinguish Qur'an/Hadith evidence from scholarly interpretation, and explain genuine differences of opinion without presenting one view as universal consensus.
+      - In Web search mode, provide a detailed, clear synthesis from the retrieved Islamic websites only, drawing on at least five distinct sources when available. Cite relevant claims inline and explain meaningful differences; if evidence is insufficient, say so.
+      - In Deep research mode, provide a thorough synthesis of distinct sources (use at least five when that many relevant results are supplied), distinguish Qur'an/Hadith evidence from scholarly interpretation, and explain genuine differences of opinion without presenting one view as universal consensus.
       - If the user asks for current Islamic apps while a search mode is active, use only the supplied results and never make up a link. Without search results, explain that current recommendations have not been verified.
 
      
@@ -16349,7 +16349,7 @@ function closeYouTubePlayer() {
 RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 
 1. NORMAL ANSWERS:
-- Keep normal answers to approximately 5 short lines.
+- Keep normal answers to approximately 5 short lines. Web search and Deep research are exceptions and should provide a detailed, evidence-led synthesis unless the user asks for a brief answer.
 - Use simple, clear and meaningful sentences.
 - Answer the question directly without unnecessary explanations.
 - Start with a complete, natural sentence.
@@ -16359,6 +16359,7 @@ RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 
 2. DETAILED ANSWERS:
 - Provide detailed answers only when the user asks "Explain in detail", "Tell me more" or similar.
+- Web search and Deep research modes request a detailed, evidence-led synthesis; honor an explicit request for a short answer.
 - Organize detailed answers with clear and relevant headings.
 - Explain each point properly using simple language.
 - Use bullet points or numbered lists when they improve clarity.
@@ -16390,7 +16391,7 @@ ATTACHMENT ANALYSIS:
 
 FORMATTING:
 - Use clean, natural paragraphs.
-- Keep normal answers to approximately 5 short lines.
+- Keep normal answers to approximately 5 short lines, except in Web search or Deep research mode unless the user requests brevity.
 - Avoid unnecessary line breaks, blank spaces and large gaps.
 - Do not use the ">" blockquote symbol.
 - Do not use bullet points in normal answers.
@@ -16427,6 +16428,33 @@ TONE:
 Warm, respectful, scholarly, compassionate and educational.
       `;
 
+          function renderGuideSourceCards(sources) {
+            if (!Array.isArray(sources)) return '';
+            const cards = sources.slice(0, 12).map(source => {
+              if (!source || typeof source.url !== 'string') return '';
+              let url;
+              try {
+                url = new URL(source.url);
+              } catch {
+                return '';
+              }
+              if (url.protocol !== 'https:') return '';
+              const domain = url.hostname.replace(/^www\./, '');
+              const title = typeof source.title === 'string' && source.title.trim()
+                ? source.title.trim()
+                : domain;
+              return `<a class="guide-source-card" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">
+                <span class="guide-source-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>
+                <span class="guide-source-text"><strong>${esc(title)}</strong><small>${esc(domain)}</small></span>
+              </a>`;
+            }).filter(Boolean);
+            if (!cards.length) return '';
+            return `<div class="guide-sources">
+              <div class="guide-sources-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>Sources (${cards.length})</div>
+              <div class="guide-sources-list">${cards.join('')}</div>
+            </div>`;
+          }
+
           function renderDeenGuide() {
             const storedMsgs = S.guideMsgs || [];
             const msgs = storedMsgs.filter(message =>
@@ -16461,7 +16489,7 @@ Warm, respectful, scholarly, compassionate and educational.
                   const messageText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}${renderGuideSourceCards(m.sources)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16637,6 +16665,90 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
   border: 0;
   border-radius: 50%;
   cursor: pointer;
+}
+.guide-sources {
+  display: grid;
+  gap: 7px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.guide-sources-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--tx3);
+  font-size: 12px;
+  font-weight: 600;
+}
+.guide-sources-heading svg {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.guide-sources-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.guide-source-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 6px 8px;
+  color: var(--tx2);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  text-decoration: none;
+}
+.guide-source-card:hover {
+  color: var(--tx);
+  border-color: var(--green-l);
+  background: var(--green-dim);
+}
+.guide-source-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  color: var(--green-l);
+}
+.guide-source-icon svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.guide-source-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.guide-source-text strong {
+  max-width: 210px;
+  overflow: hidden;
+  color: inherit;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.guide-source-text small {
+  overflow: hidden;
+  color: var(--tx3);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 #guide-mic { order: 3; }
 #guide-attach, #guide-mic {
@@ -17084,7 +17196,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               if (thread) thread.scrollTop = thread.scrollHeight;
             };
 
-           const appendMessage = (role, text) => {
+           const appendMessage = (role, text, sources = []) => {
   if (!thread) return;
   const empty = thread.querySelector('.empty');
   if (empty) empty.remove();
@@ -17146,6 +17258,8 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
     });
 
     div.innerHTML = html.join('');
+    const sourceCards = renderGuideSourceCards(sources);
+    if (sourceCards) div.insertAdjacentHTML('beforeend', sourceCards);
 
     const checkboxes = div.querySelectorAll('.guide-task-checkbox');
     const completedEl = div.querySelector('.guide-completed');
@@ -17317,9 +17431,9 @@ const setInputBusy = (busy) => {
                 modelText += `\n\nDocument-only analysis: use the extracted text and rendered pages from ${documents.map(document => document.name).join(', ')}. Do not describe unrelated UI or infer content from filenames.`;
               }
               if (researchMode === 'web') {
-                modelText += '\n\nWeb search mode: answer from the live Islamic web results supplied with this request only. Cite relevant results as [Source title](URL). If the results are insufficient, say so instead of filling gaps from memory.';
+                modelText += '\n\nWeb search mode: provide a detailed, evidence-led synthesis from the live Islamic web results supplied with this request only. Draw on at least five distinct source domains when available, cite relevant claims inline as [Source title](URL), and explain important differences or evidence gaps. If the results are insufficient, say so instead of filling gaps from memory.';
               } else if (researchMode === 'deep') {
-                modelText += '\n\nDeep research mode: compare the distinct live Islamic sources supplied with this request, using at least five when available. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite every web-supported claim as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
+                modelText += '\n\nDeep research mode: provide a thorough, structured synthesis of the distinct live Islamic sources supplied with this request, using at least five when available. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite every web-supported claim as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
               }
               const visibleText = [
                 text,
@@ -17367,6 +17481,7 @@ const setInputBusy = (busy) => {
               }
               try {
                 let webContext = 'No web search was requested for this message.';
+                let webSources = [];
                 if (researchMode) {
                   const searchQuery = (text || question).slice(0, 1000);
                   const searchResp = await fetch('/api/search', {
@@ -17380,8 +17495,9 @@ const setInputBusy = (busy) => {
                   if (!Array.isArray(searchData.results) || !searchData.results.length) {
                     throw new Error('No matching Islamic web sources were found. Try a more specific question.');
                   }
+                  webSources = searchData.results;
                   showThinking(`Collected ${searchData.results.length} sources. Comparing their evidence...`);
-                  webContext = searchData.results.map((result, index) =>
+                  webContext = webSources.map((result, index) =>
                     `Source ${index + 1}\nTitle: ${result.title}\nURL: ${result.url}\nContent: ${result.content}`
                   ).join('\n\n');
                 }
@@ -17436,8 +17552,9 @@ const setInputBusy = (busy) => {
                 hideThinking();
                 S.guideThinking = false;
                 S.guideThinkStage = '';
-                S.guideMsgs.push({ role: 'assistant', text: out });
-                appendMessage('assistant', out);
+                const visibleSources = webSources.map(({ title, url }) => ({ title, url }));
+                S.guideMsgs.push({ role: 'assistant', text: out, sources: visibleSources });
+                appendMessage('assistant', out, visibleSources);
                 if (getQuestionCount() === 10) {
                   const limitNotice = 'You’ve reached the 10-question limit for this chat. Clear chat to start a new one.';
                   S.guideMsgs.push({ role: 'assistant', text: limitNotice });
