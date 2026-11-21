@@ -1,6 +1,7 @@
 
 export const config = { maxDuration: 60 };
 
+const MAX_QUERY_LENGTH = 1000;
 const MAX_SOURCES = 5;
 
 const sourceGroups = [
@@ -9,14 +10,14 @@ const sourceGroups = [
     domains: ['quran.com', 'quranenc.com'],
     limit: 2,
     query: question =>
-      `${question} relevant Quran verses and their meaning. Only return Quran passages directly related to this exact question.`
+      `${question} relevant Quran verses and explanations directly related to the exact question.`
   },
   {
     type: 'Hadith evidence',
     domains: ['sunnah.com', 'dorar.net'],
     limit: 2,
     query: question =>
-      `${question} relevant Hadith from authentic Hadith collections. Find directly related narrations with collection and reference details where available.`
+      `${question} directly relevant Hadith narrations from authentic collections, including collection and reference number where available.`
   },
   {
     type: 'Scholarly explanation',
@@ -29,9 +30,66 @@ const sourceGroups = [
     ],
     limit: 1,
     query: question =>
-      `${question} Islamic scholarly explanation. Focus only on this exact subject and support the explanation with relevant Quran or Hadith evidence.`
+      `${question} focused Islamic scholarly explanation supported by relevant Quran and Hadith evidence.`
   }
 ];
+
+// Support parsed JSON, JSON strings and raw request bodies.
+async function getRequestBody(req) {
+  if (req.body && typeof req.body === 'object') {
+    return req.body;
+  }
+
+  if (typeof req.body === 'string') {
+    try {
+      return JSON.parse(req.body);
+    } catch {
+      return {};
+    }
+  }
+
+  if (typeof req.on === 'function') {
+    return new Promise(resolve => {
+      let raw = '';
+
+      req.on('data', chunk => {
+        raw += chunk;
+
+        if (raw.length > 10000) {
+          raw = '';
+        }
+      });
+
+      req.on('end', () => {
+        try {
+          resolve(raw ? JSON.parse(raw) : {});
+        } catch {
+          resolve({});
+        }
+      });
+
+      req.on('error', () => resolve({}));
+    });
+  }
+
+  return {};
+}
+
+function getQuestion(body) {
+  const candidates = [
+    body?.query,
+    body?.question,
+    body?.text
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return '';
+}
 
 function isTrustedUrl(value, domains) {
   try {
@@ -68,30 +126,31 @@ function getRetryAfter(response) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({
-      error: 'Method not allowed'
-    });
-  }
-
-  const query =
-    typeof req.body?.query === 'string'
-      ? req.body.query.trim()
-      : '';
-
-  if (query.length < 2 || query.length > 500) {
-    return res.status(400).json({
-      error: 'Enter a search question between 2 and 500 characters.'
-    });
-  }
-
-  const apiKey = process.env.TAVILY_API_KEY;
-
-  if (!apiKey) {
-    return res.status(503).json({
-      error: 'Web research is not configured on the server.'
+      error: 'Method not allowed.'
     });
   }
 
   try {
+    const body = await getRequestBody(req);
+    const query = getQuestion(body);
+
+    if (
+      query.length < 2 ||
+      query.length > MAX_QUERY_LENGTH
+    ) {
+      return res.status(400).json({
+        error: `Enter a search question between 2 and ${MAX_QUERY_LENGTH} characters.`
+      });
+    }
+
+    const apiKey = process.env.TAVILY_API_KEY;
+
+    if (!apiKey) {
+      return res.status(503).json({
+        error: 'Web research is not configured on the server.'
+      });
+    }
+
     const responses = await Promise.all(
       sourceGroups.map(group =>
         fetch('https://api.tavily.com/search', {
@@ -123,11 +182,8 @@ export default async function handler(req, res) {
 
       try {
         data = await response.json();
-      } catch (error) {
-        console.error(
-          'Web research provider returned invalid JSON:',
-          error
-        );
+      } catch {
+        console.error('Invalid JSON from web research provider.');
 
         return res.status(502).json({
           error: 'The web research service returned an invalid response.'
@@ -136,7 +192,7 @@ export default async function handler(req, res) {
 
       if (!response.ok) {
         console.error(
-          'Web research provider returned an error:',
+          'Web research provider error:',
           response.status
         );
 
@@ -166,16 +222,16 @@ export default async function handler(req, res) {
           continue;
         }
 
+        const url = new URL(result.url);
+
         candidates.push({
           title:
             typeof result.title === 'string'
               ? result.title.slice(0, 250)
-              : new URL(result.url).hostname,
+              : url.hostname,
 
-          url: new URL(result.url).href,
-
+          url: url.href,
           content: result.content.slice(0, 1800),
-
           sourceType: group.type,
 
           score:
@@ -186,72 +242,40 @@ export default async function handler(req, res) {
       }
     }
 
-    // Remove duplicate URLs.
+    // Remove duplicate links.
     const seenUrls = new Set();
 
     const uniqueCandidates = candidates.filter(source => {
-      if (seenUrls.has(source.url)) {
-        return false;
-      }
+      if (seenUrls.has(source.url)) return false;
 
       seenUrls.add(source.url);
       return true;
     });
 
-    // Sort each category by Tavily relevance score.
-    const groupedResults = sourceGroups.map(group => ({
-      ...group,
-      results: uniqueCandidates
+    // Select relevant sources from each category.
+    const results = [];
+
+    for (const group of sourceGroups) {
+      const groupResults = uniqueCandidates
         .filter(source => source.sourceType === group.type)
         .sort((a, b) => b.score - a.score)
-    }));
+        .slice(0, group.limit);
 
-    const selected = [];
-    const selectedUrls = new Set();
-
-    // First, select the best results from each category.
-    for (const group of groupedResults) {
-      const relevant = group.results.slice(0, group.limit);
-
-      for (const source of relevant) {
-        if (
-          selected.length < MAX_SOURCES &&
-          !selectedUrls.has(source.url)
-        ) {
-          selected.push(source);
-          selectedUrls.add(source.url);
-        }
-      }
+      results.push(...groupResults);
     }
 
-    // Fill remaining places with the best available results.
-    // Never exceed five sources.
-    const remaining = uniqueCandidates
-      .filter(source => !selectedUrls.has(source.url))
-      .sort((a, b) => b.score - a.score);
-
-    for (const source of remaining) {
-      if (selected.length >= MAX_SOURCES) break;
-
-      selected.push(source);
-      selectedUrls.add(source.url);
-    }
-
-    // Do not expose internal ranking scores to the frontend.
-    const results = selected.map(
-      ({ score, ...source }) => source
-    );
+    // Strict maximum of five sources.
+    const finalResults = results
+      .slice(0, MAX_SOURCES)
+      .map(({ score, ...source }) => source);
 
     return res.status(200).json({
-      results,
-      total: results.length
+      results: finalResults,
+      total: finalResults.length
     });
 
   } catch (error) {
-    console.error(
-      'Could not reach the web research provider:',
-      error
-    );
+    console.error('Web search API error:', error);
 
     return res.status(502).json({
       error: 'Could not reach the web research service. Please try again.'
