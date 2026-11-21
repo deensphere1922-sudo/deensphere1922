@@ -16849,6 +16849,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
             const thread = $('#guide-thread');
             const pendingAttachments = [];
             let selectedSearchMode = null;
+            let guideRequestVersion = 0;
             let activeRecognition = null;
             let recognitionShouldContinue = false;
             let preferAudioRecorder = false;
@@ -17209,6 +17210,7 @@ const setInputBusy = (busy) => {
                 return; // Stops the message from sending
               }
               // -------------------------------------------
+              const requestVersion = ++guideRequestVersion;
 
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
@@ -17238,10 +17240,12 @@ const setInputBusy = (busy) => {
                   throw new Error('Together, the attached images are too large. Remove an image and try again.');
                 }
               } catch (attachmentError) {
+                if (requestVersion !== guideRequestVersion) return;
                 console.error('Deen Guide attachment error:', attachmentError);
                 toast(attachmentError.message || 'Could not read the attachment.');
                 return;
               }
+              if (requestVersion !== guideRequestVersion) return;
 
               const photoImages = images.filter(image => image.sourceType === 'photo');
               const question = text || (photoImages.length && documents.length
@@ -17316,7 +17320,9 @@ const setInputBusy = (busy) => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery, mode: researchMode })
                   });
+                  if (requestVersion !== guideRequestVersion) return;
                   const searchData = await searchResp.json();
+                  if (requestVersion !== guideRequestVersion) return;
                   if (!searchResp.ok || searchData.error) {
                     throw new Error(searchData.error || 'Live Islamic web search failed.');
                   }
@@ -17353,8 +17359,10 @@ const setInputBusy = (busy) => {
                     messages: history
                   })
                 });
+                if (requestVersion !== guideRequestVersion) return;
                 
                 const data = await resp.json();
+                if (requestVersion !== guideRequestVersion) return;
                 if (data.error) throw new Error('Groq API error: ' + (data.error.message || JSON.stringify(data.error)));
                 const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
 
@@ -17369,6 +17377,7 @@ const setInputBusy = (busy) => {
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
                 
               } catch (e) {
+                if (requestVersion !== guideRequestVersion) return;
                 console.error('Deen Guide error:', e);
                 hideThinking();
                 S.guideThinking = false;
@@ -17397,6 +17406,7 @@ const setInputBusy = (busy) => {
             };
 
             const clearChat = async () => {
+              guideRequestVersion++;
               // --- CRITICAL FIX: THIS REMOVES THE 1-HOUR TIMER ---
               localStorage.removeItem('guide_blocked_until');
               // ---------------------------------------------------
@@ -17405,6 +17415,10 @@ const setInputBusy = (busy) => {
               S.guideThinking = false;
               S.guideThinkStage = '';
               hideThinking();
+              pendingAttachments.splice(0, pendingAttachments.length);
+              renderAttachments();
+              selectedSearchMode = null;
+              renderSearchMode();
 
               if (thread) {
                                 thread.innerHTML = `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -17421,6 +17435,12 @@ const setInputBusy = (busy) => {
               if (cb) cb.remove();
 
               setInputBusy(false);
+              const input = $('#guide-input');
+              if (input) {
+                input.disabled = false;
+                input.readOnly = false;
+                input.focus();
+              }
               toast('Chat cleared.');
 
               setJSON('guide-history', []).catch(() => {});
