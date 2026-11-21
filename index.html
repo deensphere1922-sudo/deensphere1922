@@ -16369,6 +16369,7 @@ RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 - Keep normal answers to approximately 5 short lines.
 - Use simple, clear and meaningful sentences.
 - Answer the question directly without unnecessary explanations.
+- Do not add an introductory sentence such as "Certainly", "Here is", or "In Islam".
 - Start with a complete, natural sentence.
 - Do not add headings or titles such as "Islam – Meaning", "Definition" or "Overview".
 - Use natural paragraphs instead of bullet points.
@@ -16414,7 +16415,9 @@ FORMATTING:
 DAILY ROUTINE & CHECKLIST RULES:
 
 - When the user asks for a daily routine, Islamic routine, study routine or task schedule, present it as a checklist.
-- Each task must have an individual clickable checkbox.
+- Write each task on a new line using [ ] Task text.
+- Do not add numbers, bullets, or decorative prefixes before checklist items.
+- Put Completed: 0/10 above the checklist and update it as tasks are ticked.
 - Allow users to tick and untick tasks.
 - Show a completed-task count and update it whenever a checkbox is changed.
 - Organize tasks in a clear and easy-to-follow order.
@@ -16800,8 +16803,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
             if (thread) {
               thread.querySelectorAll('.guide-task-checkbox').forEach(box => {
                 box.addEventListener('change', () => {
-                  const bubble = box.closest('.guide-task-count')?.parentElement
-                    || box.closest('[style*="border-left"]');
+                  const bubble = box.closest('[style*="border-left"]');
                   if (!bubble) return;
                   const checkboxes = bubble.querySelectorAll('.guide-task-checkbox');
                   const count = bubble.querySelector('.guide-completed');
@@ -16924,15 +16926,16 @@ ISLAMIC EVIDENCE AND ACCURACY:
     div.innerHTML = animate ? '' : formattedHtml;
 
     const setupTaskControls = () => {
-      if (totalTasks <= 0) return;
+      const checkboxes = div.querySelectorAll('.guide-task-checkbox');
+      const total = checkboxes.length;
+      if (total <= 0) return;
       if (!div.querySelector('.guide-completed')) {
         const count = document.createElement('div');
         count.className = 'guide-task-count';
         count.style.cssText = 'margin-top:12px;font-weight:600;';
-        count.innerHTML = `Completed: <span class="guide-completed">${completedTasks}</span>/${totalTasks}`;
+        count.innerHTML = `Completed: <span class="guide-completed">0</span>/${total}`;
         div.appendChild(count);
       }
-      const checkboxes = div.querySelectorAll('.guide-task-checkbox');
       const updateCount = () => {
         const done = [...checkboxes].filter(box => box.checked).length;
         const count = div.querySelector('.guide-completed');
