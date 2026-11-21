@@ -17774,6 +17774,7 @@ const toggleGuideRecording = async () => {
                   });
                   requestSystemPrompt += GUIDE_WEB_RESEARCH_PROMPT;
                 }
+                }
                 activeStageIndex = activeGuideStages.length - 1;
                 showGuideStage(activeGuideStages, activeStageIndex);
                 const { response, data, retryAfter } = await postGuideJson(
