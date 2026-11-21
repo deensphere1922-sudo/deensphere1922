@@ -17485,15 +17485,19 @@ const setInputBusy = (busy) => {
                   try {
                     return await readApiResponse(response, serviceName);
                   } catch (error) {
-                    if (!isRateLimitError(error) || retries >= 2) throw error;
-                    const retryDelay = getRetryDelayMs(error);
-                    if (retryDelay > 120000) throw error;
-                    stopProgress();
-                    stopProgress = () => {};
-                    showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
+                    const maxRetries = researchMode ? 1 : 2;
+                    if (!isRateLimitError(error) || retries >= maxRetries) throw error;
+                    const providerDelay = getRetryDelayMs(error);
+                    if (!researchMode && providerDelay > 120000) throw error;
+                    const retryDelay = researchMode ? Math.min(providerDelay, 5000) : providerDelay;
+                    if (!researchMode) {
+                      stopProgress();
+                      stopProgress = () => {};
+                      showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
+                    }
                     await new Promise(resolve => setTimeout(resolve, retryDelay));
                     retries++;
-                    showThinking('Retrying your request now...');
+                    if (!researchMode) showThinking('Retrying your request now...');
                   }
                 }
               };
@@ -17601,10 +17605,14 @@ const setInputBusy = (busy) => {
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
 
                 if (isRateLimitError(e)) {
-                  const retryMessage = e.retryAfter
-                    ? ` The provider is still limiting requests. Please wait about ${Math.ceil(getRetryDelayMs(e) / 1000)} seconds before trying again.`
-                    : ' The provider is still limiting requests. Please wait briefly before trying again.';
-                  toast(`Automatic retries could not complete this request.${retryMessage}`);
+                  if (researchMode) {
+                    toast('Research is still temporarily rate-limited. Please try again shortly.');
+                  } else {
+                    const retryMessage = e.retryAfter
+                      ? ` The provider is still limiting requests. Please wait about ${Math.ceil(getRetryDelayMs(e) / 1000)} seconds before trying again.`
+                      : ' The provider is still limiting requests. Please wait briefly before trying again.';
+                    toast(`Automatic retries could not complete this request.${retryMessage}`);
+                  }
                 } else {
                   S.guideMsgs.push({ role: 'assistant', text: errMsg });
                   appendMessage('assistant', errMsg);
