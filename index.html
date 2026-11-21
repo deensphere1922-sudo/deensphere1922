@@ -16445,7 +16445,8 @@ Warm, respectful, scholarly, compassionate and educational.
                   ${msgs.length
                 ? msgs.map(m => {
                   if (m.role === 'user') {
-                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text)}</div>`;
+                  const messageText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
+                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
                   } else {
                   return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}</div>`;
                   }
@@ -16900,6 +16901,22 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               indicator.appendChild(chip);
             };
 
+            const readApiResponse = async (response, serviceName) => {
+              let data;
+              try {
+                data = await response.json();
+              } catch {
+                throw new Error(`${serviceName} returned an invalid response. Open Deen Guide from the deployed HTTPS site to use its API.`);
+              }
+              if (!data || typeof data !== 'object') {
+                throw new Error(`${serviceName} returned an invalid response. Please try again.`);
+              }
+              if (!response.ok || data.error) {
+                throw new Error(data.error || `${serviceName} request failed.`);
+              }
+              return data;
+            };
+
             const renderAttachments = () => {
               const list = $('#guide-attachments');
               if (!list) return;
@@ -17158,6 +17175,16 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               thinkingEl = null;
             };
 
+            const cycleThinkingStages = stages => {
+              let index = 0;
+              showThinking(stages[index]);
+              const timer = setInterval(() => {
+                index = (index + 1) % stages.length;
+                showThinking(stages[index]);
+              }, 1800);
+              return () => clearInterval(timer);
+            };
+
        
 const setInputBusy = (busy) => {
   const inp = document.getElementById('guide-input');
@@ -17275,8 +17302,7 @@ const setInputBusy = (busy) => {
               }
               const visibleText = [
                 text,
-                attachments.length ? `Attached: ${attachments.map(file => file.name).join(', ')}` : '',
-                researchMode ? `Mode: ${researchMode === 'deep' ? 'Deep research' : 'Web search'}` : ''
+                attachments.length ? `Attached: ${attachments.map(file => file.name).join(', ')}` : ''
               ].filter(Boolean).join('\n');
 
               if (inp) {
@@ -17302,35 +17328,47 @@ const setInputBusy = (busy) => {
 
               setJSON('guide-history', S.guideMsgs).catch(() => {});
 
-              showThinking('Analyzing question...');
-
+              let stopProgress = () => {};
+              if (researchMode) {
+                stopProgress = cycleThinkingStages(researchMode === 'deep'
+                  ? [
+                    'Searching multiple trusted Islamic sources...',
+                    'Collecting relevant Qur’an, Hadith, and scholar material...',
+                    'Reviewing source evidence...'
+                  ]
+                  : [
+                    'Searching trusted Islamic websites...',
+                    'Collecting relevant Islamic references...',
+                    'Reviewing search results...'
+                  ]);
+              } else {
+                showThinking('Analyzing question...');
+              }
               try {
                 let webContext = 'No web search was requested for this message.';
                 if (researchMode) {
-                  showThinking(researchMode === 'deep'
-                    ? 'Researching trusted Islamic sources...'
-                    : 'Searching trusted Islamic websites...');
                   const searchQuery = (text || question).slice(0, 1000);
                   const searchResp = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery, mode: researchMode })
                   });
-                  const searchData = await searchResp.json();
-                  if (!searchResp.ok || searchData.error) {
-                    throw new Error(searchData.error || 'Live Islamic web search failed.');
-                  }
+                  const searchData = await readApiResponse(searchResp, 'Live Islamic web search');
+                  stopProgress();
+                  stopProgress = () => {};
                   if (!Array.isArray(searchData.results) || !searchData.results.length) {
                     throw new Error('No matching Islamic web sources were found. Try a more specific question.');
                   }
+                  showThinking(`Collected ${searchData.results.length} sources. Comparing their evidence...`);
                   webContext = searchData.results.map((result, index) =>
                     `Source ${index + 1}\nTitle: ${result.title}\nURL: ${result.url}\nContent: ${result.content}`
                   ).join('\n\n');
                 }
 
-                if (researchMode) showThinking('Reading sources & formulating answer...');
-
-                const history = S.guideMsgs.slice(-10).map(m => ({ role: m.role, content: m.text }));
+                const history = S.guideMsgs.slice(-10).map(m => ({
+                  role: m.role,
+                  content: (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '')
+                }));
                 const forcedInstruction = `\n\n[SYSTEM NOTE: The user wants the exact number of items requested. If they asked for 100, list 100. If they asked for more than 500 lines, politely explain the limit and offer to do it in batches.]`;
                 const currentMessage = history[history.length - 1];
                 const currentText = modelText + forcedInstruction;
@@ -17344,6 +17382,21 @@ const setInputBusy = (busy) => {
                   ]
                   : currentText;
 
+                if (researchMode) {
+                  stopProgress = cycleThinkingStages(researchMode === 'deep'
+                    ? [
+                      'Comparing evidence across Islamic sources...',
+                      'Checking Qur’an, Hadith, and scholarly references...',
+                      'Preparing your research summary...'
+                    ]
+                    : [
+                      'Comparing evidence from the web sources...',
+                      'Checking Qur’an, Hadith, and scholarly references...',
+                      'Preparing a source-based answer...'
+                    ]);
+                } else {
+                  showThinking('Preparing your answer...');
+                }
                 const resp = await fetch('/api/guide', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
@@ -17354,8 +17407,9 @@ const setInputBusy = (busy) => {
                   })
                 });
                 
-                const data = await resp.json();
-                if (data.error) throw new Error('Groq API error: ' + (data.error.message || JSON.stringify(data.error)));
+                const data = await readApiResponse(resp, 'Deen Guide');
+                stopProgress();
+                stopProgress = () => {};
                 const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
 
                 hideThinking();
@@ -17369,6 +17423,7 @@ const setInputBusy = (busy) => {
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
                 
               } catch (e) {
+                stopProgress();
                 console.error('Deen Guide error:', e);
                 hideThinking();
                 S.guideThinking = false;
