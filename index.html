@@ -17049,6 +17049,20 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               return data;
             };
 
+            const isRateLimitError = error =>
+              !!error && (error.status === 429 || /rate[\s-]?limit|tokens per minute/i.test(error.message || ''));
+
+            const getRetryDelayMs = error => {
+              const retryAfter = error && error.retryAfter;
+              if (typeof retryAfter === 'string' && retryAfter.trim()) {
+                const seconds = Number(retryAfter);
+                if (Number.isFinite(seconds)) return Math.max(1000, seconds * 1000);
+                const retryAt = Date.parse(retryAfter);
+                if (Number.isFinite(retryAt)) return Math.max(1000, retryAt - Date.now());
+              }
+              return 5000;
+            };
+
             const isRateLimitNotice = message =>
               message && message.role === 'assistant' && typeof message.text === 'string' &&
               message.text.startsWith('The AI service is temporarily rate-limited.');
@@ -17464,6 +17478,26 @@ const setInputBusy = (busy) => {
               setJSON('guide-history', S.guideMsgs).catch(() => {});
 
               let stopProgress = () => {};
+              const requestApiJson = async (url, options, serviceName) => {
+                let retries = 0;
+                while (true) {
+                  const response = await fetch(url, options);
+                  try {
+                    return await readApiResponse(response, serviceName);
+                  } catch (error) {
+                    if (!isRateLimitError(error) || retries >= 2) throw error;
+                    const retryDelay = getRetryDelayMs(error);
+                    if (retryDelay > 120000) throw error;
+                    stopProgress();
+                    stopProgress = () => {};
+                    showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                    retries++;
+                    showThinking('Retrying your request now...');
+                  }
+                }
+              };
+
               if (researchMode) {
                 stopProgress = cycleThinkingStages(researchMode === 'deep'
                   ? [
@@ -17484,12 +17518,11 @@ const setInputBusy = (busy) => {
                 let webSources = [];
                 if (researchMode) {
                   const searchQuery = (text || question).slice(0, 1000);
-                  const searchResp = await fetch('/api/search', {
+                  const searchData = await requestApiJson('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery, mode: researchMode })
-                  });
-                  const searchData = await readApiResponse(searchResp, 'Live Islamic web search');
+                  }, 'Live Islamic web search');
                   stopProgress();
                   stopProgress = () => {};
                   if (!Array.isArray(searchData.results) || !searchData.results.length) {
@@ -17534,7 +17567,7 @@ const setInputBusy = (busy) => {
                 } else {
                   showThinking('Preparing your answer...');
                 }
-                const resp = await fetch('/api/guide', {
+                const data = await requestApiJson('/api/guide', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -17542,9 +17575,7 @@ const setInputBusy = (busy) => {
                     webContext,
                     messages: history
                   })
-                });
-                
-                const data = await readApiResponse(resp, 'Deen Guide');
+                }, 'Deen Guide');
                 stopProgress();
                 stopProgress = () => {};
                 const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
@@ -17569,15 +17600,14 @@ const setInputBusy = (busy) => {
                 
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
 
-                if (e.status === 429 || errMsg.includes('Rate limit') || errMsg.includes('rate limit') || errMsg.includes('tokens per minute')) {
-                  const retrySeconds = Number(e.retryAfter);
-                  const retryMessage = Number.isFinite(retrySeconds) && retrySeconds > 0
-                    ? ` Try again in about ${Math.ceil(retrySeconds)} seconds.`
-                    : ' Please wait briefly and try again.';
-                    toast(`The AI service is temporarily rate-limited.${retryMessage}`);
-                  } else {
-                    S.guideMsgs.push({ role: 'assistant', text: errMsg });
-                    appendMessage('assistant', errMsg);
+                if (isRateLimitError(e)) {
+                  const retryMessage = e.retryAfter
+                    ? ` The provider is still limiting requests. Please wait about ${Math.ceil(getRetryDelayMs(e) / 1000)} seconds before trying again.`
+                    : ' The provider is still limiting requests. Please wait briefly before trying again.';
+                  toast(`Automatic retries could not complete this request.${retryMessage}`);
+                } else {
+                  S.guideMsgs.push({ role: 'assistant', text: errMsg });
+                  appendMessage('assistant', errMsg);
                 }
 
                 setInputBusy(false);
