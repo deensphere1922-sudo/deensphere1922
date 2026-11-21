@@ -1747,11 +1747,10 @@
         cursor: text !important;
         pointer-events: auto !important;
       }
-      /* Composer sits above floating buttons that could steal taps */
-      body:has(#guide-thread) #theme-toggle,
-      body:has(#guide-thread) #back-to-top {
-        pointer-events: none !important;
-      }
+      /* AFTER — Theme toggle is clickable */
+body:has(#guide-thread) #back-to-top {
+  pointer-events: none !important;
+}
       @media (max-width: 880px) {
         div:has(> #guide-input) {
           padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
