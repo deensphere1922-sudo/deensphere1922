@@ -16473,6 +16473,43 @@ ISLAMIC EVIDENCE AND ACCURACY:
               "'": '&#39;'
             })[character]);
 
+          const normalizeGuideCitations = (answerText, sources) => {
+            if (!Array.isArray(sources) || !sources.length) {
+              return { text: String(answerText || ''), sources: [] };
+            }
+            const citedNumbers = [...new Set(
+              [...String(answerText || '').matchAll(/\[(\d+)\]/g)]
+                .map(match => Number(match[1]))
+                .filter(number => Number.isSafeInteger(number) && number > 0 && number <= sources.length)
+            )];
+            const compactSources = [];
+            const oldToNew = new Map();
+            const seenUrls = new Set();
+            const seenTitles = new Set();
+            citedNumbers.forEach(oldNumber => {
+              const source = sources[oldNumber - 1];
+              if (!source || typeof source.url !== 'string') return;
+              try {
+                const url = new URL(source.url);
+                if (url.protocol !== 'https:' && url.protocol !== 'http:' || seenUrls.has(url.href)) return;
+                const title = typeof source.title === 'string' && source.title.trim()
+                  ? source.title.trim()
+                  : url.hostname;
+                const normalizedTitle = title.toLowerCase().replace(/\s+/g, ' ').trim();
+                if (seenTitles.has(normalizedTitle)) return;
+                seenUrls.add(url.href);
+                seenTitles.add(normalizedTitle);
+                oldToNew.set(oldNumber, compactSources.length + 1);
+                compactSources.push(source);
+              } catch {}
+            });
+            const text = String(answerText || '').replace(/\[(\d+)\]/g, (citation, rawNumber) => {
+              const newNumber = oldToNew.get(Number(rawNumber));
+              return newNumber ? `[${newNumber}]` : citation;
+            });
+            return { text, sources: compactSources };
+          };
+
           const renderGuideSources = (sources, answerText) => {
             if (!Array.isArray(sources) || !sources.length) return '';
 
@@ -16642,7 +16679,8 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   if (m.role === 'user') {
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text || '')}${renderAttachments(m.attachments)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;text-align:left;background:var(--card-el);padding:12px 14px;border-radius:16px 16px 16px 4px;font-size:15.5px;line-height:1.62;color:var(--tx);border-left:2px solid var(--green);">${renderGuideAssistantText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
+                  const normalized = normalizeGuideCitations(m.text, m.sources);
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;text-align:left;background:var(--card-el);padding:12px 14px;border-radius:16px 16px 16px 4px;font-size:15.5px;line-height:1.62;color:var(--tx);border-left:2px solid var(--green);">${renderGuideAssistantText(normalized.text, normalized.sources)}${renderGuideSources(normalized.sources, normalized.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16825,6 +16863,9 @@ ISLAMIC EVIDENCE AND ACCURACY:
     div.textContent = text;
     appendAttachmentCards(div, attachments);
    } else {
+     const normalized = normalizeGuideCitations(text, sources);
+     text = normalized.text;
+     sources = normalized.sources;
     // Assistant message: Process Markdown into HTML
     div.style.cssText = 'align-self:flex-start;flex-shrink:0;min-width:0;width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;text-align:left;background:var(--card-el);padding:12px 14px;border-radius:16px 16px 16px 4px;font-size:15.5px;line-height:1.62;color:var(--tx);border-left:2px solid var(--green);';
     
