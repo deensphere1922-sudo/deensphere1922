@@ -16454,6 +16454,8 @@ ISLAMIC EVIDENCE AND ACCURACY:
 - State what each source actually says, and clearly distinguish primary text from a scholar's explanation or opinion. Represent differences fairly and do not imply consensus unless the supplied sources establish it.
 - Only describe a Hadith as authentic or give a grade when a supplied source explicitly supports that claim. A website's domain alone is not proof of authenticity. If the evidence does not let you verify a claim, say so plainly.
 - Cross-check important claims against independent supplied sources when available. If sources disagree, explain the disagreement instead of hiding it. Do not say something was verified beyond what the excerpts support.
+- STRICT TOPIC RELEVANCE: Identify the exact subject and intent of the user's question before answering. Keep the entire answer focused on that subject. For example, if the user asks about forgiveness, discuss forgiveness, tawbah, Allah's mercy, and directly relevant Qur'an/Hadith evidence only. Do not drift into unrelated topics such as patience, gratitude, prayer, or general virtues unless the user asks or a brief connection is essential to explain the answer. Apply this rule to every topic, not only forgiveness.
+- SOURCE RELEVANCE: Include a source only when its actual title or excerpt directly supports the user's exact question. Do not include a source merely because it is Islamic, from a generally trusted website, or contains a loosely related keyword. Prefer fewer highly relevant sources over filling all five slots. A maximum of five sources is a ceiling, not a target.
 - Cite factual and interpretive claims inline as [1], [2], using only sources that directly support them. Do not cite irrelevant sources to increase the source count.
 - If an exact short Qur'an or Hadith quotation is present in the excerpts, place it on its own line inside [[QURAN]]...[[/QURAN]] or [[HADITH]]...[[/HADITH]], followed by its citation. Use [[ARABIC]]...[[/ARABIC]] only for exact Arabic text present in the excerpts; otherwise omit Arabic. Do not use quotation markers for paraphrases.
 - When the retrieved evidence is insufficient, say what could not be established and limit the answer to supported information.
@@ -16469,29 +16471,53 @@ ISLAMIC EVIDENCE AND ACCURACY:
             })[character]);
 
           const renderGuideSources = (sources, answerText) => {
-            if (!Array.isArray(sources)) return '';
+            if (!Array.isArray(sources) || !sources.length) return '';
+
+            // Show cited sources when inline citations exist. If the AI omits
+            // citation markers, fall back to all valid sources from web search.
             const citedNumbers = [...new Set(
               [...String(answerText || '').matchAll(/\[(\d+)\]/g)]
                 .map(match => Number(match[1]))
                 .filter(number => Number.isSafeInteger(number) && number > 0 && number <= sources.length)
             )];
-            const links = citedNumbers.map(number => {
+            const sourceNumbers = citedNumbers.length
+              ? citedNumbers
+              : sources.map((source, index) => index + 1);
+
+            const seenUrls = new Set();
+            const links = sourceNumbers.map(number => {
               const source = sources[number - 1];
               if (!source || typeof source.url !== 'string') return '';
               try {
                 const url = new URL(source.url);
-                if (url.protocol !== 'https:' && url.protocol !== 'http:') return '';
+                if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenUrls.has(url.href)) return '';
+                seenUrls.add(url.href);
+
                 const title = typeof source.title === 'string' && source.title.trim()
                   ? source.title.trim()
                   : url.hostname;
-                const sourceType = typeof source.sourceType === 'string' ? source.sourceType : 'Islamic source';
-                return `<a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a><span style="color:var(--tx3);font-size:11px;"> (${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)})</span>`;
+                const sourceType = typeof source.sourceType === 'string' && source.sourceType.trim()
+                  ? source.sourceType.trim()
+                  : 'Web source';
+
+                return `<div style="display:flex;align-items:flex-start;gap:7px;margin-top:7px;min-width:0;">
+                  <span style="color:var(--tx3);flex:0 0 auto;">${number}.</span>
+                  <span style="min-width:0;overflow-wrap:anywhere;">
+                    <a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a>
+                    <span style="display:block;color:var(--tx3);font-size:11px;">${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)}</span>
+                  </span>
+                  <span aria-hidden="true" style="margin-left:auto;color:var(--tx3);font-size:11px;flex:0 0 auto;">↗</span>
+                </div>`;
               } catch {
                 return '';
               }
             }).filter(Boolean);
+
             return links.length
-              ? `<div style="margin-top:12px;padding-top:9px;border-top:1px solid var(--border);font-size:12px;line-height:1.7;overflow-wrap:anywhere;"><strong style="color:var(--tx);">Sources:</strong> ${links.join('<span style="color:var(--tx3);"> · </span>')}</div>`
+              ? `<div class="guide-sources" style="margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:12px;line-height:1.55;overflow-wrap:anywhere;">
+                  <strong style="display:block;color:var(--tx);margin-bottom:5px;">Sources</strong>
+                  ${links.join('')}
+                </div>`
               : '';
           };
 
@@ -16546,33 +16572,10 @@ ISLAMIC EVIDENCE AND ACCURACY:
             return formatGuidePlainText(text, sources);
           };
 
-          // Normalize compact AI output into readable sections before rendering.
-          const normalizeGuideAnswerText = value => {
-            let text = String(value || '').replace(/\r\n?/g, '\n');
-            // Give common numbered section headings their own paragraph, even when
-            // the model accidentally places the explanation immediately after them.
-            const sectionTitles = [
-              'Definition and Core Concept', 'Qur’anic Evidence', "Qur'anic Evidence",
-              'Prophetic Teachings (Sunnah)', 'Steps to Seek Forgiveness',
-              'The Role of Hope and Mercy', 'Benefits of Forgiveness', 'Takeaway',
-              'Practical Steps', 'Key Lessons', 'Conclusion', 'Summary'
-            ];
-            for (const title of sectionTitles) {
-              const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-              const re = new RegExp('(^|[\\s•])([1-9]\\d?\\.)\\s*(' + escaped + ')(?=[A-Z])', 'gi');
-              text = text.replace(re, (_, before, number, heading) => `${before}\n\n${number} ${heading}\n`);
-            }
-            // Separate inline bullet separators so each point is easy to scan.
-            text = text.replace(/\s*[•●]\s*(?=(?:\*\*)?[A-Z])/g, '\n• ');
-            // Keep numbered sections visually distinct.
-            text = text.replace(/([^\n])\s+(?=(?:\*\*)?\d{1,2}[.)]\s+)/g, '$1\n\n');
-            return text.trim();
-          };
-
-          const renderGuideMessageText = (value, sources) => normalizeGuideAnswerText(value).split('\n').map(line => {
+          const renderGuideMessageText = (value, sources) => String(value || '').split('\n').map(line => {
             const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
             if (heading) {
-              return `<strong style="display:block;margin:16px 0 6px;color:var(--tx);font-weight:700;line-height:1.45;">${formatGuideInlineText(heading[1], sources)}</strong>`;
+              return `<strong style="display:inline-block;margin-top:4px;color:var(--tx);font-weight:600;">${formatGuideInlineText(heading[1], sources)}</strong>`;
             }
             const bullet = line.match(/^(\s*)[-*+]\s+(.+)$/);
             if (bullet) {
@@ -16614,7 +16617,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   if (m.role === 'user') {
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text || '')}${renderAttachments(m.attachments)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:15px;line-height:1.85;letter-spacing:.005em;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideMessageText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideMessageText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16773,45 +16776,6 @@ ISLAMIC EVIDENCE AND ACCURACY:
               container.appendChild(list);
             };
 
-           const animateGuideAnswer = messageEl => {
-  if (!messageEl || messageEl.dataset.revealAnimated === '1') return;
-  messageEl.dataset.revealAnimated = '1';
-  const styleId = 'guide-answer-reveal-style';
-  if (!document.getElementById(styleId)) {
-    const style = document.createElement('style');
-    style.id = styleId;
-    style.textContent = '@keyframes guideAnswerReveal{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}.guide-answer-word{animation:guideAnswerReveal .24s ease both;}';
-    document.head.appendChild(style);
-  }
-  const walker = document.createTreeWalker(messageEl, NodeFilter.SHOW_TEXT, {
-    acceptNode(node) {
-      if (!node.nodeValue || !node.nodeValue.trim()) return NodeFilter.FILTER_REJECT;
-      if (node.parentElement && node.parentElement.closest('a,code,.arabic-q')) return NodeFilter.FILTER_REJECT;
-      return NodeFilter.FILTER_ACCEPT;
-    }
-  });
-  const nodes = [];
-  while (walker.nextNode()) nodes.push(walker.currentNode);
-  let wordIndex = 0;
-  nodes.forEach(node => {
-    const fragment = document.createDocumentFragment();
-    const parts = node.nodeValue.split(/(\s+)/);
-    parts.forEach(part => {
-      if (!part) return;
-      if (/^\s+$/.test(part)) fragment.appendChild(document.createTextNode(part));
-      else {
-        const span = document.createElement('span');
-        span.className = 'guide-answer-word';
-        span.style.animationDelay = `${Math.min(wordIndex * 18, 4200)}ms`;
-        span.textContent = part;
-        fragment.appendChild(span);
-        wordIndex++;
-      }
-    });
-    node.parentNode.replaceChild(fragment, node);
-  });
-};
-
            const appendMessage = (role, text, attachments = [], sources = []) => {
   if (!thread) return;
   const empty = thread.querySelector('.empty');
@@ -16825,11 +16789,11 @@ ISLAMIC EVIDENCE AND ACCURACY:
     appendAttachmentCards(div, attachments);
    } else {
     // Assistant message: Process Markdown into HTML
-    div.style.cssText = 'align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:15px;line-height:1.85;letter-spacing:.005em;color:var(--tx2);border-left:2px solid var(--green);';
+    div.style.cssText = 'align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);';
     
  
     // Convert assistant Markdown and interactive checklists
-    const lines = normalizeGuideAnswerText(text).split('\n');
+    const lines = text.split('\n');
     let totalTasks = 0;
     let completedTasks = 0;
 
@@ -16862,7 +16826,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
 
       const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
       if (heading) {
-        return `<strong style="display:block;margin:16px 0 6px;color:var(--tx);font-weight:700;line-height:1.45;">${formatText(heading[1])}</strong>`;
+        return `<strong style="display:inline-block;margin-top:4px;color:var(--tx);font-weight:600;">${formatText(heading[1])}</strong>`;
       }
 
       const bullet = line.match(/^(\s*)[-*+]\s+(.+)$/);
@@ -16880,8 +16844,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
       return line ? formatText(line) : '<br>';
     });
 
-    div.innerHTML = html.join('<br>') + renderGuideSources(sources, text);
-    animateGuideAnswer(div);
+    div.innerHTML = html.join('') + renderGuideSources(sources, text);
 
     const checkboxes = div.querySelectorAll('.guide-task-checkbox');
     const completedEl = div.querySelector('.guide-completed');
@@ -17393,30 +17356,19 @@ const toggleGuideRecording = async () => {
             const isGuideIslamicQuestion = value =>
               /\\b(?:islam|islamic|muslim|allah|qur['’]?an|surah|ayah|verse|hadith|sunnah|salah|prayer|sabr|tawheed|tawhid|dua|du'a|dhikr|adhkar|wudu|wudhu|ramadan|zakat|zakah|hajj|umrah|fiqh|fatwa|prophet|rasul|masjid|halal|haram|deen|deen sphere)\\b/i.test(value);
 
+            // Normal mode always uses exactly two simple progress messages.
             const guideNormalStages = [
-              'Thinking…',
+              'Understanding your question…',
               'Preparing your answer…'
             ];
 
+            // Web mode always uses five research progress messages.
             const guideWebStages = [
-              'Analyzing your question…',
-              'Searching the web for relevant information…',
-              'Gathering information from trusted sources…',
-              'Reviewing and verifying the findings…',
-              'Preparing your answer…'
-            ];
-
-            const guideIslamicStages = [
-              'Understanding your Islamic question…',
-              'Preparing your Islamic answer…'
-            ];
-
-            const guideIslamicWebStages = [
-              'Understanding your Islamic question…',
-              'Checking the Qur’an and relevant verses…',
-              'Verifying authentic Hadith and references…',
-              'Reviewing scholarly explanations and context…',
-              'Preparing a reliable Islamic answer…'
+              'Understanding your question…',
+              'Searching trusted Islamic websites…',
+              'Gathering relevant Qur’an and Hadith sources…',
+              'Reviewing and verifying source relevance…',
+              'Preparing your answer with references…'
             ];
 
             const transitionGuideStage = stage => {
@@ -17582,10 +17534,9 @@ const toggleGuideRecording = async () => {
               const text = (forcedText || (inp ? inp.value : '')).trim();
               const attachments = pendingAttachments.slice();
               const wantsResearch = guideWebSearchEnabled;
-              const isIslamicQuestion = isGuideIslamicQuestion(text);
               const activeGuideStages = wantsResearch
-                ? (isIslamicQuestion ? guideIslamicWebStages : guideWebStages)
-                : (isIslamicQuestion ? guideIslamicStages : guideNormalStages);
+                ? guideWebStages
+                : guideNormalStages;
               if (guideWebSearchEnabled && text.length < 2) {
                 toast('Type a question of at least 2 characters to search the web.');
                 return;
@@ -17674,7 +17625,7 @@ const toggleGuideRecording = async () => {
                   try {
                     searchResult = await postGuideJson(
                       '/api/search',
-                      { query: text },
+                      { query: `Exact question: ${text}\n\nSearch ONLY for sources directly relevant to the exact subject and intent of this question. Find relevant evidence from BOTH the Qur'an and reliable Hadith collections (including Sahih al-Bukhari and Sahih Muslim where relevant), plus scholarly explanations only when they directly clarify this subject. Do not broaden the search into general Islamic topics. Return up to five highly relevant, distinct sources; fewer is better than unrelated results. Include Qur'an chapter:verse and Hadith collection/reference numbers only when supported by the source. Do not invent references or authenticity grades.` },
                       controller.signal
                     );
                   } finally {
@@ -17705,7 +17656,7 @@ const toggleGuideRecording = async () => {
                         return false;
                       }
                     })
-                    .slice(0, 6);
+                    .slice(0, 5);
                   if (researchSources.length < 1) {
                     throw new Error('I could not find a relevant source for this question. Please rephrase it and try again.');
                   }
