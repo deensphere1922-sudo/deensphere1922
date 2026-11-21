@@ -16419,6 +16419,10 @@ DAILY ROUTINE & CHECKLIST RULES:
 - Generate tasks according to the user's request.
 - Do not use checklists for ordinary questions unless requested.
 - Preserve completed tasks when the checklist is updated, where appropriate.
+- When a user asks for a daily Islamic routine, provide a practical, ordered schedule with suggested times, Salah, Qur’an, morning/evening Adhkar, beneficial habits, breaks and sleep as relevant to the user's request.
+- Format each actionable routine item as its own Markdown checkbox line: [ ] Suggested time — Task name — short helpful detail.
+- Do not mark any task complete automatically.
+- Keep ordinary Islamic answers in the normal answer format; only create a checklist when a routine, schedule or checklist is requested.
 
 ATTACHMENT ANALYSIS:
 - Read attached images and PDFs carefully, including clear Arabic text.
@@ -16569,7 +16573,28 @@ ISLAMIC EVIDENCE AND ACCURACY:
             return formatGuidePlainText(text, sources);
           };
 
-          const renderGuideMessageText = (value, sources) => String(value || '').split('\n').map(line => {
+          const guideTaskStorageKey = (messageText, taskIndex) => {
+            const value = String(messageText || '');
+            let hash = 2166136261;
+            for (let i = 0; i < value.length; i++) {
+              hash ^= value.charCodeAt(i);
+              hash = Math.imul(hash, 16777619);
+            }
+            return `guide_${(hash >>> 0).toString(36)}_${taskIndex}`;
+          };
+
+          const renderGuideMessageText = (value, sources) => {
+            const messageText = String(value || '');
+            let taskIndex = 0;
+            const taskTotal = (messageText.match(/^\s*(?:[•*-]\s*)?\[[ xX]\]\s*.+$/gm) || []).length;
+            const renderedLines = messageText.split('\n').map(line => {
+            const task = line.match(/^\s*(?:[•*-]\s*)?\[([ xX])\]\s*(.*)$/);
+            if (task) {
+              const key = guideTaskStorageKey(messageText, taskIndex++);
+              const dayKey = dateStr(new Date());
+              const checked = !!S.dayCache?.[dayKey]?.routine?.[key];
+              return `<label style="display:flex;align-items:center;gap:10px;margin:9px 0;cursor:pointer;"><input type="checkbox" class="guide-task-checkbox" data-guide-task-key="${key}" data-guide-task-date="${dayKey}" ${checked ? 'checked' : ''} style="appearance:none;-webkit-appearance:none;width:19px;height:19px;min-width:19px;flex-shrink:0;margin:0;padding:0;border:1.5px solid ${checked ? 'var(--green-l)' : '#A1A1AA'};border-radius:50%;background:${checked ? 'var(--green-l)' : 'transparent'};background-image:${checked ? "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m3 8 3 3 7-7%27/%3E%3C/svg%3E')" : 'none'};background-repeat:no-repeat;background-position:center;background-size:12px;cursor:pointer;"><span>${formatGuideInlineText(task[2], sources)}</span></label>`;
+            }
             const heading = line.match(/^\s{0,3}#{1,3}\s+(.+)$/);
             if (heading) {
               return `<strong style="display:inline-block;margin-top:4px;color:var(--tx);font-weight:600;">${formatGuideInlineText(heading[1], sources)}</strong>`;
@@ -16586,6 +16611,8 @@ ISLAMIC EVIDENCE AND ACCURACY:
             }
             return line ? formatGuideInlineText(line, sources) : '';
           }).join('<br>');
+            return taskTotal ? renderedLines + `<div class="guide-task-count" style="margin-top:12px;font-weight:600;">Completed: <span class="guide-completed">${[...messageText.matchAll(/^\s*(?:[•*-]\s*)?\[[ xX]\]\s*(.*)$/gm)].filter((match, index) => !!S.dayCache?.[dateStr(new Date())]?.routine?.[guideTaskStorageKey(messageText, index)]).length}</span>/<span class="guide-total">${taskTotal}</span></div>` : renderedLines;
+          };
 
           function renderDeenGuide() {
             const msgs = S.guideMsgs || [];
@@ -16731,6 +16758,35 @@ ISLAMIC EVIDENCE AND ACCURACY:
 
           function bindDeenGuide() {
             const thread = $('#guide-thread');
+            if (thread && thread.dataset.routineTaskPersistence !== '1') {
+              thread.dataset.routineTaskPersistence = '1';
+              thread.addEventListener('change', async event => {
+                const checkbox = event.target.closest('.guide-task-checkbox');
+                if (!checkbox) return;
+                const key = checkbox.dataset.guideTaskKey;
+                const ds = checkbox.dataset.guideTaskDate || dateStr(new Date());
+                if (!key) return;
+                checkbox.style.background = checkbox.checked ? 'var(--green-l)' : 'transparent';
+                checkbox.style.borderColor = checkbox.checked ? 'var(--green-l)' : '#A1A1AA';
+                checkbox.style.backgroundImage = checkbox.checked ? 'url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m3 8 3 3 7-7%27/%3E%3C/svg%3E")' : 'none';
+                const message = checkbox.closest('[data-guide-message]') || checkbox.closest('div[style*="border-left:2px solid var(--green)"]');
+                if (message) {
+                  const boxes = [...message.querySelectorAll('.guide-task-checkbox')];
+                  const count = message.querySelector('.guide-completed');
+                  if (count) count.textContent = boxes.filter(item => item.checked).length;
+                }
+                try {
+                  const day = await getDay(ds);
+                  if (!day.routine) day.routine = {};
+                  day.routine[key] = checkbox.checked;
+                  S.dayCache[ds] = day;
+                  await saveDay(ds, day);
+                } catch (error) {
+                  console.error('Could not save Deen Guide routine checklist:', error);
+                  toast('Could not save this routine task. Please try again.');
+                }
+              });
+            }
             let pendingAttachments = [];
             let guideWebSearchEnabled = false;
             let guideRequestVersion = 0;
@@ -16800,17 +16856,16 @@ ISLAMIC EVIDENCE AND ACCURACY:
       const task = line.match(/^\s*(?:[•*-]\s*)?\[([ xX])\]\s*(.*)$/);
 
       if (task) {
-        totalTasks++;
-        const checked = task[1].toLowerCase() === 'x';
-
+        const taskIndex = totalTasks++;
+        const taskKey = guideTaskStorageKey(text, taskIndex);
+        const taskDate = dateStr(new Date());
+        const checked = !!S.dayCache?.[taskDate]?.routine?.[taskKey];
         if (checked) completedTasks++;
-
-      
         return `
           <label style="display:flex;align-items:center;gap:10px;margin:9px 0;cursor:pointer;">
-            <input type="checkbox" class="guide-task-checkbox"
+            <input type="checkbox" class="guide-task-checkbox" data-guide-task-key="${taskKey}" data-guide-task-date="${taskDate}"
               ${checked ? 'checked' : ''}
-              style="appearance:none;-webkit-appearance:none;width:19px;height:19px;min-width:19px;flex-shrink:0;margin:0;padding:0;border:1.5px solid #A1A1AA;border-radius:50%;background:transparent;background-repeat:no-repeat;background-position:center;background-size:12px;cursor:pointer;">
+              style="appearance:none;-webkit-appearance:none;width:19px;height:19px;min-width:19px;flex-shrink:0;margin:0;padding:0;border:1.5px solid ${checked ? 'var(--green-l)' : '#A1A1AA'};border-radius:50%;background:${checked ? 'var(--green-l)' : 'transparent'};background-image:${checked ? "url('data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27 fill=%27none%27 stroke=%27white%27 stroke-width=%272.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27%3E%3Cpath d=%27m3 8 3 3 7-7%27/%3E%3C/svg%3E')" : 'none'};background-repeat:no-repeat;background-position:center;background-size:12px;cursor:pointer;">
             <span>${formatText(task[2])}</span>
           </label>`;
       }
@@ -16859,7 +16914,11 @@ ISLAMIC EVIDENCE AND ACCURACY:
         const count = div.querySelector('.guide-completed');
         if (count) count.textContent = done;
       };
-      checkboxes.forEach(box => box.addEventListener('change', updateCount));
+      checkboxes.forEach(box => box.addEventListener('change', () => {
+        box.style.background = box.checked ? 'var(--green-l)' : 'transparent';
+        box.style.borderColor = box.checked ? 'var(--green-l)' : '#A1A1AA';
+        updateCount();
+      }));
     };
 
     if (animate) {
@@ -17596,6 +17655,11 @@ const toggleGuideRecording = async () => {
               let researchSources = [];
               let activeStageIndex = 0;
               showThinking(activeGuideStages[0]);
+              const normalStageTimer = !wantsResearch
+                ? window.setTimeout(() => {
+                    if (requestVersion === guideRequestVersion && S.guideThinking) showGuideStage(guideNormalStages, 1);
+                  }, 650)
+                : null;
               await new Promise(resolve => window.requestAnimationFrame(resolve));
               if (requestVersion !== guideRequestVersion) return;
 
@@ -17634,7 +17698,7 @@ const toggleGuideRecording = async () => {
                   try {
                     searchResult = await postGuideJson(
                       '/api/search',
-                      { query: `Exact question: ${text}\n\nSearch ONLY for sources directly relevant to the exact subject and intent of this question. Find relevant evidence from BOTH the Qur'an and reliable Hadith collections (including Sahih al-Bukhari and Sahih Muslim where relevant), plus scholarly explanations only when they directly clarify this subject. Do not broaden the search into general Islamic topics. Return up to five highly relevant, distinct sources; fewer is better than unrelated results. Include Qur'an chapter:verse and Hadith collection/reference numbers only when supported by the source. Do not invent references or authenticity grades.` },
+                      { query: text },
                       controller.signal
                     );
                   } finally {
@@ -17733,6 +17797,7 @@ const toggleGuideRecording = async () => {
                 setJSON('guide-history', S.guideMsgs).catch(saveError =>
                   console.error('Could not save Deen Guide history:', saveError));
               } finally {
+                if (normalStageTimer) window.clearTimeout(normalStageTimer);
                 if (requestVersion === guideRequestVersion) {
                   activeChatController = null;
                   S.guideThinking = false;
