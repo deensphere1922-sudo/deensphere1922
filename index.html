@@ -3952,6 +3952,8 @@ function toast(msg) {
                 if (S.screen === 'deenguide') {
                   render();
                   bindDeenGuide();
+                  const thread = document.getElementById('guide-thread');
+                  if (thread) thread.scrollTop = thread.scrollHeight;
                 }
                 return;
               }
@@ -4431,6 +4433,8 @@ function toast(msg) {
                 if (S.screen === 'deenguide') {
                   render();
                   bindDeenGuide();
+                  const thread = document.getElementById('guide-thread');
+                  if (thread) thread.scrollTop = thread.scrollHeight;
                 }
                 return;
               }
@@ -7536,6 +7540,8 @@ function toast(msg) {
               if (S.screen === 'deenguide') {
                 render();
                 bindDeenGuide();
+                const thread = document.getElementById('guide-thread');
+                if (thread) thread.scrollTop = thread.scrollHeight;
               }
             });
 
@@ -16333,8 +16339,8 @@ function closeYouTubePlayer() {
       - Keep it short and friendly.
 
       - If Web search or Deep research is active, use only the live results supplied in the context for web-supported claims. Cite results as [Source title](URL), and never invent sources, URLs, or quotations.
-      - In Web search mode, provide a detailed, clear synthesis from all relevant retrieved Islamic websites. Aim to use five distinct source domains when available, but this is not a minimum: answer from the useful evidence supplied even when fewer sources were found. Never refuse solely because fewer than five domains are available; explain real evidence gaps instead.
-      - In Deep research mode, provide a thorough synthesis of all relevant distinct sources, aiming for five or more when available but never treating that as a minimum. Distinguish Qur'an/Hadith evidence from scholarly interpretation and explain genuine differences of opinion without presenting one view as universal consensus.
+      - In Web search mode, answer from the retrieved Islamic websites only. If they do not support an answer, say that the search did not find enough evidence.
+      - In Deep research mode, synthesize distinct sources (use at least five when that many relevant results are supplied), distinguish Qur'an/Hadith evidence from scholarly interpretation, and explain genuine differences of opinion without presenting one view as universal consensus.
       - If the user asks for current Islamic apps while a search mode is active, use only the supplied results and never make up a link. Without search results, explain that current recommendations have not been verified.
 
      
@@ -16343,7 +16349,7 @@ function closeYouTubePlayer() {
 RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 
 1. NORMAL ANSWERS:
-- Keep normal answers to approximately 5 short lines. Web search and Deep research are exceptions and should provide a detailed, evidence-led synthesis unless the user asks for a brief answer.
+- Keep normal answers to approximately 5 short lines.
 - Use simple, clear and meaningful sentences.
 - Answer the question directly without unnecessary explanations.
 - Start with a complete, natural sentence.
@@ -16353,7 +16359,6 @@ RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 
 2. DETAILED ANSWERS:
 - Provide detailed answers only when the user asks "Explain in detail", "Tell me more" or similar.
-- Web search and Deep research modes request a detailed, evidence-led synthesis; honor an explicit request for a short answer.
 - Organize detailed answers with clear and relevant headings.
 - Explain each point properly using simple language.
 - Use bullet points or numbered lists when they improve clarity.
@@ -16385,7 +16390,7 @@ ATTACHMENT ANALYSIS:
 
 FORMATTING:
 - Use clean, natural paragraphs.
-- Keep normal answers to approximately 5 short lines, except in Web search or Deep research mode unless the user requests brevity.
+- Keep normal answers to approximately 5 short lines.
 - Avoid unnecessary line breaks, blank spaces and large gaps.
 - Do not use the ">" blockquote symbol.
 - Do not use bullet points in normal answers.
@@ -16422,50 +16427,9 @@ TONE:
 Warm, respectful, scholarly, compassionate and educational.
       `;
 
-          function renderGuideSourceCards(sources) {
-            if (!Array.isArray(sources)) return '';
-            const cards = sources.slice(0, 12).map(source => {
-              if (!source || typeof source.url !== 'string') return '';
-              let url;
-              try {
-                url = new URL(source.url);
-              } catch {
-                return '';
-              }
-              if (url.protocol !== 'https:') return '';
-              const domain = url.hostname.replace(/^www\./, '');
-              const title = typeof source.title === 'string' && source.title.trim()
-                ? source.title.trim()
-                : domain;
-              return `<a class="guide-source-card" href="${esc(url.href)}" target="_blank" rel="noopener noreferrer">
-                <span class="guide-source-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span>
-                <span class="guide-source-text"><strong>${esc(title)}</strong><small>${esc(domain)}</small></span>
-              </a>`;
-            }).filter(Boolean);
-            if (!cards.length) return '';
-            return `<div class="guide-sources">
-              <div class="guide-sources-heading"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg>Sources (${cards.length})</div>
-              <div class="guide-sources-list">${cards.join('')}</div>
-            </div>`;
-          }
-
           function renderDeenGuide() {
-            const storedMsgs = S.guideMsgs || [];
-            const msgs = storedMsgs.filter(message =>
-              message.role !== 'assistant' ||
-              typeof message.text !== 'string' ||
-              message.rateLimitNotice ||
-              (!message.text.startsWith('I am receiving too many messages right now. The system limit has been reached.') &&
-                !message.text.startsWith('The AI service is temporarily rate-limited.'))
-            );
-            if (msgs.length !== storedMsgs.length) {
-              S.guideMsgs = msgs;
-              setJSON('guide-history', msgs).catch(() => {});
-            }
-            const hasAssistantReply = msgs.some(m =>
-              m.role === 'assistant' &&
-              (m.rateLimitNotice || !(typeof m.text === 'string' && m.text.startsWith('The AI service is temporarily rate-limited.')))
-            );
+            const msgs = S.guideMsgs || [];
+            const hasAssistantReply = msgs.some(m => m.role === 'assistant');
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
                     <div>
@@ -16481,10 +16445,9 @@ Warm, respectful, scholarly, compassionate and educational.
                   ${msgs.length
                 ? msgs.map(m => {
                   if (m.role === 'user') {
-                  const messageText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
-                  return `<div class="guide-user-message" style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(messageText)}</div>`;
+                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text)}</div>`;
                   } else {
-                  return `<div class="guide-assistant-message${m.rateLimitNotice ? ' guide-rate-limit-notice' : ''}" style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${renderGuideSourceCards(m.sources)}${esc(m.text)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16660,90 +16623,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
   border: 0;
   border-radius: 50%;
   cursor: pointer;
-}
-.guide-sources {
-  display: grid;
-  gap: 7px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--border);
-}
-.guide-sources-heading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--tx3);
-  font-size: 12px;
-  font-weight: 600;
-}
-.guide-sources-heading svg {
-  width: 15px;
-  height: 15px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.guide-sources-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.guide-source-card {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  max-width: 100%;
-  padding: 6px 8px;
-  color: var(--tx2);
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  text-decoration: none;
-}
-.guide-source-card:hover {
-  color: var(--tx);
-  border-color: var(--green-l);
-  background: var(--green-dim);
-}
-.guide-source-icon {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 20px;
-  flex: 0 0 20px;
-  color: var(--green-l);
-}
-.guide-source-icon svg {
-  width: 16px;
-  height: 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.guide-source-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-.guide-source-text strong {
-  max-width: 210px;
-  overflow: hidden;
-  color: inherit;
-  font-size: 11px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.guide-source-text small {
-  overflow: hidden;
-  color: var(--tx3);
-  font-size: 10px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 #guide-mic { order: 3; }
 #guide-attach, #guide-mic {
@@ -17021,65 +16900,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               indicator.appendChild(chip);
             };
 
-            const readApiResponse = async (response, serviceName) => {
-              let data;
-              try {
-                data = await response.json();
-              } catch {
-                throw new Error(`${serviceName} returned an invalid response. Open Deen Guide from the deployed HTTPS site to use its API.`);
-              }
-              if (!data || typeof data !== 'object') {
-                throw new Error(`${serviceName} returned an invalid response. Please try again.`);
-              }
-              if (!response.ok || data.error) {
-                const message = typeof data.error === 'string'
-                  ? data.error
-                  : data.error?.message || `${serviceName} request failed.`;
-                const error = new Error(message);
-                error.status = response.status;
-                error.retryAfter = data.retryAfter || response.headers.get('retry-after');
-                throw error;
-              }
-              return data;
-            };
-
-            const isRateLimitError = error =>
-              !!error && (error.status === 429 || /rate[\s-]?limit|tokens per minute/i.test(error.message || ''));
-
-            const getGuideBlockedUntil = () => {
-              const blockedUntil = Number(localStorage.getItem('guide_blocked_until'));
-              return Number.isFinite(blockedUntil) ? blockedUntil : 0;
-            };
-
-            const getRetryDelayMs = error => {
-              const retryAfter = error && error.retryAfter;
-              if (typeof retryAfter === 'string' && retryAfter.trim()) {
-                const seconds = Number(retryAfter);
-                if (Number.isFinite(seconds)) return Math.max(1000, seconds * 1000);
-                const retryAt = Date.parse(retryAfter);
-                if (Number.isFinite(retryAt)) return Math.max(1000, retryAt - Date.now());
-              }
-              return 5000;
-            };
-
-            const formatRateLimitDuration = milliseconds => {
-              const seconds = Math.max(1, Math.ceil(milliseconds / 1000));
-              if (seconds >= 3600) {
-                const hours = Math.ceil(seconds / 3600);
-                return `${hours} hour${hours === 1 ? '' : 's'}`;
-              }
-              if (seconds >= 60) {
-                const minutes = Math.ceil(seconds / 60);
-                return `${minutes} minute${minutes === 1 ? '' : 's'}`;
-              }
-              return `${seconds} second${seconds === 1 ? '' : 's'}`;
-            };
-
-            const isRateLimitNotice = message =>
-              message && message.role === 'assistant' &&
-              (message.rateLimitNotice ||
-                (typeof message.text === 'string' && message.text.startsWith('The AI service is temporarily rate-limited.')));
-
             const renderAttachments = () => {
               const list = $('#guide-attachments');
               if (!list) return;
@@ -17217,28 +17037,16 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               });
             };
 
-            const scrollThread = (target = null) => {
-              if (!thread) return;
-              if (target) {
-                thread.scrollTop += target.getBoundingClientRect().top - thread.getBoundingClientRect().top;
-                return;
-              }
-              thread.scrollTop = thread.scrollHeight;
+            const scrollThread = () => {
+              if (thread) thread.scrollTop = thread.scrollHeight;
             };
 
-            const latestUserMessage = () => {
-              const messages = thread ? thread.querySelectorAll('.guide-user-message') : [];
-              return messages.length ? messages[messages.length - 1] : null;
-            };
-
-           const appendMessage = (role, text, sources = []) => {
+           const appendMessage = (role, text) => {
   if (!thread) return;
   const empty = thread.querySelector('.empty');
   if (empty) empty.remove();
 
   const div = document.createElement('div');
-  if (role === 'assistant') div.classList.add('guide-assistant-message');
-  else if (role === 'user') div.classList.add('guide-user-message');
   
   // Helper to escape HTML safely
   const escapeHTML = (str) => str.replace(/[&<>'"]/g, 
@@ -17295,8 +17103,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
     });
 
     div.innerHTML = html.join('');
-    const sourceCards = renderGuideSourceCards(sources);
-    if (sourceCards) div.insertAdjacentHTML('afterbegin', sourceCards);
 
     const checkboxes = div.querySelectorAll('.guide-task-checkbox');
     const completedEl = div.querySelector('.guide-completed');
@@ -17328,7 +17134,7 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
     div.style.animationDelay = '0ms';
   }
   thread.appendChild(div);
-  scrollThread(role === 'assistant' ? (latestUserMessage() || div) : null);
+  scrollThread();
 };
 
             let thinkingEl = null;
@@ -17352,67 +17158,25 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               thinkingEl = null;
             };
 
-            const cycleThinkingStages = stages => {
-              let index = 0;
-              showThinking(stages[index]);
-              const timer = setInterval(() => {
-                index = (index + 1) % stages.length;
-                showThinking(stages[index]);
-              }, 1800);
-              return () => clearInterval(timer);
-            };
-
        
 const setInputBusy = (busy) => {
   const inp = document.getElementById('guide-input');
   const btn = document.getElementById('guide-send');
-  const rateLimited = getGuideBlockedUntil() > Date.now();
 
+  // NEVER disable the typing area
   if (inp) {
-    inp.disabled = rateLimited;
-    inp.readOnly = rateLimited;
-    inp.style.pointerEvents = rateLimited ? 'none' : 'auto';
-    inp.style.cursor = rateLimited ? 'not-allowed' : 'text';
+    inp.disabled = false;
+    inp.readOnly = false;
+    inp.style.pointerEvents = 'auto';
+    inp.style.cursor = 'text';
   }
 
+  // Only disable Send while generating
   if (btn) {
-    btn.disabled = busy || rateLimited;
+    btn.disabled = busy;
     const label = btn.querySelector('span');
     if (label) label.textContent = busy ? 'Thinking...' : 'Send';
   }
-};
-
-const scheduleGuideRateLimitUnlock = () => {
-  if (window.__guideRateLimitUnlockTimer) {
-    clearTimeout(window.__guideRateLimitUnlockTimer);
-    window.__guideRateLimitUnlockTimer = null;
-  }
-  const blockedUntil = getGuideBlockedUntil();
-  const remaining = blockedUntil - Date.now();
-  if (remaining <= 0) {
-    if (blockedUntil) {
-      localStorage.removeItem('guide_blocked_until');
-      S.guideMsgs = (S.guideMsgs || []).filter(message => !message.rateLimitNotice);
-      const notice = thread && thread.querySelector('.guide-rate-limit-notice');
-      if (notice) notice.remove();
-      setJSON('guide-history', S.guideMsgs).catch(() => {});
-      ensureClearButton();
-    }
-    setInputBusy(S.guideThinking);
-    return;
-  }
-
-  setInputBusy(S.guideThinking);
-  window.__guideRateLimitUnlockTimer = setTimeout(() => {
-    window.__guideRateLimitUnlockTimer = null;
-    localStorage.removeItem('guide_blocked_until');
-    S.guideMsgs = (S.guideMsgs || []).filter(message => !message.rateLimitNotice);
-    const notice = thread && thread.querySelector('.guide-rate-limit-notice');
-    if (notice) notice.remove();
-    setJSON('guide-history', S.guideMsgs).catch(() => {});
-    setInputBusy(S.guideThinking);
-    ensureClearButton();
-  }, remaining);
 };
 
 
@@ -17436,8 +17200,15 @@ const scheduleGuideRateLimitUnlock = () => {
 
             const send = async (forcedText) => {
               if (S.guideThinking) return;
-              if (getGuideBlockedUntil() > Date.now()) return;
-              if (getGuideBlockedUntil()) scheduleGuideRateLimitUnlock();
+
+            // --- CHECK IF THE 1-HOUR TIMER IS ACTIVE ---
+              const blockedUntil = parseInt(localStorage.getItem('guide_blocked_until') || '0', 10);
+              if (Date.now() < blockedUntil) {
+                const minsLeft = Math.ceil((blockedUntil - Date.now()) / 60000);
+                toast(`Please wait ${minsLeft} minutes, or click "Clear chat" to reset.`);
+                return; // Stops the message from sending
+              }
+              // -------------------------------------------
 
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
@@ -17498,13 +17269,14 @@ const scheduleGuideRateLimitUnlock = () => {
                 modelText += `\n\nDocument-only analysis: use the extracted text and rendered pages from ${documents.map(document => document.name).join(', ')}. Do not describe unrelated UI or infer content from filenames.`;
               }
               if (researchMode === 'web') {
-                modelText += '\n\nWeb search mode: provide a detailed, evidence-led synthesis using all relevant live Islamic web results supplied with this request only. Aim for five distinct source domains when available, but this is not a minimum. Never refuse or say the answer cannot be given solely because fewer than five domains were found. Cite supported claims inline as [Source title](URL), explain meaningful differences, and clearly note any actual evidence gaps without filling them from memory.';
+                modelText += '\n\nWeb search mode: answer from the live Islamic web results supplied with this request only. Cite relevant results as [Source title](URL). If the results are insufficient, say so instead of filling gaps from memory.';
               } else if (researchMode === 'deep') {
-                modelText += '\n\nDeep research mode: provide a thorough, structured synthesis using all relevant distinct live Islamic sources supplied with this request. Aim for five or more sources when available, but do not treat that as a minimum or refuse solely because fewer were found. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite web-supported claims as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
+                modelText += '\n\nDeep research mode: compare the distinct live Islamic sources supplied with this request, using at least five when available. Separate primary Qur\'an/Hadith evidence from scholarly interpretation, note meaningful differences of opinion, and cite every web-supported claim as [Source title](URL). Never invent sources or claim the results establish consensus when they do not.';
               }
               const visibleText = [
                 text,
-                attachments.length ? `Attached: ${attachments.map(file => file.name).join(', ')}` : ''
+                attachments.length ? `Attached: ${attachments.map(file => file.name).join(', ')}` : '',
+                researchMode ? `Mode: ${researchMode === 'deep' ? 'Deep research' : 'Web search'}` : ''
               ].filter(Boolean).join('\n');
 
               if (inp) {
@@ -17530,70 +17302,35 @@ const scheduleGuideRateLimitUnlock = () => {
 
               setJSON('guide-history', S.guideMsgs).catch(() => {});
 
-              let stopProgress = () => {};
-              const requestApiJson = async (url, options, serviceName) => {
-                let retries = 0;
-                while (true) {
-                  const response = await fetch(url, options);
-                  try {
-                    return await readApiResponse(response, serviceName);
-                  } catch (error) {
-                    if (!isRateLimitError(error) || retries >= 1) throw error;
-                    const providerDelay = getRetryDelayMs(error);
-                    const retryDelay = Math.min(providerDelay, 5000);
-                    if (!researchMode) {
-                      stopProgress();
-                      stopProgress = () => {};
-                      showThinking(`The service is busy. Retrying automatically in about ${Math.ceil(retryDelay / 1000)} seconds...`);
-                    }
-                    await new Promise(resolve => setTimeout(resolve, retryDelay));
-                    retries++;
-                    if (!researchMode) showThinking('Retrying your request now...');
-                  }
-                }
-              };
+              showThinking('Analyzing question...');
 
-              if (researchMode) {
-                stopProgress = cycleThinkingStages(researchMode === 'deep'
-                  ? [
-                    'Searching multiple trusted Islamic sources...',
-                    'Collecting relevant Qur’an, Hadith, and scholar material...',
-                    'Reviewing source evidence...'
-                  ]
-                  : [
-                    'Searching trusted Islamic websites...',
-                    'Collecting relevant Islamic references...',
-                    'Reviewing search results...'
-                  ]);
-              } else {
-                showThinking('Analyzing question...');
-              }
               try {
                 let webContext = 'No web search was requested for this message.';
-                let webSources = [];
                 if (researchMode) {
+                  showThinking(researchMode === 'deep'
+                    ? 'Researching trusted Islamic sources...'
+                    : 'Searching trusted Islamic websites...');
                   const searchQuery = (text || question).slice(0, 1000);
-                  const searchData = await requestApiJson('/api/search', {
+                  const searchResp = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ query: searchQuery, mode: researchMode })
-                  }, 'Live Islamic web search');
-                  stopProgress();
-                  stopProgress = () => {};
+                  });
+                  const searchData = await searchResp.json();
+                  if (!searchResp.ok || searchData.error) {
+                    throw new Error(searchData.error || 'Live Islamic web search failed.');
+                  }
                   if (!Array.isArray(searchData.results) || !searchData.results.length) {
                     throw new Error('No matching Islamic web sources were found. Try a more specific question.');
                   }
-                  webSources = searchData.results;
-                  showThinking(`Collected ${searchData.results.length} sources. Comparing their evidence...`);
-                  webContext = webSources.map((result, index) =>
+                  webContext = searchData.results.map((result, index) =>
                     `Source ${index + 1}\nTitle: ${result.title}\nURL: ${result.url}\nContent: ${result.content}`
                   ).join('\n\n');
                 }
 
-                const history = S.guideMsgs.filter(m => !isRateLimitNotice(m)).slice(-10).map(m => ({
-                  role: m.role,
-                  content: (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '')
-                }));
+                if (researchMode) showThinking('Reading sources & formulating answer...');
+
+                const history = S.guideMsgs.slice(-10).map(m => ({ role: m.role, content: m.text }));
                 const forcedInstruction = `\n\n[SYSTEM NOTE: The user wants the exact number of items requested. If they asked for 100, list 100. If they asked for more than 500 lines, politely explain the limit and offer to do it in batches.]`;
                 const currentMessage = history[history.length - 1];
                 const currentText = modelText + forcedInstruction;
@@ -17607,22 +17344,7 @@ const scheduleGuideRateLimitUnlock = () => {
                   ]
                   : currentText;
 
-                if (researchMode) {
-                  stopProgress = cycleThinkingStages(researchMode === 'deep'
-                    ? [
-                      'Comparing evidence across Islamic sources...',
-                      'Checking Qur’an, Hadith, and scholarly references...',
-                      'Preparing your research summary...'
-                    ]
-                    : [
-                      'Comparing evidence from the web sources...',
-                      'Checking Qur’an, Hadith, and scholarly references...',
-                      'Preparing a source-based answer...'
-                    ]);
-                } else {
-                  showThinking('Preparing your answer...');
-                }
-                const data = await requestApiJson('/api/guide', {
+                const resp = await fetch('/api/guide', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
@@ -17630,24 +17352,23 @@ const scheduleGuideRateLimitUnlock = () => {
                     webContext,
                     messages: history
                   })
-                }, 'Deen Guide');
-                stopProgress();
-                stopProgress = () => {};
+                });
+                
+                const data = await resp.json();
+                if (data.error) throw new Error('Groq API error: ' + (data.error.message || JSON.stringify(data.error)));
                 const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
 
                 hideThinking();
                 S.guideThinking = false;
                 S.guideThinkStage = '';
-                const visibleSources = webSources.map(({ title, url }) => ({ title, url }));
-                S.guideMsgs.push({ role: 'assistant', text: out, sources: visibleSources });
-                appendMessage('assistant', out, visibleSources);
+                S.guideMsgs.push({ role: 'assistant', text: out });
+                appendMessage('assistant', out);
                 setInputBusy(false);
                 ensureClearButton();
 
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
                 
               } catch (e) {
-                stopProgress();
                 console.error('Deen Guide error:', e);
                 hideThinking();
                 S.guideThinking = false;
@@ -17655,24 +17376,17 @@ const scheduleGuideRateLimitUnlock = () => {
                 
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
 
-                if (isRateLimitError(e)) {
-                  const retryDelay = e.retryAfter ? getRetryDelayMs(e) : 3600000;
-                  const modeLabel = researchMode === 'deep' ? 'Deep Research'
-                    : researchMode === 'web' ? 'Web Search'
-                      : 'Deen Guide';
-                  const limitMessage = `${modeLabel} is temporarily rate-limited. Try again in about ${formatRateLimitDuration(retryDelay)}, or clear chat to start a new one.`;
-                  localStorage.setItem('guide_blocked_until', String(Date.now() + retryDelay));
-                  S.guideMsgs.push({ role: 'assistant', text: limitMessage, rateLimitNotice: true });
-                  appendMessage('assistant', limitMessage);
-                  if (thread && thread.lastElementChild) {
-                    thread.lastElementChild.classList.add('guide-rate-limit-notice');
-                  }
-                  scheduleGuideRateLimitUnlock();
-                } else {
-                  S.guideMsgs.push({ role: 'assistant', text: errMsg });
-                  appendMessage('assistant', errMsg);
+                // --- IF ERROR IS A RATE LIMIT, SAVE THE 1-HOUR TIMER ---
+                if (errMsg.includes('Rate limit') || errMsg.includes('rate limit') || errMsg.includes('tokens per minute')) {
+                  const unblockTime = Date.now() + (60 * 60 * 1000); 
+                  localStorage.setItem('guide_blocked_until', unblockTime);
+                  
+                  errMsg = `I am receiving too many messages right now. The system limit has been reached. Please try again in 60 minutes, or click "Clear chat" above to start a fresh conversation.`;
                 }
+                // -------------------------------------------------------
 
+                S.guideMsgs.push({ role: 'assistant', text: errMsg });
+                appendMessage('assistant', errMsg);
                 setInputBusy(false);
                 ensureClearButton();
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
@@ -17683,11 +17397,9 @@ const scheduleGuideRateLimitUnlock = () => {
             };
 
             const clearChat = async () => {
-              if (window.__guideRateLimitUnlockTimer) {
-                clearTimeout(window.__guideRateLimitUnlockTimer);
-                window.__guideRateLimitUnlockTimer = null;
-              }
+              // --- CRITICAL FIX: THIS REMOVES THE 1-HOUR TIMER ---
               localStorage.removeItem('guide_blocked_until');
+              // ---------------------------------------------------
 
               S.guideMsgs = [];
               S.guideThinking = false;
@@ -17704,6 +17416,7 @@ const scheduleGuideRateLimitUnlock = () => {
                 thread.querySelectorAll('[data-guide-chip]').forEach(c =>
                   c.onclick = () => send(c.dataset.guideChip));
               }
+
               const cb = $('#guide-clear');
               if (cb) cb.remove();
 
@@ -18014,8 +17727,7 @@ if (inp) {
             const clearBtn = $('#guide-clear');
             if (clearBtn) clearBtn.onclick = clearChat;
 
-            scheduleGuideRateLimitUnlock();
-            scrollThread(latestUserMessage());
+            scrollThread();
           }
           /* ============================= SCREEN ACTION BINDER ============================= */
           function bindScreenActions(s) {
