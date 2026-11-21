@@ -1,5 +1,17 @@
 export const config = { maxDuration: 60 };
 
+const trustedIslamicDomains = [
+  'quran.com',
+  'quranenc.com',
+  'sunnah.com',
+  'dorar.net',
+  'islamweb.net',
+  'islamqa.info',
+  'islamqa.org',
+  'seekersguidance.org',
+  'yaqeeninstitute.org'
+];
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -22,8 +34,10 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         api_key: apiKey,
         query,
-        search_depth: 'advanced',
+        search_depth: 'fast',
         max_results: 6,
+        include_domains: trustedIslamicDomains,
+        include_domains_mode: 'restrict',
         include_answer: false,
         include_raw_content: false
       })
