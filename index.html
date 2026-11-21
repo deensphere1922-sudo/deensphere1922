@@ -16476,18 +16476,16 @@ ISLAMIC EVIDENCE AND ACCURACY:
           const renderGuideSources = (sources, answerText) => {
             if (!Array.isArray(sources) || !sources.length) return '';
 
-            // Show cited sources when inline citations exist. If the AI omits
-            // citation markers, fall back to all valid sources from web search.
             const citedNumbers = [...new Set(
               [...String(answerText || '').matchAll(/\[(\d+)\]/g)]
                 .map(match => Number(match[1]))
                 .filter(number => Number.isSafeInteger(number) && number > 0 && number <= sources.length)
             )];
-            const sourceNumbers = citedNumbers.length
-              ? citedNumbers
-              : sources.map((source, index) => index + 1);
+            if (!citedNumbers.length) return '';
+            const sourceNumbers = citedNumbers;
 
             const seenUrls = new Set();
+            const seenTitles = new Set();
             const links = sourceNumbers.map(number => {
               const source = sources[number - 1];
               if (!source || typeof source.url !== 'string') return '';
@@ -16499,6 +16497,9 @@ ISLAMIC EVIDENCE AND ACCURACY:
                 const title = typeof source.title === 'string' && source.title.trim()
                   ? source.title.trim()
                   : url.hostname;
+                const normalizedTitle = title.toLowerCase().replace(/\s+/g, ' ').trim();
+                if (seenTitles.has(normalizedTitle)) return '';
+                seenTitles.add(normalizedTitle);
                 const sourceType = typeof source.sourceType === 'string' && source.sourceType.trim()
                   ? source.sourceType.trim()
                   : 'Web source';
@@ -16527,7 +16528,10 @@ ISLAMIC EVIDENCE AND ACCURACY:
           const formatGuidePlainText = (value, sources = []) => {
             const citationLinks = [];
             const normalizedValue = String(value || '')
-              .replace(/\[\[([^\[\]]+)\]\]/g, '[$1]');
+              .replace(/\[\[([^\[\]]+)\]\]/g, '[$1]')
+              .replace(/^\s*(?:[-*+]|\d+[.)])\s*/gm, '')
+              .replace(/(?<!\*)\*(?!\*)/g, '')
+              .replace(/\r/g, '');
             const text = normalizedValue.replace(/\[(\d+)\]/g, (citation, rawNumber) => {
               const number = Number(rawNumber);
               const source = sources[number - 1];
@@ -16589,6 +16593,28 @@ ISLAMIC EVIDENCE AND ACCURACY:
             return line ? formatGuideInlineText(line, sources) : '';
           }).join('<br>');
 
+          const renderGuideAssistantText = (value, sources) => {
+            const lines = String(value || '').split('\n');
+            const tasks = lines.filter(line => /^\s*(?:[-*+]?\s*)?\[([ xX])\]\s*(.+)$/.test(line));
+            if (!tasks.length) return renderGuideMessageText(value, sources);
+
+            const completed = tasks.filter(line => /^\s*(?:[-*+]?\s*)?\[[xX]\]/i.test(line)).length;
+            const taskHtml = tasks.map(line => {
+              const task = line.match(/^\s*(?:[-*+]?\s*)?\[([ xX])\]\s*(.+)$/);
+              if (!task) return '';
+              return `<label style="display:flex;align-items:flex-start;gap:10px;margin:8px 0;cursor:pointer;">
+                <input type="checkbox" class="guide-task-checkbox" ${task[1].toLowerCase() === 'x' ? 'checked' : ''}
+                  style="appearance:none;-webkit-appearance:none;width:19px;height:19px;min-width:19px;flex-shrink:0;margin:1px 0 0;padding:0;border:1.5px solid #A1A1AA;border-radius:50%;background:transparent;cursor:pointer;">
+                <span style="line-height:1.55;">${formatGuideInlineText(task[2], sources)}</span>
+              </label>`;
+            }).join('');
+            const nonTaskText = lines.filter(line => !/^\s*(?:[-*+]?\s*)?\[[ xX]\]\s*/.test(line))
+              .filter(Boolean)
+              .map(line => formatGuideInlineText(line.replace(/^\s*(?:[-*+]|\d+[.)])\s*/, ''), sources))
+              .join('<br>');
+            return `${nonTaskText ? `${nonTaskText}<br>` : ''}<div class="guide-task-count" style="margin:4px 0 6px;font-weight:600;">Completed: <span class="guide-completed">${completed}</span>/<span class="guide-total">${tasks.length}</span></div>${taskHtml}`;
+          };
+
           function renderDeenGuide() {
             const msgs = S.guideMsgs || [];
             const hasMessages = msgs.length > 0;
@@ -16616,7 +16642,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   if (m.role === 'user') {
                   return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text || '')}${renderAttachments(m.attachments)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;text-align:left;background:var(--card-el);padding:12px 14px;border-radius:16px 16px 16px 4px;font-size:15.5px;line-height:1.62;color:var(--tx);border-left:2px solid var(--green);">${renderGuideMessageText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;text-align:left;background:var(--card-el);padding:12px 14px;border-radius:16px 16px 16px 4px;font-size:15.5px;line-height:1.62;color:var(--tx);border-left:2px solid var(--green);">${renderGuideAssistantText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16733,6 +16759,18 @@ ISLAMIC EVIDENCE AND ACCURACY:
 
           function bindDeenGuide() {
             const thread = $('#guide-thread');
+            if (thread) {
+              thread.querySelectorAll('.guide-task-checkbox').forEach(box => {
+                box.addEventListener('change', () => {
+                  const bubble = box.closest('.guide-task-count')?.parentElement
+                    || box.closest('[style*="border-left"]');
+                  if (!bubble) return;
+                  const checkboxes = bubble.querySelectorAll('.guide-task-checkbox');
+                  const count = bubble.querySelector('.guide-completed');
+                  if (count) count.textContent = [...checkboxes].filter(item => item.checked).length;
+                });
+              });
+            }
             let pendingAttachments = [];
             let guideWebSearchEnabled = false;
             let guideRequestVersion = 0;
@@ -16841,7 +16879,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
       return line ? formatText(line) : '<br>';
     });
 
-    const formattedHtml = html.join('') + renderGuideSources(sources, text);
+    const formattedHtml = renderGuideAssistantText(text, sources) + renderGuideSources(sources, text);
     div.innerHTML = animate ? '' : formattedHtml;
 
     const setupTaskControls = () => {
@@ -16862,11 +16900,13 @@ ISLAMIC EVIDENCE AND ACCURACY:
       checkboxes.forEach(box => box.addEventListener('change', updateCount));
     };
 
-    if (animate) {
+    const isRoutineChecklist = /^\s*(?:[-*+]?\s*)?\[[ xX]\]/m.test(text);
+    if (animate && !isRoutineChecklist) {
       let typedLength = 0;
       const typingTimer = window.setInterval(() => {
         typedLength = Math.min(text.length, typedLength + 5);
-        div.textContent = text.slice(0, typedLength);
+        const visibleText = text.slice(0, typedLength);
+        div.innerHTML = renderGuideMessageText(visibleText, sources);
         scrollThread();
         if (typedLength >= text.length) {
           window.clearInterval(typingTimer);
@@ -16876,6 +16916,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
         }
       }, 14);
     } else {
+      div.innerHTML = formattedHtml;
       setupTaskControls();
     }
   }
@@ -17594,6 +17635,7 @@ const toggleGuideRecording = async () => {
               setJSON('guide-history', S.guideMsgs).catch(error =>
                 console.error('Could not save Deen Guide history:', error));
               let researchSources = [];
+              let noRelatedSources = false;
               let activeStageIndex = 0;
               showThinking(activeGuideStages[0]);
               await new Promise(resolve => window.requestAnimationFrame(resolve));
@@ -17653,6 +17695,7 @@ const toggleGuideRecording = async () => {
                     throw error;
                   }
                   const seenSourceUrls = new Set();
+                  const seenSourceTitles = new Set();
                   researchSources = (Array.isArray(searchData.results) ? searchData.results : [])
                     .filter(source => source && typeof source.url === 'string' && typeof source.content === 'string')
                     .filter(source => {
@@ -17660,6 +17703,11 @@ const toggleGuideRecording = async () => {
                         const url = new URL(source.url);
                         if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenSourceUrls.has(url.href)) return false;
                         seenSourceUrls.add(url.href);
+                        const title = typeof source.title === 'string'
+                          ? source.title.toLowerCase().replace(/\s+/g, ' ').trim()
+                          : '';
+                        if (title && seenSourceTitles.has(title)) return false;
+                        if (title) seenSourceTitles.add(title);
                         return true;
                       } catch {
                         return false;
@@ -17667,8 +17715,10 @@ const toggleGuideRecording = async () => {
                     })
                     .slice(0, 5);
                   if (researchSources.length < 1) {
-                    throw new Error('I could not find a relevant source for this question. Please rephrase it and try again.');
-                  }
+                    noRelatedSources = true;
+                    const noSourceInstruction = '\n\nNo relevant source results were found. Do not invent sources or citations. Tell the user clearly: "No related sources found."';
+                    requestSystemPrompt += noSourceInstruction;
+                  } else {
                   activeStageIndex = 3;
                   showGuideStage(activeGuideStages, activeStageIndex);
                   await new Promise(resolve => window.requestAnimationFrame(resolve));
@@ -17705,7 +17755,10 @@ const toggleGuideRecording = async () => {
                   error.retryAfter = retryAfter;
                   throw error;
                 }
-                const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
+                let out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
+                if (noRelatedSources && !/no related sources found/i.test(out)) {
+                  out = `${out}\n\nNo related sources found.`;
+                }
                 S.guideThinking = false;
                 S.guideThinkStage = '';
                 hideThinking();
