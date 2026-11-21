@@ -1747,10 +1747,11 @@
         cursor: text !important;
         pointer-events: auto !important;
       }
-      /* AFTER — Theme toggle is clickable */
-body:has(#guide-thread) #back-to-top {
-  pointer-events: none !important;
-}
+      /* Composer sits above floating buttons that could steal taps */
+      body:has(#guide-thread) #theme-toggle,
+      body:has(#guide-thread) #back-to-top {
+        pointer-events: none !important;
+      }
       @media (max-width: 880px) {
         div:has(> #guide-input) {
           padding-bottom: calc(16px + env(safe-area-inset-bottom)) !important;
@@ -16298,16 +16299,6 @@ function closeYouTubePlayer() {
           }
 
             /* ============================= DEEN GUIDE ============================= */
-          const formatGuideRetryDelay = milliseconds => {
-            const totalSeconds = Math.ceil(milliseconds / 1000);
-            if (!Number.isFinite(totalSeconds) || totalSeconds <= 0) return 'a moment';
-            if (totalSeconds < 60) return `${totalSeconds} second${totalSeconds === 1 ? '' : 's'}`;
-            const totalMinutes = Math.ceil(totalSeconds / 60);
-            const hours = Math.floor(totalMinutes / 60);
-            const minutes = totalMinutes % 60;
-            if (!hours) return `${totalMinutes} minute${totalMinutes === 1 ? '' : 's'}`;
-            return `${hours} hour${hours === 1 ? '' : 's'}${minutes ? ` ${minutes} minute${minutes === 1 ? '' : 's'}` : ''}`;
-          };
             const GUIDE_SYSTEM_PROMPT = `
       You are "Deen Guide", an advanced, authentic Islamic AI assistant inside the Deen Sphere app.
       Your goal is to provide precise, deeply researched, referenced, and compassionate answers strictly based on the Qur'an, authentic Sunnah, and recognized scholarly consensus.
@@ -16348,10 +16339,10 @@ function closeYouTubePlayer() {
       - Provide the exact link: https://deensphere1922.vercel.app
       - Keep it short and friendly.
 
-      - If Web search is active, use the live results supplied in the context for web-supported claims. Prioritize primary Islamic sources and recognized scholarship, and use other relevant sources for context when helpful. Cite results as [Source title](URL), and never invent sources, URLs, or quotations.
-      - If the supplied search context says some searches failed or results may be incomplete, disclose that limitation briefly.
-      - In Web search mode, ground claims in retrieved sources. If they do not support an answer, say that the search did not find enough evidence.
-      - If the user asks for current Islamic apps while a search mode is active, use only the supplied results and never make up a link. Without search results, explain that current recommendations have not been verified.
+      - If the user asks for "best Islamic apps" (other than Deen Sphere), you MUST look at the "LIVE WEB SEARCH RESULTS" provided in your context. 
+      - Find the most popular apps (like Muslim Pro, Quran Majeed, Tarteel, Athan by IslamicFinder) from the search results.
+      - For each app, provide its **real name** and a **direct link** to the App Store or Google Play Store from the search results.
+      - NEVER make up a link. Only use the URLs provided in the "LIVE WEB SEARCH RESULTS".
 
      
      
@@ -16383,21 +16374,10 @@ RESPONSE LENGTH & FORMATTING RULES (CRITICAL):
 - Never invent Qur'an verses, Hadith, translations or references.
 - Use only verified Islamic references.
 - Do not add unrelated references.
-- For Hadith, prioritize primary collections such as Sahih al-Bukhari and Sahih Muslim. Give a collection, number, or authenticity grade only when supported by the supplied sources, and clearly distinguish Sahih, Hasan, and Da'if.
 
 5. ADHKAR:
 - Preserve all existing Adhkar formatting, exact-number and continuation instructions.
 - Never invent Arabic text, translations or references.
-
-ATTACHMENT ANALYSIS:
-- Analyze photos and documents as separate sources. For a photo, read the photographed content only; ignore app controls, menus, navigation, and unrelated screen text. For a document, use its extracted text and rendered pages only; do not infer its contents from the filename.
-- Say what the Islamic content appears to be and explain its meaning in the user's language.
-- If an attachment has no Islamic content, begin with: "This attachment does not appear to contain Islamic content, so I can only help with an Islamic question." Do not summarize unrelated content.
-- If an attachment contains both Islamic and unrelated content, begin with: "This attachment includes non-Islamic material; I will focus on its Islamic content." Then discuss only the Islamic material.
-- For readable Qur'an text, transcribe only the words that are clear and explain the meaning. Give a surah and ayah only when the exact Arabic is confidently matched; never infer a reference from an English translation or nearby UI. If unsure, say the reference could not be verified.
-- For readable Hadith, explain the meaning and give the collection and number only when confidently identified. Do not claim a grading or source that cannot be verified.
-- For other Arabic text, translate it without claiming it is Qur'an or Hadith unless that identification is reliable.
-- If text is blurry, incomplete, or unclear, say so and ask for a clearer image instead of guessing.
 
 FORMATTING:
 - Use clean, natural paragraphs.
@@ -16439,62 +16419,13 @@ Warm, respectful, scholarly, compassionate and educational.
       `;
 
           function renderDeenGuide() {
-            const storedMsgs = S.guideMsgs || [];
-            const blockedUntil = Number(localStorage.getItem('guide_blocked_until') || 0);
-            const hasActiveOverallLimit = localStorage.getItem('guide_block_reason') === 'overall-ai-limit' &&
-              blockedUntil > Date.now();
-            const remainingLimit = formatGuideRetryDelay(blockedUntil - Date.now());
-            if (!hasActiveOverallLimit) {
-              localStorage.removeItem('guide_blocked_until');
-              localStorage.removeItem('guide_block_reason');
-            }
-            const msgs = storedMsgs.filter(message => {
-              if (!message) return false;
-              if (message.overallLimitNotice) return hasActiveOverallLimit;
-              if (message.role === 'assistant' && typeof message.text === 'string' &&
-                (/Error: Missing messages/i.test(message.text) ||
-                  /(?:system limit has been reached|please wait \d+ minutes|try again in \d+\s*(?:minutes?|hours?)|^The AI service is temporarily rate-limited)/i.test(message.text))) {
-                return false;
-              }
-              if (message.requestError) return true;
-              return !message.rateLimitNotice;
-            });
-            if (hasActiveOverallLimit && !msgs.some(message => message.overallLimitNotice)) {
-              msgs.push({
-                role: 'assistant',
-                text: `The AI service has reached its usage limit. Please try again in ${remainingLimit}.`,
-                requestError: true,
-                overallLimitNotice: true
-              });
-            }
-            if (msgs.length !== storedMsgs.length) {
-              S.guideMsgs = msgs;
-              setJSON('guide-history', msgs).catch(error =>
-                console.error('Could not remove the old Deen Guide rate-limit notice:', error));
-            }
+            const msgs = S.guideMsgs || [];
             const hasAssistantReply = msgs.some(m => m.role === 'assistant');
-            const renderStoredSources = sources => {
-              const links = (Array.isArray(sources) ? sources : []).map(source => {
-                try {
-                  const url = new URL(source.url);
-                  if (url.protocol !== 'https:') return '';
-                  const title = typeof source.title === 'string' && source.title.trim()
-                    ? source.title.trim()
-                    : url.hostname;
-                  return `<a href="${esc(url.toString())}" target="_blank" rel="noopener noreferrer" style="display:grid;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;color:var(--green-l);font-size:12px;text-decoration:none;background:var(--card);">${esc(title)}<small style="color:var(--tx3);font-size:11px;">${esc(url.hostname)}</small></a>`;
-                } catch {
-                  return '';
-                }
-              }).filter(Boolean);
-              return links.length
-                ? `<div style="display:grid;gap:7px;margin-top:14px;padding-top:10px;border-top:1px solid var(--border);"><strong style="font-size:12px;color:var(--tx);">Sources</strong>${links.join('')}</div>`
-                : '';
-            };
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
                     <div>
                       <div class="pg-title">Deen Guide</div>
-                      <div class="pg-sub">Ask about Islam — get clear answers and relevant web sources.</div>
+                      <div class="pg-sub">Ask about Islam — deep research from Qur'an, Sunnah & trusted web sources.</div>
                     </div>
                     ${hasAssistantReply && !S.guideThinking ? `<button class="btn-text" id="guide-clear" style="font-size:12px;color:var(--amber);border:1px solid var(--border);padding:6px 10px;border-radius:8px;flex-shrink:0;white-space:nowrap;">Clear chat</button>` : ''}
                   </div>
@@ -16505,10 +16436,9 @@ Warm, respectful, scholarly, compassionate and educational.
                   ${msgs.length
                 ? msgs.map(m => {
                   if (m.role === 'user') {
-                  const displayText = (m.text || '').replace(/\nMode: (?:Deep research|Web search)\s*$/, '');
-                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(displayText)}</div>`;
+                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text)}</div>`;
                   } else {
-                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}${renderStoredSources(m.sources)}</div>`;
+                  return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:fit-content;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:14px;line-height:1.7;color:var(--tx2);border-left:2px solid var(--green);">${esc(m.text)}</div>`;
                   }
                 }).join('')
                                 : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
@@ -16518,358 +16448,19 @@ Warm, respectful, scholarly, compassionate and educational.
                         <button class="btn-text guide-suggestion" data-guide-chip="What does the Quran say about patience?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
-         <div id="guide-composer">
-  <div id="guide-composer-controls">
-  <div id="guide-attachments" aria-live="polite"></div>
-  <div id="guide-mode-indicator" aria-live="polite"></div>
-  <button class="btn-text" id="guide-attach" type="button" aria-label="Add an attachment" title="Add an image or file" aria-expanded="false">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+         <div id="guide-composer" style="display:flex; align-items:center; gap:8px; padding:10px 0 20px; flex:0 0 auto; width:100%; position:relative; z-index:10;">
+  <input
+    id="guide-input"
+    placeholder="Ask Deen Guide..."
+    style="flex:1;min-width:0;cursor:text;"
+  >
+  <button class="btn btn-primary" id="guide-send" type="button">
+    Send
   </button>
-  <textarea id="guide-input" rows="1" placeholder="Ask Deen Guide..." aria-label="Message Deen Guide"></textarea>
-  <button class="btn-text" id="guide-mic" type="button" aria-label="Speak your message" title="Speak your message">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg>
-    <span class="guide-mic-wave" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
-  </button>
-  <button class="btn btn-primary" id="guide-send" type="button" aria-label="Send message">
-    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-    <span>Send</span>
-  </button>
-  <div id="guide-attach-menu" role="menu" aria-label="Add to your message">
-    <button type="button" data-guide-file="all" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/><path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2Z"/></svg></span><span><strong>Add photos &amp; files</strong><small>Images, PDF, DOCX, TXT, MD or CSV</small></span></button>
-    <button type="button" data-guide-mode="web" aria-pressed="false" role="menuitem"><span class="guide-attach-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/></svg></span><span><strong>Web search</strong><small>Search relevant sources across the web</small></span></button>
-  </div>
-  </div>
-  <input id="guide-all-file" type="file" accept="image/png,image/jpeg,image/webp,.pdf,.docx,.txt,.md,.csv,text/plain,text/markdown,text/csv,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document" multiple hidden>
 </div>
                   <style>
                     @keyframes spin { to { transform: rotate(360deg); } }
                     @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:.5;} }
-
-#guide-composer {
-  display: flex !important;
-  flex-direction: column;
-  align-items: center;
-  gap: 0;
-  padding: 0 !important;
-  width: 100% !important;
-  max-width: none !important;
-  box-sizing: border-box;
-  margin: 12px auto 24px !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-#guide-attachments {
-  display: none;
-  flex: 0 0 100% !important;
-  order: -2;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  width: 100%;
-  max-width: none;
-  box-sizing: border-box;
-}
-#guide-attachments:not(:empty) { display: grid; }
-#guide-mode-indicator {
-  display: none;
-  align-items: center;
-  flex: 0 0 100%;
-  order: -1;
-  min-width: 0;
-}
-#guide-mode-indicator.active { display: flex; }
-.guide-mode-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 7px 9px;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 1;
-  white-space: nowrap;
-}
-.guide-mode-chip.web {
-  color: #39a9ff;
-  background: rgba(57,169,255,.1);
-  border-color: rgba(57,169,255,.25);
-}
-.guide-mode-chip.deep {
-  color: var(--green-l);
-  background: var(--green-dim);
-  border-color: var(--border);
-}
-.guide-mode-chip svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-#guide-mode-indicator button {
-  display: grid;
-  place-items: center;
-  width: 17px;
-  height: 17px;
-  padding: 0;
-  color: currentColor;
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  font-size: 15px;
-  line-height: 1;
-  cursor: pointer;
-}
-#guide-mode-indicator button:hover { color: var(--tx); background: rgba(127,127,127,.15); }
-div:has(> #guide-input)#guide-composer-controls {
-  position: relative !important;
-  display: flex !important;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  row-gap: 10px;
-  flex: 0 1 auto !important;
-  width: 100% !important;
-  max-width: none;
-  box-sizing: border-box;
-  margin: auto;
-  padding: 12px 14px !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 24px;
-  background: var(--card) !important;
-  box-shadow: none !important;
-  transition: border-color .18s ease;
-  z-index: 51;
-}
-div:has(> #guide-input)#guide-composer-controls:hover,
-div:has(> #guide-input)#guide-composer-controls:focus-within {
-  border-color: var(--green-l) !important;
-  box-shadow: none !important;
-}
-.guide-attachment-chip {
-  display: inline-flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  box-sizing: border-box;
-  padding: 6px 9px;
-  color: var(--tx2);
-  background: var(--green-dim);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  font-size: 12px;
-}
-.guide-attachment-chip span {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.guide-attachment-chip button {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  color: var(--tx2);
-  background: transparent;
-  border: 0;
-  border-radius: 50%;
-  cursor: pointer;
-}
-#guide-mic { order: 3; }
-#guide-attach, #guide-mic {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  flex: 0 0 48px;
-  color: var(--tx2);
-  background: var(--card-el);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  cursor: pointer;
-  transition: color .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease;
-}
-#guide-attach {
-  order: 0;
-  color: var(--green-l);
-  background: var(--green-dim);
-  border-color: transparent;
-}
-#guide-attach svg, #guide-mic svg, #guide-send svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-#guide-attach:hover,
-#guide-attach:focus-visible {
-  color: var(--green);
-  background: var(--green-dim);
-  border-color: var(--green-l);
-  transform: translateY(-2px) scale(1.04);
-}
-#guide-attach:hover svg,
-#guide-attach:focus-visible svg {
-  animation: guide-plus-pop .34s cubic-bezier(.2,.8,.2,1);
-}
-@keyframes guide-plus-pop {
-  0% { transform: scale(.75); }
-  65% { transform: scale(1.2); }
-  100% { transform: scale(1); }
-}
-#guide-mic:hover,
-#guide-mic:focus-visible {
-  color: var(--green-l);
-  background: var(--green-dim);
-  border-color: var(--green-l);
-  transform: translateY(-2px);
-}
-#guide-mic:not(.listening):hover svg,
-#guide-mic:not(.listening):focus-visible svg {
-  animation: guide-mic-hover .6s ease-in-out infinite alternate;
-}
-@keyframes guide-mic-hover {
-  to { transform: translateY(-2px); }
-}
-.guide-mic-wave {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  width: 22px;
-  height: 22px;
-}
-.guide-mic-wave i {
-  width: 2px;
-  height: 4px;
-  background: currentColor;
-  border-radius: 2px;
-}
-#guide-mic.listening svg { display: none; }
-#guide-mic.listening .guide-mic-wave { display: flex; }
-#guide-mic.listening .guide-mic-wave i {
-  animation: guide-mic-wave 650ms ease-in-out infinite alternate;
-}
-#guide-mic.listening .guide-mic-wave i:nth-child(2),
-#guide-mic.listening .guide-mic-wave i:nth-child(4) { animation-delay: 130ms; }
-#guide-mic.listening .guide-mic-wave i:nth-child(3) { animation-delay: 260ms; }
-@keyframes guide-mic-wave {
-  to { height: 18px; }
-}
-#guide-input {
-  order: 2;
-  height: 48px !important;
-  min-height: 48px;
-  max-height: 140px;
-  flex: 1 1 80px !important;
-  width: auto !important;
-  padding: 12px 4px !important;
-  resize: none;
-  overflow-y: auto;
-  background: transparent !important;
-  border: 0 !important;
-  box-shadow: none !important;
-  font: inherit;
-  line-height: 22px;
-}
-#guide-input:focus { outline: none !important; }
-#guide-send {
-  order: 4;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  min-height: 50px;
-  padding: 0 18px;
-  border-radius: 14px;
-}
-#guide-send svg { width: 17px; height: 17px; }
-#guide-send:disabled { opacity: .65; }
-#guide-attach-menu {
-  display: none;
-  position: absolute;
-  z-index: 20;
-  left: 0;
-  bottom: calc(100% + 8px);
-  width: min(320px, calc(100vw - 40px));
-  padding: 8px;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  box-shadow: 0 12px 32px rgba(0,0,0,.28);
-}
-#guide-attach-menu.open { display: grid; gap: 4px; }
-#guide-attach-menu button {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 10px;
-  text-align: left;
-  color: var(--tx);
-  background: transparent;
-  border: 0;
-  border-radius: 11px;
-  cursor: pointer;
-}
-#guide-attach-menu button:hover { background: var(--green-dim); }
-#guide-attach-menu button.selected { background: var(--green-dim); }
-#guide-attach-menu button > span:last-child { display: grid; gap: 3px; }
-#guide-attach-menu small { color: var(--tx3); font-size: 12px; }
-.guide-attach-icon {
-  display: grid;
-  place-items: center;
-  width: 40px;
-  height: 40px;
-  flex: 0 0 40px;
-  color: var(--green-l);
-  background: var(--green-dim);
-  border-radius: 13px;
-  font-size: 22px;
-}
-.guide-attach-icon svg {
-  width: 20px;
-  height: 20px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-#guide-mic.listening {
-  color: var(--green-l);
-  border-color: var(--green);
-  background: var(--green-dim);
-}
-@media (prefers-reduced-motion: reduce) {
-  #guide-attach, #guide-mic { transition: none; }
-  #guide-attach:hover, #guide-attach:focus-visible, #guide-mic:hover, #guide-mic:focus-visible { transform: none; }
-  #guide-attach:hover svg, #guide-attach:focus-visible svg, #guide-mic:not(.listening):hover svg, #guide-mic:not(.listening):focus-visible svg,
-  #guide-mic.listening .guide-mic-wave i { animation: none; transition: none; }
-}
-@media (max-width: 480px) {
-  #guide-composer { gap: 8px; margin: 10px auto 22px !important; }
-  #guide-attachments { grid-template-columns: minmax(0, 1fr); gap: 6px; }
-  div:has(> #guide-input)#guide-composer-controls { width: calc(100% - 8px) !important; gap: 6px; padding: 8px !important; }
-  #guide-attach, #guide-mic { width: 38px; height: 38px; flex-basis: 38px; }
-  #guide-send { min-height: 38px; padding: 0 11px; }
-  #guide-send span { font-size: 13px; }
-}
-@media (min-width: 481px) and (max-width: 880px) {
-  #guide-attachments { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-}
                   
 /* Deen Guide: keep the empty-state layout stable. Its entrance animation
    is controlled only by the single navigation sequence in the main stylesheet. */
@@ -16907,199 +16498,12 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 
           function bindDeenGuide() {
             const thread = $('#guide-thread');
-            const pendingAttachments = [];
-            let selectedSearchMode = null;
-            let guideRequestVersion = 0;
-            let activeRecognition = null;
-            let recognitionShouldContinue = false;
-            let preferAudioRecorder = false;
-            let activeRecorder = null;
-            let activeMicStream = null;
-            let recordingTimeout = null;
-            let requestingMicrophone = false;
-
-            const renderSearchMode = () => {
-              const indicator = $('#guide-mode-indicator');
-              const menu = $('#guide-attach-menu');
-              if (!indicator) return;
-              indicator.replaceChildren();
-              indicator.classList.toggle('active', Boolean(selectedSearchMode));
-              if (menu) {
-                menu.querySelectorAll('[data-guide-mode]').forEach(option => {
-                  const selected = option.dataset.guideMode === selectedSearchMode;
-                  option.classList.toggle('selected', selected);
-                  option.setAttribute('aria-pressed', String(selected));
-                });
-              }
-              if (!selectedSearchMode) return;
-              const chip = document.createElement('div');
-              chip.className = 'guide-mode-chip web';
-              const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-              icon.setAttribute('viewBox', '0 0 24 24');
-              icon.setAttribute('aria-hidden', 'true');
-              const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-              circle.setAttribute('cx', '12');
-              circle.setAttribute('cy', '12');
-              circle.setAttribute('r', '9');
-              const detail = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-              detail.setAttribute('d', 'M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18');
-              icon.append(circle, detail);
-              const label = document.createElement('span');
-              label.textContent = 'Web search';
-              const clear = document.createElement('button');
-              clear.type = 'button';
-              clear.textContent = '×';
-              clear.setAttribute('aria-label', `Turn off ${label.textContent}`);
-              clear.onclick = () => {
-                selectedSearchMode = null;
-                renderSearchMode();
-              };
-              chip.append(icon, label, clear);
-              indicator.appendChild(chip);
-            };
-
-            const renderAttachments = () => {
-              const list = $('#guide-attachments');
-              if (!list) return;
-              list.replaceChildren();
-              pendingAttachments.forEach((file, index) => {
-                const chip = document.createElement('div');
-                chip.className = 'guide-attachment-chip';
-                const name = document.createElement('span');
-                name.textContent = file.name;
-                name.title = file.name;
-                const remove = document.createElement('button');
-                remove.type = 'button';
-                remove.setAttribute('aria-label', `Remove ${file.name}`);
-                remove.textContent = '×';
-                remove.onclick = () => {
-                  pendingAttachments.splice(index, 1);
-                  renderAttachments();
-                };
-                chip.append(name, remove);
-                list.appendChild(chip);
-              });
-            };
-
-            const addAttachment = file => {
-              if (!file) return;
-              if (pendingAttachments.length >= 6) {
-                toast("You've reached the 6-file limit. Remove one attachment to add another.");
-                return;
-              }
-              const extension = file.name.split('.').pop().toLowerCase();
-              const isImage = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
-                ['png', 'jpg', 'jpeg', 'webp'].includes(extension);
-              const isDocument = ['pdf', 'docx', 'txt', 'md', 'csv'].includes(extension);
-              if (!isImage && !isDocument) {
-                toast('Choose a PNG, JPG, WebP, PDF, DOCX, TXT, MD or CSV file.');
-                return;
-              }
-              if (file.size > 20 * 1024 * 1024) {
-                toast(`${file.name} is too large. Choose a file under 20 MB.`);
-                return;
-              }
-              pendingAttachments.push(file);
-              renderAttachments();
-            };
-
-            const loadDocumentText = async file => {
-              const extension = file.name.split('.').pop().toLowerCase();
-              if (['txt', 'md', 'csv'].includes(extension)) {
-                return { text: await file.text(), images: [] };
-              }
-              if (extension === 'pdf') {
-                const pdfjs = await import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs');
-                pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
-                const pdf = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
-                if (pdf.numPages > 50) throw new Error('PDF is over the 50-page reading limit.');
-                const pages = [];
-                for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
-                  const page = await pdf.getPage(pageNumber);
-                  const content = await page.getTextContent();
-                  pages.push(content.items.map(item => item.str || '').join(' '));
-                }
-                const text = pages.join('\n').slice(0, 40000);
-                if (text.trim()) return { text, images: [] };
-
-                const images = [];
-                for (let pageNumber = 1; pageNumber <= Math.min(pdf.numPages, 3); pageNumber++) {
-                  const page = await pdf.getPage(pageNumber);
-                  const baseViewport = page.getViewport({ scale: 1 });
-                  const scale = Math.min(1.5, 1200 / baseViewport.width);
-                  const viewport = page.getViewport({ scale });
-                  const canvas = document.createElement('canvas');
-                  canvas.width = Math.ceil(viewport.width);
-                  canvas.height = Math.ceil(viewport.height);
-                  const context = canvas.getContext('2d');
-                  if (!context) throw new Error(`Could not render page ${pageNumber} of ${file.name}.`);
-                  await page.render({ canvasContext: context, viewport }).promise;
-                  const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.72));
-                  if (!blob || blob.size > 900000) {
-                    throw new Error(`Could not safely prepare page ${pageNumber} of ${file.name}.`);
-                  }
-                  const dataUrl = await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = () => reject(new Error(`Could not read page ${pageNumber} of ${file.name}.`));
-                    reader.readAsDataURL(blob);
-                  });
-                  images.push({ name: `${file.name} (page ${pageNumber})`, dataUrl, sourceType: 'document-page' });
-                }
-                return {
-                  text: `This scanned PDF has no selectable text. Review the attached rendered page images.${pdf.numPages > 3 ? ' Only the first 3 pages are included.' : ''}`,
-                  images
-                };
-              }
-              if (extension === 'docx') {
-                const mammothModule = await import('https://cdn.jsdelivr.net/npm/mammoth@1.9.0/+esm');
-                const mammoth = mammothModule.default || mammothModule;
-                const result = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
-                return { text: result.value.slice(0, 40000), images: [] };
-              }
-              throw new Error(`Unsupported document type: ${file.name}`);
-            };
-
-            const imageAsDataUrl = async file => {
-              if (typeof createImageBitmap !== 'function') {
-                if (file.size > 1500000) throw new Error(`${file.name} is too large to attach in this browser.`);
-                return new Promise((resolve, reject) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result);
-                  reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-                  reader.readAsDataURL(file);
-                });
-              }
-              const bitmap = await createImageBitmap(file);
-              const scale = Math.min(1, 1600 / Math.max(bitmap.width, bitmap.height));
-              const canvas = document.createElement('canvas');
-              canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-              canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-              const context = canvas.getContext('2d');
-              if (!context) {
-                bitmap.close();
-                throw new Error('This browser could not prepare the attached image.');
-              }
-              context.fillStyle = '#fff';
-              context.fillRect(0, 0, canvas.width, canvas.height);
-              context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-              bitmap.close();
-              const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.84));
-              if (!blob) throw new Error(`Could not prepare ${file.name}.`);
-              if (blob.size > 2500000) throw new Error(`${file.name} is too large after compression.`);
-              return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => reject(new Error(`Could not read ${file.name}.`));
-                reader.readAsDataURL(blob);
-              });
-            };
 
             const scrollThread = () => {
               if (thread) thread.scrollTop = thread.scrollHeight;
             };
 
-           const appendMessage = (role, text, sources = []) => {
+           const appendMessage = (role, text) => {
   if (!thread) return;
   const empty = thread.querySelector('.empty');
   if (empty) empty.remove();
@@ -17126,7 +16530,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 
     const formatText = (value) => {
       return escapeHTML(value)
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">$1</a>')
         .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--tx);font-weight:600;">$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/`(.*?)`/g, '<code>$1</code>');
@@ -17185,37 +16588,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
         box.addEventListener('change', updateCount);
       });
     }
-
-    const validSources = Array.isArray(sources) ? sources.filter(source => {
-      try {
-        return typeof source.url === 'string' && new URL(source.url).protocol === 'https:';
-      } catch {
-        return false;
-      }
-    }) : [];
-    if (validSources.length) {
-      const sourceSection = document.createElement('div');
-      sourceSection.style.cssText = 'display:grid;gap:7px;margin-top:14px;padding-top:10px;border-top:1px solid var(--border);';
-      const heading = document.createElement('strong');
-      heading.textContent = 'Sources';
-      heading.style.cssText = 'font-size:12px;color:var(--tx);';
-      sourceSection.appendChild(heading);
-      validSources.forEach(source => {
-        const url = new URL(source.url);
-        const link = document.createElement('a');
-        link.href = url.toString();
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-        link.textContent = source.title || url.hostname;
-        link.style.cssText = 'display:grid;gap:2px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;color:var(--green-l);font-size:12px;text-decoration:none;background:var(--card);';
-        const domain = document.createElement('small');
-        domain.textContent = url.hostname;
-        domain.style.cssText = 'color:var(--tx3);font-size:11px;';
-        link.appendChild(domain);
-        sourceSection.appendChild(link);
-      });
-      div.appendChild(sourceSection);
-    }
   }
 
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -17227,8 +16599,6 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
 };
 
             let thinkingEl = null;
-            let retryStatusEl = null;
-            let guideStageTimers = [];
             const showThinking = (stage) => {
               if (!thread) return;
               if (!thinkingEl) {
@@ -17248,44 +16618,13 @@ div:has(> #guide-input)#guide-composer-controls:focus-within {
               if (thinkingEl && thinkingEl.parentNode) thinkingEl.parentNode.removeChild(thinkingEl);
               thinkingEl = null;
             };
-            const showRetryStatus = (message) => {
-              if (!thread) return;
-              if (!retryStatusEl) {
-                retryStatusEl = document.createElement('div');
-                retryStatusEl.id = 'guide-retry-status';
-                retryStatusEl.style.cssText = 'align-self:flex-start;flex-shrink:0;max-width:85%;background:var(--card-el);padding:11px 14px;border-radius:14px;font-size:13px;color:var(--tx2);display:flex;align-items:center;gap:8px;border-left:2px solid var(--gold);';
-                retryStatusEl.innerHTML = '<div style="width:11px;height:11px;border:2px solid var(--tx3);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div><span></span>';
-                thread.appendChild(retryStatusEl);
-              }
-              const label = retryStatusEl.querySelector('span');
-              if (label) label.textContent = message;
-              scrollThread();
-            };
-            const hideRetryStatus = () => {
-              if (retryStatusEl && retryStatusEl.parentNode) retryStatusEl.parentNode.removeChild(retryStatusEl);
-              retryStatusEl = null;
-            };
-            const clearGuideStageTimers = () => {
-              guideStageTimers.forEach(timer => window.clearTimeout(timer));
-              guideStageTimers = [];
-            };
-            const scheduleGuideStage = (delay, message, requestVersion) => {
-              guideStageTimers.push(window.setTimeout(() => {
-                if (requestVersion === guideRequestVersion && S.guideThinking && !retryStatusEl) {
-                  showThinking(message);
-                }
-              }, delay));
-            };
 
        
 const setInputBusy = (busy) => {
   const inp = document.getElementById('guide-input');
   const btn = document.getElementById('guide-send');
-  const blockedUntil = Number(localStorage.getItem('guide_blocked_until') || 0);
-  const isOverallLimitActive = localStorage.getItem('guide_block_reason') === 'overall-ai-limit' &&
-    blockedUntil > Date.now();
 
-  // Keep the text box editable even while sending is blocked.
+  // NEVER disable the typing area
   if (inp) {
     inp.disabled = false;
     inp.readOnly = false;
@@ -17293,102 +16632,10 @@ const setInputBusy = (busy) => {
     inp.style.cursor = 'text';
   }
 
-  // Disable Send while generating or during an overall provider quota lock.
+  // Only disable Send while generating
   if (btn) {
-    btn.disabled = busy || isOverallLimitActive;
-    const label = btn.querySelector('span');
-    if (label) label.textContent = busy ? 'Thinking...' : 'Send';
-  }
-};
-
-const parseRetryAfterMs = (value) => {
-  if (value === null || value === undefined) return null;
-  const raw = String(value).trim();
-  if (!raw) return null;
-  const seconds = Number(raw);
-  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
-  const durationParts = [...raw.matchAll(/(\d+(?:\.\d+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)/gi)];
-  if (durationParts.length &&
-    durationParts.map(part => part[0].replace(/\s+/g, '')).join('').toLowerCase() === raw.replace(/\s+/g, '').toLowerCase()) {
-    return durationParts.reduce((total, part) => {
-      const unit = part[2].toLowerCase();
-      const factor = /^(?:ms|millisecond)/.test(unit) ? 1
-        : /^(?:s|sec)/.test(unit) ? 1000
-          : /^(?:m|min)/.test(unit) ? 60000
-            : 3600000;
-      return total + Number(part[1]) * factor;
-    }, 0);
-  }
-  const retryAt = Date.parse(raw);
-  return Number.isFinite(retryAt) ? Math.max(0, retryAt - Date.now()) : null;
-};
-
-const requestGuideJson = async (url, options, serviceName, requestVersion) => {
-  let attempt = 0;
-  while (true) {
-    if (requestVersion !== guideRequestVersion) return null;
-
-    let response;
-    try {
-      response = await fetch(url, options);
-    } catch (error) {
-      if (attempt > 0) throw new Error(`${serviceName} could not be reached. Check your connection and try again.`);
-      const retryDelay = 2000;
-      showRetryStatus('Please wait a moment…');
-      await new Promise(resolve => window.setTimeout(resolve, retryDelay));
-      if (requestVersion !== guideRequestVersion) {
-        hideRetryStatus();
-        return null;
-      }
-      hideRetryStatus();
-      attempt++;
-      continue;
-    }
-
-    let data;
-    try {
-      data = await response.json();
-    } catch {
-      data = {};
-    }
-    if (requestVersion !== guideRequestVersion) return null;
-    if (response.ok && !data.error) return data;
-
-    const providerError = data.error;
-    const error = new Error(
-      typeof providerError === 'string'
-        ? providerError
-        : providerError?.message || data.message || `${serviceName} request failed.`
-    );
-    error.status = response.status;
-    error.serviceName = serviceName;
-    error.retryAfterMs =
-      parseRetryAfterMs(response.headers.get('Retry-After')) ??
-      parseRetryAfterMs(data.retryAfter) ??
-      parseRetryAfterMs(data.retry_after) ??
-      parseRetryAfterMs(error.message.match(/(?:try again|retry)\s+(?:in|after)\s+(\d+(?:\.\d+)?\s*(?:milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h))/i)?.[1]);
-
-    const canRetry = response.status === 429 || [502, 503, 504].includes(response.status);
-    if (attempt > 0 || !canRetry) throw error;
-    if (response.status === 429 && error.retryAfterMs !== null && error.retryAfterMs > 60000) {
-      throw error;
-    }
-
-    const retryDelay = error.retryAfterMs ??
-      (response.status === 429 ? 5000 : 2000);
-    const retryMessage = retryDelay <= 5000
-      ? 'Please wait a moment…'
-      : retryDelay <= 15000
-        ? 'The service is taking a little longer. Please wait…'
-        : 'Please wait a few more seconds while I reconnect…';
-    showRetryStatus(retryMessage);
-    await new Promise(resolve => window.setTimeout(resolve, retryDelay));
-    if (requestVersion !== guideRequestVersion) {
-      hideRetryStatus();
-      return null;
-    }
-    hideRetryStatus();
-    attempt++;
+    btn.disabled = busy;
+    btn.textContent = busy ? 'Thinking...' : 'Send';
   }
 };
 
@@ -17411,259 +16658,108 @@ const requestGuideJson = async (url, options, serviceName, requestVersion) => {
               if (!hasAssistant && existing) existing.remove();
             };
 
-            const clearOverallGuideLimit = () => {
-              if (window.__guideRateLimitUnlockTimer) {
-                window.clearTimeout(window.__guideRateLimitUnlockTimer);
-                window.__guideRateLimitUnlockTimer = null;
-              }
-              localStorage.removeItem('guide_blocked_until');
-              localStorage.removeItem('guide_block_reason');
-              S.guideMsgs = (S.guideMsgs || []).filter(message => !message.overallLimitNotice);
-              setJSON('guide-history', S.guideMsgs).catch(error =>
-                console.error('Could not clear the expired Deen Guide limit notice:', error));
-              setInputBusy(S.guideThinking);
-              ensureClearButton();
-            };
-
-            const scheduleGuideRateLimitUnlock = () => {
-              if (window.__guideRateLimitUnlockTimer) {
-                window.clearTimeout(window.__guideRateLimitUnlockTimer);
-                window.__guideRateLimitUnlockTimer = null;
-              }
-              const blockedUntil = Number(localStorage.getItem('guide_blocked_until') || 0);
-              const remaining = blockedUntil - Date.now();
-              if (localStorage.getItem('guide_block_reason') !== 'overall-ai-limit' || remaining <= 0) {
-                if (blockedUntil || localStorage.getItem('guide_block_reason')) clearOverallGuideLimit();
-                else setInputBusy(S.guideThinking);
-                return;
-              }
-              setInputBusy(S.guideThinking);
-              window.__guideRateLimitUnlockTimer = window.setTimeout(
-                clearOverallGuideLimit,
-                remaining
-              );
-            };
-
             const send = async (forcedText) => {
               if (S.guideThinking) return;
-              const blockedUntil = Number(localStorage.getItem('guide_blocked_until') || 0);
-              if (localStorage.getItem('guide_block_reason') === 'overall-ai-limit' && blockedUntil > Date.now()) {
-                toast(`The overall AI limit is active. Try again in ${formatGuideRetryDelay(blockedUntil - Date.now())}.`);
-                return;
+
+            // --- CHECK IF THE 1-HOUR TIMER IS ACTIVE ---
+              const blockedUntil = parseInt(localStorage.getItem('guide_blocked_until') || '0', 10);
+              if (Date.now() < blockedUntil) {
+                const minsLeft = Math.ceil((blockedUntil - Date.now()) / 60000);
+                toast(`Please wait ${minsLeft} minutes, or click "Clear chat" to reset.`);
+                return; // Stops the message from sending
               }
-              if (blockedUntil) scheduleGuideRateLimitUnlock();
-              const requestVersion = ++guideRequestVersion;
+              // -------------------------------------------
 
               const inp = $('#guide-input');
               const text = (forcedText || (inp ? inp.value : '')).trim();
-              const attachments = pendingAttachments.slice();
-              const researchMode = selectedSearchMode;
-              if (!text && !attachments.length) return;
-
-              const images = [];
-              const documents = [];
-              try {
-                for (const file of attachments) {
-                  const extension = file.name.split('.').pop().toLowerCase();
-                  const isImage = ['image/png', 'image/jpeg', 'image/webp'].includes(file.type) ||
-                    ['png', 'jpg', 'jpeg', 'webp'].includes(extension);
-                  if (isImage) {
-                    images.push({ name: file.name, dataUrl: await imageAsDataUrl(file), sourceType: 'photo' });
-                  } else {
-                    const content = await loadDocumentText(file);
-                    documents.push({ name: file.name, text: content.text });
-                    images.push(...content.images);
-                  }
-                }
-                if (images.length > 3) {
-                  throw new Error('You can analyze up to 3 images per message. Remove extra images or send them in a separate message.');
-                }
-                if (images.reduce((size, image) => size + image.dataUrl.length, 0) > 2800000) {
-                  throw new Error('Together, the attached images are too large. Remove an image and try again.');
-                }
-              } catch (attachmentError) {
-                if (requestVersion !== guideRequestVersion) return;
-                console.error('Deen Guide attachment error:', attachmentError);
-                toast(attachmentError.message || 'Could not read the attachment.');
-                return;
-              }
-              if (requestVersion !== guideRequestVersion) return;
-
-              const photoImages = images.filter(image => image.sourceType === 'photo');
-              const question = text || (photoImages.length && documents.length
-                ? 'Analyze each attached photo and document separately, explaining only its Islamic content.'
-                : photoImages.length
-                  ? 'Read the attached photo and explain any Islamic content in it. Ignore unrelated interface text.'
-                  : 'Read the attached document and explain any Islamic content in it.');
-              let modelText = question;
-              let remainingDocumentChars = 40000;
-              documents.forEach(document => {
-                const excerpt = document.text.slice(0, remainingDocumentChars);
-                remainingDocumentChars -= excerpt.length;
-                modelText += `\n\nAttached document: ${document.name}\n${excerpt}`;
-                if (excerpt.length < document.text.length) {
-                  modelText += '\n[Document text shortened to fit the message limit.]';
-                }
-              });
-              if (attachments.length) {
-                modelText += '\n\nAttachment task: identify and explain any Islamic content. Translate readable Arabic. For Qur\'an, give the surah and ayah; for Hadith, give its collection and number only when confidently verified. If no Islamic content is present, begin with a one-line notice that the attachment is not related to Islamic content and do not summarize unrelated material. Never guess unclear text or references.';
-              }
-              if (photoImages.length) {
-                modelText += `\n\nPhoto-only analysis: examine the photo content in ${photoImages.map(image => image.name).join(', ')}. Ignore app UI, menus, navigation, and unrelated text visible around the subject.`;
-              }
-              if (documents.length) {
-                modelText += `\n\nDocument-only analysis: use the extracted text and rendered pages from ${documents.map(document => document.name).join(', ')}. Do not describe unrelated UI or infer content from filenames.`;
-              }
-              if (researchMode === 'web') {
-                modelText += '\n\nWeb search mode: provide a useful, detailed answer grounded in the relevant live web results supplied with this request. Prioritize primary Islamic sources and recognized scholarship, but use other relevant sources for context. Cite supported claims inline as [Source title](URL). If the results are insufficient, explain the gap instead of filling it from memory.';
-              }
-              const visibleText = [
-                text,
-                attachments.length ? `Attached: ${attachments.map(file => file.name).join(', ')}` : ''
-              ].filter(Boolean).join('\n');
-
-              if (inp) {
-                inp.value = '';
-                inp.style.height = '42px';
-              }
-              pendingAttachments.splice(0, pendingAttachments.length);
-              renderAttachments();
-              selectedSearchMode = null;
-              renderSearchMode();
-              const attachMenu = $('#guide-attach-menu');
-              if (attachMenu) attachMenu.classList.remove('open');
-              const attachButton = $('#guide-attach');
-              if (attachButton) attachButton.setAttribute('aria-expanded', 'false');
+              if (!text) return;
+              if (inp) inp.value = '';
 
               S.guideMsgs = S.guideMsgs || [];
-              S.guideMsgs.push({ role: 'user', text: visibleText });
+              S.guideMsgs.push({ role: 'user', text });
 
-              appendMessage('user', visibleText);
+              appendMessage('user', text);
               S.guideThinking = true;
               setInputBusy(true);
               ensureClearButton();
 
               setJSON('guide-history', S.guideMsgs).catch(() => {});
 
-              clearGuideStageTimers();
-              if (researchMode) {
-                showThinking('Analyzing your question…');
-              } else {
-                scheduleGuideStage(1800, 'Thinking longer than usual…', requestVersion);
-                scheduleGuideStage(6000, 'Still working on your answer…', requestVersion);
-                scheduleGuideStage(12000, "Just a moment, I'm working on your answer…", requestVersion);
-              }
+              showThinking('Analyzing question...');
 
               try {
-                let webContext = 'No web search was requested for this message.';
-                let webSources = [];
-                if (researchMode) {
-                  await new Promise(resolve => window.setTimeout(resolve, 300));
-                  if (requestVersion !== guideRequestVersion) return;
-                  showThinking('Searching the web for relevant information…');
-                  scheduleGuideStage(8000, 'This is taking a little longer while I check reliable sources…', requestVersion);
-                  const searchQuery = (text || question).slice(0, 1000);
-                  const searchData = await requestGuideJson('/api/search', {
+                showThinking('Searching the web for Islamic sources...');
+                let webContext = '';
+                try {
+                  const tavilyResp = await fetch('/api/search', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query: searchQuery, mode: researchMode })
-                  }, 'Web Search', requestVersion);
-                  clearGuideStageTimers();
-                  if (requestVersion !== guideRequestVersion) return;
-                  if (!Array.isArray(searchData.results) || !searchData.results.length) {
-                    throw new Error('No matching Islamic web sources were found. Try a more specific question.');
+                    body: JSON.stringify({ query: text })
+                  });
+                  const tavilyData = await tavilyResp.json();
+                  if (tavilyData.results && tavilyData.results.length > 0) {
+                    webContext = tavilyData.results.map(r =>
+                      `Source: ${r.url}\nTitle: ${r.title}\nContent: ${r.content}`
+                    ).join('\n\n');
                   }
-                  webSources = searchData.results.map(({ title, url }) => ({ title, url }));
-                  webContext = searchData.results.map((result, index) =>
-                    `Source ${index + 1}\nTitle: ${result.title}\nURL: ${result.url}\nContent: ${result.content}`
-                  ).join('\n\n');
-                  if (searchData.warning) webContext += `\n\nSearch note: ${searchData.warning}`;
-                  showThinking('Reviewing information from multiple sources…');
+                } catch (webErr) {
+                  console.warn('Web search failed:', webErr);
+                  webContext = 'No live web results available.';
                 }
 
-                if (researchMode) showThinking('Preparing your answer…');
+                showThinking('Reading sources & formulating answer...');
 
-                const history = S.guideMsgs
-                  .filter(message => !message.requestError && !message.rateLimitNotice)
-                  .slice(-10)
-                  .map(message => ({
-                    role: message.role,
-                    content: message.text.replace(/\nMode: (?:Deep research|Web search)\s*$/, '')
-                  }));
+                const history = S.guideMsgs.slice(-10).map(m => ({ role: m.role, content: m.text }));
+
                 const forcedInstruction = `\n\n[SYSTEM NOTE: The user wants the exact number of items requested. If they asked for 100, list 100. If they asked for more than 500 lines, politely explain the limit and offer to do it in batches.]`;
-                const currentMessage = history[history.length - 1];
-                const currentText = modelText + forcedInstruction;
-                currentMessage.content = images.length
-                  ? [
-                    { type: 'text', text: currentText },
-                    ...images.map(image => ({
-                      type: 'image_url',
-                      image_url: { url: image.dataUrl }
-                    }))
-                  ]
-                  : currentText;
 
-                const data = await requestGuideJson('/api/guide', {
+                const resp = await fetch('/api/guide', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
-                    systemPrompt: GUIDE_SYSTEM_PROMPT,
-                    webContext,
-                    messages: history
+                    messages: [
+                      { role: 'system', content: GUIDE_SYSTEM_PROMPT },
+                      { role: 'system', content: `Web Research Results:\n${webContext}` },
+                      ...history,
+                      { role: 'user', content: text + forcedInstruction }
+                    ]
                   })
-                }, 'Deen Guide AI', requestVersion);
-                if (requestVersion !== guideRequestVersion) return;
+                });
+                
+                const data = await resp.json();
+                if (data.error) throw new Error('Groq API error: ' + (data.error.message || JSON.stringify(data.error)));
                 const out = data.choices?.[0]?.message?.content?.trim() || "I couldn't generate a response.";
 
-                clearGuideStageTimers();
-                hideRetryStatus();
                 hideThinking();
                 S.guideThinking = false;
                 S.guideThinkStage = '';
-                S.guideMsgs.push({ role: 'assistant', text: out, sources: webSources });
-                appendMessage('assistant', out, webSources);
+                S.guideMsgs.push({ role: 'assistant', text: out });
+                appendMessage('assistant', out);
                 setInputBusy(false);
                 ensureClearButton();
 
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
                 
               } catch (e) {
-                if (requestVersion !== guideRequestVersion) return;
                 console.error('Deen Guide error:', e);
-                clearGuideStageTimers();
-                hideRetryStatus();
                 hideThinking();
                 S.guideThinking = false;
                 S.guideThinkStage = '';
                 
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
-                if (e.status === 429) {
-                  const overallLimit = Number.isFinite(e.retryAfterMs) && e.retryAfterMs >= 3600000;
-                  if (overallLimit) {
-                    localStorage.setItem('guide_blocked_until', String(Date.now() + e.retryAfterMs));
-                    localStorage.setItem('guide_block_reason', 'overall-ai-limit');
-                    errMsg = `The AI service has reached its usage limit. Please try again in ${formatGuideRetryDelay(e.retryAfterMs)}.`;
-                  } else {
-                    const modeLabel = researchMode === 'web' && e.serviceName === 'Web Search'
-                      ? 'Web Search'
-                      : 'Deen Guide AI';
-                    const retryHint = e.retryAfterMs
-                      ? ` Try again in ${formatGuideRetryDelay(e.retryAfterMs)}.`
-                      : ' Please try again shortly.';
-                    errMsg = `${modeLabel} is temporarily rate-limited.${retryHint} This request did not lock the chat.`;
-                  }
-                }
 
-                S.guideMsgs.push({
-                  role: 'assistant',
-                  text: errMsg,
-                  requestError: true,
-                  overallLimitNotice: e.status === 429 &&
-                    localStorage.getItem('guide_block_reason') === 'overall-ai-limit'
-                });
+                // --- IF ERROR IS A RATE LIMIT, SAVE THE 1-HOUR TIMER ---
+                if (errMsg.includes('Rate limit') || errMsg.includes('rate limit') || errMsg.includes('tokens per minute')) {
+                  const unblockTime = Date.now() + (60 * 60 * 1000); 
+                  localStorage.setItem('guide_blocked_until', unblockTime);
+                  
+                  errMsg = `I am receiving too many messages right now. The system limit has been reached. Please try again in 60 minutes, or click "Clear chat" above to start a fresh conversation.`;
+                }
+                // -------------------------------------------------------
+
+                S.guideMsgs.push({ role: 'assistant', text: errMsg });
                 appendMessage('assistant', errMsg);
                 setInputBusy(false);
-                scheduleGuideRateLimitUnlock();
                 ensureClearButton();
                 setJSON('guide-history', S.guideMsgs).catch(() => {});
               }
@@ -17673,77 +16769,33 @@ const requestGuideJson = async (url, options, serviceName, requestVersion) => {
             };
 
             const clearChat = async () => {
-              guideRequestVersion++;
-              clearGuideStageTimers();
-              hideRetryStatus();
-              const blockedUntil = Number(localStorage.getItem('guide_blocked_until') || 0);
-              const overallLimitActive = localStorage.getItem('guide_block_reason') === 'overall-ai-limit' &&
-                blockedUntil > Date.now();
-              const existingLimitNotice = (S.guideMsgs || []).find(message => message.overallLimitNotice);
-              if (!overallLimitActive) {
-                if (window.__guideRateLimitUnlockTimer) {
-                  window.clearTimeout(window.__guideRateLimitUnlockTimer);
-                  window.__guideRateLimitUnlockTimer = null;
-                }
-                localStorage.removeItem('guide_blocked_until');
-                localStorage.removeItem('guide_block_reason');
-                S.guideMsgs = [];
-              } else {
-                S.guideMsgs = [existingLimitNotice || {
-                  role: 'assistant',
-                  text: `The AI service has reached its usage limit. Please try again in ${formatGuideRetryDelay(blockedUntil - Date.now())}.`,
-                  requestError: true,
-                  overallLimitNotice: true
-                }];
-              }
+              // --- CRITICAL FIX: THIS REMOVES THE 1-HOUR TIMER ---
+              localStorage.removeItem('guide_blocked_until');
+              // ---------------------------------------------------
+
+              S.guideMsgs = [];
               S.guideThinking = false;
               S.guideThinkStage = '';
               hideThinking();
-              pendingAttachments.splice(0, pendingAttachments.length);
-              renderAttachments();
-              selectedSearchMode = null;
-              renderSearchMode();
-              const input = $('#guide-input');
-              if (input) {
-                input.value = '';
-                input.style.height = '42px';
-              }
-              const attachMenu = $('#guide-attach-menu');
-              if (attachMenu) attachMenu.classList.remove('open');
-              const attachButton = $('#guide-attach');
-              if (attachButton) attachButton.setAttribute('aria-expanded', 'false');
 
               if (thread) {
-                thread.innerHTML = overallLimitActive ? '' : `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
+                                thread.innerHTML = `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
                   <div class="guide-suggestions-title">Try asking:</div>
                   <button class="btn-text guide-suggestion" data-guide-chip="What is the reward for forgiveness in Islam?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What is the reward for forgiveness?</button>
                   <button class="btn-text guide-suggestion" data-guide-chip="How to pray Tahajjud?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• How to pray Tahajjud?</button>
                   <button class="btn-text guide-suggestion" data-guide-chip="What does the Quran say about patience?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What does the Quran say about patience?</button>
                 </div>`;
-                if (overallLimitActive) {
-                  appendMessage('assistant', S.guideMsgs[0].text);
-                } else {
-                  thread.querySelectorAll('[data-guide-chip]').forEach(c =>
-                    c.onclick = () => send(c.dataset.guideChip));
-                }
+                thread.querySelectorAll('[data-guide-chip]').forEach(c =>
+                  c.onclick = () => send(c.dataset.guideChip));
               }
 
               const cb = $('#guide-clear');
-              if (cb && !overallLimitActive) cb.remove();
+              if (cb) cb.remove();
 
               setInputBusy(false);
-              if (input) {
-                input.disabled = false;
-                input.readOnly = false;
-                input.focus();
-              }
               toast('Chat cleared.');
 
-              setJSON('guide-history', S.guideMsgs).catch(() => {});
-              if (overallLimitActive) {
-                scheduleGuideRateLimitUnlock();
-                ensureClearButton();
-              }
+              setJSON('guide-history', []).catch(() => {});
             };
 
          const btn = $('#guide-send');
@@ -17751,287 +16803,8 @@ if (btn) btn.onclick = () => send();
 
 const inp = $('#guide-input');
 const composer = $('#guide-composer');
-const attachButton = $('#guide-attach');
-const attachMenu = $('#guide-attach-menu');
-const allFilePicker = $('#guide-all-file');
-const micButton = $('#guide-mic');
-const defaultGuidePlaceholder = inp ? inp.placeholder : 'Ask Deen Guide...';
-
-const resetMicUI = () => {
-  if (!micButton) return;
-  micButton.classList.remove('listening');
-  micButton.setAttribute('aria-label', 'Speak your message');
-  micButton.title = 'Speak your message';
-  micButton.disabled = false;
-  if (inp) inp.placeholder = defaultGuidePlaceholder;
-};
-
-if (attachButton && attachMenu) {
-  attachButton.onclick = () => {
-    const isOpen = attachMenu.classList.toggle('open');
-    attachButton.setAttribute('aria-expanded', String(isOpen));
-  };
-  attachMenu.querySelectorAll('[data-guide-file]').forEach(option => {
-    option.onclick = () => {
-      attachMenu.classList.remove('open');
-      attachButton.setAttribute('aria-expanded', 'false');
-      if (allFilePicker) allFilePicker.click();
-    };
-  });
-  attachMenu.querySelectorAll('[data-guide-mode]').forEach(option => {
-    option.onclick = () => {
-      const mode = option.dataset.guideMode;
-      selectedSearchMode = selectedSearchMode === mode ? null : mode;
-      renderSearchMode();
-      attachMenu.classList.remove('open');
-      attachButton.setAttribute('aria-expanded', 'false');
-    };
-  });
-}
-
-if (!document.documentElement.dataset.guideAttachDismissBound) {
-  document.documentElement.dataset.guideAttachDismissBound = 'true';
-  document.addEventListener('pointerdown', event => {
-    const controls = document.getElementById('guide-composer-controls');
-    const menu = document.getElementById('guide-attach-menu');
-    const button = document.getElementById('guide-attach');
-    const clickedInsideControls = controls && controls.contains(event.target);
-    if (!clickedInsideControls && controls && controls.contains(document.activeElement)) {
-      document.activeElement.blur();
-    }
-    if (!menu || !menu.classList.contains('open')) return;
-    if (menu.contains(event.target) || (button && button.contains(event.target))) return;
-    menu.classList.remove('open');
-    if (button) button.setAttribute('aria-expanded', 'false');
-  });
-}
-
-if (allFilePicker) {
-  allFilePicker.onchange = () => {
-    Array.from(allFilePicker.files || []).forEach(addAttachment);
-    allFilePicker.value = '';
-  };
-}
-
-if (micButton) {
-  micButton.onclick = async () => {
-    if (activeRecognition) {
-      recognitionShouldContinue = false;
-      activeRecognition.stop();
-      return;
-    }
-    if (activeRecorder) {
-      if (activeRecorder.state === 'recording') activeRecorder.stop();
-      return;
-    }
-    if (requestingMicrophone) return;
-    if (!window.isSecureContext) {
-      toast('Microphone access requires a secure HTTPS connection.');
-      return;
-    }
-
-    const Recognition = preferAudioRecorder ? null : window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (Recognition) {
-      const recognition = new Recognition();
-      const startingText = inp ? inp.value : '';
-      let finalTranscript = '';
-      activeRecognition = recognition;
-      recognitionShouldContinue = true;
-      micButton.classList.add('listening');
-      micButton.setAttribute('aria-label', 'Stop recording');
-      micButton.title = 'Stop recording';
-      if (inp) inp.placeholder = 'Listening... speak now';
-      recognition.lang = navigator.language || 'en-US';
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.onresult = event => {
-        let interimTranscript = '';
-        for (let index = event.resultIndex; index < event.results.length; index++) {
-          const result = event.results[index];
-          const phrase = result[0].transcript.trim();
-          if (result.isFinal) finalTranscript += `${finalTranscript && phrase ? ' ' : ''}${phrase}`;
-          else interimTranscript += `${interimTranscript && phrase ? ' ' : ''}${phrase}`;
-        }
-        const spokenText = `${finalTranscript}${interimTranscript}`.trim();
-        if (!inp || !spokenText) return;
-        inp.value = `${startingText}${startingText && spokenText ? ' ' : ''}${spokenText}`;
-        inp.dispatchEvent(new Event('input', { bubbles: true }));
-        inp.focus();
-        inp.setSelectionRange(inp.value.length, inp.value.length);
-      };
-      recognition.onerror = event => {
-        if (event.error === 'no-speech') {
-          toast('Still listening. Speak when ready.');
-          return;
-        }
-        recognitionShouldContinue = false;
-        if (event.error === 'network') {
-          if (location.protocol === 'file:') {
-            toast('Voice typing needs the HTTPS app. This local file cannot reach the transcription service.');
-            return;
-          }
-          preferAudioRecorder = true;
-          toast('Live voice typing is unavailable. Tap the mic again to record, then tap it to transcribe.');
-          return;
-        }
-        const message = event.error === 'not-allowed' || event.error === 'service-not-allowed'
-          ? 'Allow microphone access in your browser settings, then try again.'
-          : `Voice typing failed: ${event.error}.`;
-        toast(message);
-      };
-      recognition.onend = () => {
-        if (recognitionShouldContinue && activeRecognition === recognition) {
-          window.setTimeout(() => {
-            if (recognitionShouldContinue && activeRecognition === recognition) {
-              try {
-                recognition.start();
-              } catch (error) {
-                console.error('Deen Guide speech recognition error:', error);
-                recognitionShouldContinue = false;
-                activeRecognition = null;
-                resetMicUI();
-              }
-            }
-          }, 250);
-          return;
-        }
-        if (activeRecognition === recognition) activeRecognition = null;
-        resetMicUI();
-      };
-      try {
-        recognition.start();
-        toast('Listening... speak now. Tap the mic to finish.');
-      } catch (error) {
-        recognitionShouldContinue = false;
-        activeRecognition = null;
-        resetMicUI();
-        console.error('Deen Guide speech recognition error:', error);
-        toast('Could not start voice typing. Please allow microphone access and try again.');
-      }
-      return;
-    }
-
-    if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      toast('Voice typing needs a browser with microphone recording. Try an up-to-date Chrome, Edge or Safari.');
-      return;
-    }
-
-    requestingMicrophone = true;
-    try {
-      activeMicStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const preferredMimeType = [
-        'audio/webm;codecs=opus',
-        'audio/webm',
-        'audio/mp4',
-        'audio/ogg;codecs=opus'
-      ].find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = preferredMimeType
-        ? new MediaRecorder(activeMicStream, { mimeType: preferredMimeType })
-        : new MediaRecorder(activeMicStream);
-      const audioChunks = [];
-      activeRecorder = recorder;
-      recorder.ondataavailable = event => {
-        if (event.data && event.data.size) audioChunks.push(event.data);
-      };
-      recorder.onerror = event => {
-        console.error('Deen Guide recording error:', event.error);
-        toast('Recording failed. Please check microphone access and try again.');
-      };
-      recorder.onstop = async () => {
-        if (recordingTimeout) window.clearTimeout(recordingTimeout);
-        recordingTimeout = null;
-        activeRecorder = null;
-        if (activeMicStream) activeMicStream.getTracks().forEach(track => track.stop());
-        activeMicStream = null;
-        resetMicUI();
-
-        const recording = new Blob(audioChunks, { type: recorder.mimeType || 'audio/webm' });
-        if (!recording.size) {
-          toast('No audio was recorded. Please try again.');
-          return;
-        }
-
-        micButton.disabled = true;
-        toast('Transcribing your voice...');
-        try {
-          const audioDataUrl = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = () => reject(new Error('Could not read the voice recording.'));
-            reader.readAsDataURL(recording);
-          });
-          const audio = String(audioDataUrl).split(',')[1] || '';
-          const response = await fetch('/api/guide', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'transcribe',
-              audio,
-              mimeType: recording.type || recorder.mimeType
-            })
-          });
-          const result = await response.json();
-          if (!response.ok || result.error) {
-            throw new Error(result.error || 'Speech transcription failed.');
-          }
-          const transcript = (result.text || '').trim();
-          if (!transcript) {
-            toast('No speech was detected. Please try again.');
-            return;
-          }
-          if (inp) {
-            inp.value += `${inp.value && !/\s$/.test(inp.value) ? ' ' : ''}${transcript}`;
-            inp.dispatchEvent(new Event('input', { bubbles: true }));
-            inp.focus();
-          }
-          toast('Voice added to your message.');
-        } catch (error) {
-          console.error('Deen Guide transcription error:', error);
-          const message = location.protocol === 'file:' || error instanceof TypeError
-            ? 'Could not reach voice transcription. Open Deen Guide on its HTTPS site and check your connection.'
-            : error.message || 'Could not transcribe the recording.';
-          toast(message);
-        } finally {
-          micButton.disabled = false;
-        }
-      };
-      recorder.start(250);
-      micButton.classList.add('listening');
-      micButton.setAttribute('aria-label', 'Stop recording');
-      micButton.title = 'Stop recording';
-      if (inp) inp.placeholder = 'Listening... speak now';
-      toast('Listening... tap the mic again to finish.');
-      recordingTimeout = window.setTimeout(() => {
-        if (activeRecorder && activeRecorder.state === 'recording') {
-          toast('Recording stopped at 30 seconds.');
-          activeRecorder.stop();
-        }
-      }, 30000);
-    } catch (error) {
-      if (recordingTimeout) window.clearTimeout(recordingTimeout);
-      recordingTimeout = null;
-      if (activeMicStream) activeMicStream.getTracks().forEach(track => track.stop());
-      activeMicStream = null;
-      activeRecorder = null;
-      resetMicUI();
-      console.error('Deen Guide speech recognition error:', error);
-      const message = error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError'
-        ? 'Allow microphone access in your browser settings, then try again.'
-        : error.name === 'NotFoundError'
-          ? 'No microphone was found on this device.'
-          : error.message || 'Could not start voice typing.';
-      toast(message);
-    } finally {
-      requestingMicrophone = false;
-    }
-  };
-}
 
 if (inp) {
-  inp.oninput = () => {
-    inp.style.height = '42px';
-    inp.style.height = `${Math.min(inp.scrollHeight, 140)}px`;
-  };
   inp.onkeydown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -18047,7 +16820,6 @@ if (inp) {
             const clearBtn = $('#guide-clear');
             if (clearBtn) clearBtn.onclick = clearChat;
 
-            scheduleGuideRateLimitUnlock();
             scrollThread();
           }
           /* ============================= SCREEN ACTION BINDER ============================= */
