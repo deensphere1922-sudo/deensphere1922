@@ -17656,7 +17656,7 @@ const scheduleGuideRateLimitUnlock = () => {
                 let errMsg = 'Error: ' + (e.message || 'connection failed');
 
                 if (isRateLimitError(e)) {
-                  const retryDelay = e.retryAfter ? getRetryDelayMs(e) : 3600000;
+                  const retryDelay = 3600000;
                   const modeLabel = researchMode === 'deep' ? 'Deep Research'
                     : researchMode === 'web' ? 'Web Search'
                       : 'Deen Guide';
