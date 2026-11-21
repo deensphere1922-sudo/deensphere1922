@@ -1,153 +1,169 @@
-export const config = { maxDuration: 60 };
 
-const tavilyEndpoint = 'https://api.tavily.com/search';
+const ISLAMIC_SOURCE_DOMAINS = [
+  'quran.com',
+  'sunnah.com',
+  'quran.ksu.edu.sa',
+  'altafsir.com',
+  'islamqa.info',
+  'islamweb.net',
+  'seekersguidance.org',
+  'yaqeeninstitute.org',
+  'dar-alifta.org',
+  'aboutislam.net'
+];
 
-const parseProviderRetryMs = value => {
-  const raw = String(value).trim();
-  const seconds = Number(raw);
-  if (Number.isFinite(seconds)) return seconds * 1000;
-  const parts = [...raw.matchAll(/(\d+(?:\.\d+)?)\s*(milliseconds?|ms|seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h)/gi)];
-  if (parts.length &&
-    parts.map(part => part[0].replace(/\s+/g, '')).join('').toLowerCase() === raw.replace(/\s+/g, '').toLowerCase()) {
-    return parts.reduce((total, part) => {
-      const unit = part[2].toLowerCase();
-      const factor = /^(?:ms|millisecond)/.test(unit) ? 1
-        : /^(?:s|sec)/.test(unit) ? 1000
-          : /^(?:m|min)/.test(unit) ? 60000
-            : 3600000;
-      return total + Number(part[1]) * factor;
-    }, 0);
-  }
-  const retryAt = Date.parse(raw);
-  return Number.isFinite(retryAt) ? retryAt - Date.now() : null;
-};
+const APP_SOURCE_DOMAINS = [
+  'play.google.com',
+  'apps.apple.com'
+];
 
-const getRetryAfter = response => {
-  const retryAfter = response.headers.get('retry-after');
-  if (retryAfter) return retryAfter;
-  return [
-    response.headers.get('x-ratelimit-reset-requests'),
-    response.headers.get('x-ratelimit-reset-tokens')
-  ].filter(Boolean).sort((a, b) => (parseProviderRetryMs(b) || 0) - (parseProviderRetryMs(a) || 0))[0] || null;
-};
-
-const errorMessage = data =>
-  typeof data.error === 'string'
-    ? data.error
-    : data.error?.message || data.message || 'Web search provider request failed.';
-
-async function searchTavily(query, apiKey) {
-  const response = await fetch(tavilyEndpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      api_key: apiKey,
-      query,
-      topic: 'general',
-      search_depth: 'advanced',
-      max_results: 10,
-      include_answer: false,
-      include_raw_content: false
-    })
-  });
-  let data;
+function isAllowedSourceUrl(value, domains) {
   try {
-    data = await response.json();
+    const hostname = new URL(value).hostname.toLowerCase();
+
+    return domains.some(domain =>
+      hostname === domain || hostname.endsWith('.' + domain)
+    );
   } catch {
-    data = {};
+    return false;
   }
-  return { response, data };
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
+    res.setHeader('Allow', 'POST');
 
-  const { query, mode } = req.body || {};
-  if (typeof query !== 'string' || !query.trim()) {
-    return res.status(400).json({ error: 'A search query is required.' });
-  }
-  if (mode !== 'web') {
-    return res.status(400).json({ error: 'Search mode must be "web".' });
-  }
-
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) {
-    return res.status(500).json({
-      error: 'Web search is not configured. Set TAVILY_API_KEY in the deployment environment.'
+    return res.status(405).json({
+      error: 'Method not allowed'
     });
   }
 
-  const normalizedQuery = query.trim().slice(0, 1000);
-  const queries = [
-    normalizedQuery,
-    `${normalizedQuery} Qur'an Hadith scholarly Islamic sources`
-  ];
+  const { query, mode = 'web' } = req.body || {};
+
+  if (typeof query !== 'string' || !query.trim()) {
+    return res.status(400).json({
+      error: 'A search query is required'
+    });
+  }
+
+  if (!['web', 'deep'].includes(mode)) {
+    return res.status(400).json({
+      error: 'Search mode must be web or deep'
+    });
+  }
+
+  const TAVILY_KEY = process.env.TAVILY_API_KEY;
+
+  if (!TAVILY_KEY) {
+    return res.status(503).json({
+      error: 'TAVILY_API_KEY is missing.'
+    });
+  }
+
+  const cleanQuery = query.trim().slice(0, 1000);
+
+  // Allow official app stores for Islamic app searches.
+  const isAppSearch =
+    /\b(app|apps|application|applications|play store|app store)\b/i
+      .test(cleanQuery);
+
+  const allowedDomains = isAppSearch
+    ? [...ISLAMIC_SOURCE_DOMAINS, ...APP_SOURCE_DOMAINS]
+    : ISLAMIC_SOURCE_DOMAINS;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
   try {
-    const searches = await Promise.allSettled(
-      queries.map(searchQuery => searchTavily(searchQuery, apiKey))
-    );
-    const responses = searches
-      .filter(search => search.status === 'fulfilled' && search.value.response.ok)
-      .map(search => search.value);
-    if (!responses.length) {
-      const failedResponse = searches.find(search =>
-        search.status === 'fulfilled' && search.value.response.status === 429
-      )?.value || searches.find(search => search.status === 'fulfilled')?.value;
-      if (failedResponse) {
-        const retryAfter = getRetryAfter(failedResponse.response);
-        if (retryAfter) res.setHeader('Retry-After', retryAfter);
-        return res.status(failedResponse.response.status).json({
-          error: errorMessage(failedResponse.data),
-          retryAfter: retryAfter || null
-        });
+    const searchResponse = await fetch(
+      'https://api.tavily.com/search',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        signal: controller.signal,
+        body: JSON.stringify({
+          api_key: TAVILY_KEY,
+          query: cleanQuery,
+          search_depth: mode === 'deep'
+            ? 'advanced'
+            : 'basic',
+          topic: 'general',
+          max_results: mode === 'deep' ? 12 : 8,
+          include_answer: false,
+          include_raw_content: mode === 'deep',
+          include_domains: allowedDomains
+        })
       }
-      return res.status(502).json({ error: 'Could not reach the web search provider. Please try again.' });
+    );
+
+    let data;
+
+    try {
+      data = await searchResponse.json();
+    } catch {
+      return res.status(502).json({
+        error: 'Invalid response from the search provider.'
+      });
     }
 
-    const seenUrls = new Set();
-    const seenDomains = new Set();
-    const results = responses
-      .flatMap(({ data }) => Array.isArray(data.results) ? data.results : [])
-      .filter(result => result && typeof result === 'object')
-      .sort((a, b) => (Number(b.score) || 0) - (Number(a.score) || 0))
-      .filter(result => {
-        if (typeof result.url !== 'string' || typeof result.content !== 'string') return false;
-        try {
-          const url = new URL(result.url);
-          if (url.protocol !== 'https:') return false;
-          const normalizedUrl = `${url.origin}${url.pathname}`.replace(/\/+$/, '');
-          const domain = url.hostname.toLowerCase().replace(/^www\./, '');
-          if (seenUrls.has(normalizedUrl) || seenDomains.has(domain)) return false;
-          seenUrls.add(normalizedUrl);
-          seenDomains.add(domain);
-          result.url = url.toString();
-          return true;
-        } catch {
-          return false;
-        }
-      })
-      .slice(0, 15)
-      .map(result => ({
-        title: typeof result.title === 'string' && result.title.trim()
-          ? result.title.trim()
-          : result.url,
-        url: result.url,
-        content: result.content.trim().slice(0, 2800)
-      }))
-      .filter(result => result.content);
+    if (!searchResponse.ok) {
+      console.error('Tavily error:', data);
 
-    const incompleteSearch = searches.some(search =>
-      search.status === 'rejected' || (search.status === 'fulfilled' && !search.value.response.ok)
-    );
+      return res.status(502).json({
+        error:
+          data?.detail ||
+          data?.message ||
+          'Islamic web search provider failed.'
+      });
+    }
+
+    const results = Array.isArray(data.results)
+      ? data.results
+          .filter(result =>
+            result &&
+            typeof result.url === 'string' &&
+            isAllowedSourceUrl(result.url, allowedDomains)
+          )
+          .map(result => ({
+            title: typeof result.title === 'string'
+              ? result.title
+              : 'Untitled source',
+
+            url: result.url,
+
+            content: String(
+              mode === 'deep'
+                ? (result.raw_content || result.content || '')
+                : (result.content || '')
+            ).slice(0, mode === 'deep' ? 3500 : 2200)
+          }))
+          .filter(result => result.content.trim())
+          .filter((result, index, array) =>
+            array.findIndex(item => item.url === result.url) === index
+          )
+      : [];
+
     return res.status(200).json({
-      results,
-      ...(incompleteSearch ? { warning: 'Some research searches failed, so the results may be incomplete.' } : {})
+      query: cleanQuery,
+      mode,
+      total: results.length,
+      results
     });
+
   } catch (error) {
-    console.error('Web search request failed:', error);
-    return res.status(502).json({ error: 'Could not reach the web search provider. Please try again.' });
+    console.error('Islamic search failed:', error);
+
+    return res.status(
+      error.name === 'AbortError' ? 504 : 500
+    ).json({
+      error: error.name === 'AbortError'
+        ? 'Search timed out. Please try again.'
+        : 'Live Islamic web search failed. Please try again.'
+    });
+
+  } finally {
+    clearTimeout(timeout);
   }
 }
