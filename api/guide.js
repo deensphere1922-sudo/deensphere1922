@@ -135,9 +135,8 @@ export default async function handler(req, res) {
     let data = await readProviderJson(activeResponse);
     const providerError = getProviderError(data, '');
     const fallbackModel = process.env.GROQ_FALLBACK_MODEL || 'qwen/qwen3.8-27b';
-    const isDailyModelLimit = activeResponse.status === 429 && /tokens per day|\bTPD\b/i.test(providerError);
-    if (isDailyModelLimit && fallbackModel !== model) {
-      console.warn(`Groq daily token limit reached for ${model}; trying ${fallbackModel}.`);
+    if (activeResponse.status === 429 && fallbackModel !== model) {
+      console.warn(`Groq model limit reached for ${model}; trying ${fallbackModel}.`);
       activeResponse = await requestCompletion(fallbackModel);
       data = await readProviderJson(activeResponse);
     }
