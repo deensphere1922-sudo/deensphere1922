@@ -15328,6 +15328,10 @@ async function openYouTubePlayer(videoId) {
     }
   } catch (e) {}
 
+  // Lock the page immediately so the background cannot scroll while
+  // the video overlay is open.
+  lockYouTubeBackgroundScroll();
+
   overlay.style.display = 'flex';
 
   requestAnimationFrame(() => {
