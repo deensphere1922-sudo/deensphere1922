@@ -12,7 +12,7 @@ const sourceGroups = [
     domains: ['quran.com', 'quranenc.com'],
     limit: 6,
     query: (question, topic) =>
-      `English Qur'an translation in English only. ${topic === 'islam' ? "Find introductory Quran passages explaining Islam, submission to Allah, and the message of Islam." : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
+      `English Qur'an translation in English only. ${topic === 'islam' ? "Find introductory Qur'an passages explaining Islam, submission to Allah, and the message of Islam." : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
   },
   {
     type: 'Hadith evidence',
@@ -34,7 +34,11 @@ const STOP_WORDS = new Set(`a an and are as at be been but by can could did do d
 
 const SPELLING_MAP = new Map([
   ['tahejjud', 'tahajjud'], ['tahajud', 'tahajjud'], ['tahajjudh', 'tahajjud'],
-  ['tahajjudh', 'tahajjud'], ['tahajud prayer', 'tahajjud'],
+  ['tahajjad', 'tahajjud'], ['tahajjudh', 'tahajjud'], ['tahajjud', 'tahajjud'],
+  ['isalm', 'islam'], ['islm', 'islam'], ['islaam', 'islam'],
+  ['forgivness', 'forgiv'], ['forgivnesss', 'forgiv'], ['forgivng', 'forgiv'],
+  ['routin', 'routine'], ['routne', 'routine'], ['routien', 'routine'],
+  ['quraan', 'quran'], ['quraan', 'quran'], ['tawakul', 'tawakkul'], ['tawakkal', 'tawakkul'],
   ['salah', 'prayer'], ['salat', 'prayer'], ['namaz', 'prayer'],
   ['quraan', 'quran'], ['quraan', 'quran'], ['koran', 'quran'],
   ['ramzan', 'ramadan'], ['ramadhan', 'ramadan'],
@@ -52,7 +56,7 @@ const COMMON_ISLAMIC_TERMS = [
   'quran', 'hadith', 'sunnah', 'tawheed', 'tawhid', 'tawakkul', 'sabr',
   'patience', 'forgiveness', 'tawbah', 'repentance', 'zakat', 'sawm',
   'fasting', 'hajj', 'umrah', 'dua', 'dhikr', 'wudu', 'ghusl', 'jannah',
-  'jahannam', 'angels', 'prophets', 'islam'
+  'jahannam', 'angels', 'prophets', 'islam', 'routine'
 ];
 
 function levenshtein(a, b) {
@@ -105,9 +109,12 @@ function getTopic(question) {
   if (!terms.length) {
     terms = [...new Set(originalWords.map(normalizeWord).filter(word => word.length > 2))];
   }
-  const broad = terms.length === 1 && ['islam', 'quran', 'hadith'].includes(terms[0]);
-  const topic = terms.join(' ') || String(question).trim();
-  return { topic, terms, broad };
+  // Treat broad Islam/Qur'an/Hadith questions as valid general searches.
+  // If the user typed a misspelling, normalizeWord corrects it before this check.
+  const meaningful = terms.filter(word => !['routine', 'daily', 'schedule', 'plan'].includes(word));
+  const broad = meaningful.length === 1 && ['islam', 'quran', 'hadith'].includes(meaningful[0]);
+  const topic = broad ? meaningful[0] : (terms.join(' ') || String(question).trim());
+  return { topic, terms: broad ? meaningful : terms, broad };
 }
 
 function calculateRelevance(topic, title, content, providerScore) {
