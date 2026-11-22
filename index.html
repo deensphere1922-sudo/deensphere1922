@@ -17759,16 +17759,15 @@ const toggleGuideRecording = async () => {
                       }
                     })
                     .slice(0, 5);
-                  if (researchSources.length < 1) {
-                    throw new Error('I could not find a relevant source for this question. Please rephrase it and try again.');
-                  }
                   activeStageIndex = 3;
                   showGuideStage(activeGuideStages, activeStageIndex);
                   await new Promise(resolve => window.requestAnimationFrame(resolve));
                   if (requestVersion !== guideRequestVersion) return;
-                  const sourceExcerpts = researchSources.map((source, index) =>
-                    `[${index + 1}] Type: ${source.sourceType || 'Islamic source'}\n${source.title || source.url}\nURL: ${source.url}\nExcerpt: ${source.content.slice(0, 1600)}`
-                  ).join('\n\n');
+                  const sourceExcerpts = researchSources.length
+                    ? researchSources.map((source, index) =>
+                        `[${index + 1}] Type: ${source.sourceType || 'Islamic source'}\\n${source.title || source.url}\\nURL: ${source.url}\\nExcerpt: ${source.content.slice(0, 1600)}`
+                      ).join('\\n\\n')
+                    : 'No relevant external web sources were returned for this query. Answer the user’s general question carefully using established knowledge, do not invent citations or Qur’an/Hadith references, and briefly disclose that no web sources were found.';
                   requestHistory = history.slice();
                   requestHistory.splice(Math.max(0, requestHistory.length - 1), 0, {
                     role: 'user',
