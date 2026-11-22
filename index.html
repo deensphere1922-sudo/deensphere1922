@@ -13965,28 +13965,14 @@ function _calculateQuranReadStats(targetDateStr) {
             }
           }
 
-            function _setBackgroundScrollLock(locked) {
-    const content = document.querySelector('.content');
-    const main = document.querySelector('.main');
-    const shell = document.querySelector('.shell');
-    const isMobile = window.matchMedia('(max-width: 880px)').matches;
+          
+function _setBackgroundScrollLock(locked) {
+  // Preserve the actual Tracker scroll container.
+  // Never change overflow or scrollTop when opening or closing the log.
+  // The fixed modal overlay handles background interaction.
+  return;
+}
 
-    if (isMobile) {
-      if (shell) {
-        shell.style.overflow = locked ? 'hidden' : '';
-      }
-    } else {
-      if (main) {
-        main.style.overflow = locked ? 'hidden' : '';
-      }
-    }
-
-    if (content) {
-      content.style.overflowY = locked ? 'hidden' : '';
-    }
-    document.documentElement.style.overflow = locked ? 'hidden' : '';
-    document.body.style.overflow = locked ? 'hidden' : '';
-  }
 
 
             async function showTrackerDay(ds) {
@@ -14035,6 +14021,19 @@ function _calculateQuranReadStats(targetDateStr) {
 
              document.body.appendChild(modal);
 
+
+document.body.appendChild(modal);
+
+// Prevent background scrolling without changing the page position.
+modal.addEventListener('wheel', (e) => {
+  if (e.target === modal) e.preventDefault();
+}, { passive: false });
+
+modal.addEventListener('touchmove', (e) => {
+  if (e.target === modal) e.preventDefault();
+}, { passive: false });
+
+
         _setBackgroundScrollLock(true);
 
         // Animate modal in
@@ -14049,7 +14048,7 @@ function _calculateQuranReadStats(targetDateStr) {
 
               // Setup Close actions
         const closeModal = () => {
-          _setBackgroundScrollLock(false);
+        
 
           modal.style.opacity = '0';
           const inner = document.getElementById('tracker-day-modal-inner');
