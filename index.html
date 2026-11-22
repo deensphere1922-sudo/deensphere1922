@@ -16721,7 +16721,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                         <button class="btn-text guide-suggestion" data-guide-chip="What does the Quran say about patience?" style="display:block;width:100%;text-align:center;color:var(--green-l);">• What does the Quran say about patience?</button>
                       </div>`}
                   </div>
-         <div id="guide-composer" style="display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:8px 10px 10px;margin-bottom:12px;flex:0 0 auto;width:100%;position:relative;z-index:10;border:1px solid var(--border);border-radius:18px;background:var(--card);">
+         <div id="guide-composer" style="display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:8px 10px 10px;margin-bottom:22px;flex:0 0 auto;width:100%;position:relative;z-index:10;border:1px solid var(--border);border-radius:18px;background:var(--card);">
   <div id="guide-attachment-tray" style="display:none;align-items:center;gap:8px;flex-wrap:wrap;padding:0 0 8px;border-bottom:1px solid var(--border);"></div>
   <div id="guide-plus-menu" role="group" aria-label="Add to your message" style="display:none;position:absolute;left:8px;bottom:calc(100% + 8px);z-index:30;width:min(280px,calc(100vw - 40px));padding:6px;border:1px solid var(--border);border-radius:14px;background:var(--card);box-shadow:0 12px 32px rgba(0,0,0,.24);">
     <button class="btn-text" id="guide-menu-attach" type="button" style="display:flex;align-items:flex-start;gap:10px;width:100%;padding:10px;border:0;border-radius:10px;text-align:left;background:transparent;color:var(--tx);">
@@ -16822,6 +16822,16 @@ ISLAMIC EVIDENCE AND ACCURACY:
     font-size: 15px !important;
   }
 }
+
+/* Shared green hover border — matches the existing dropdown-trigger hover. */
+@media (hover: hover) and (pointer: fine) {
+  #guide-composer:hover:not(:focus-within),
+  #tracker-grid:hover {
+    border-color: var(--green) !important;
+    transition: border-color 160ms ease;
+  }
+}
+
 </style>
                 </div>`;
           }
