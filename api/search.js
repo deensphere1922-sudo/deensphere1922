@@ -2,7 +2,7 @@ export const config = { maxDuration: 60 };
 
 const MAX_QUERY_LENGTH = 1000;
 const MAX_SOURCES = 12;
-const MIN_RELEVANCE_SCORE = 0.22;
+const MIN_RELEVANCE_SCORE = 0.30;
 
 const sourceGroups = [
   {
@@ -10,14 +10,14 @@ const sourceGroups = [
     domains: ['quran.com', 'quranenc.com'],
     limit: 6,
     query: (question, topic) =>
-      `Qur'an verses that explicitly discuss ${topic}. Give exact Surah and ayah references. Search only verses about this subject: ${question}. Exclude verses that merely mention a loosely related idea.`,
+      `Qur'an verses specifically about the exact topic "${topic}". Find verses that directly address this topic, not other virtues or loosely associated subjects. User question: ${question}.`,
   },
   {
     type: 'Hadith evidence',
     domains: ['sunnah.com', 'dorar.net'],
     limit: 5,
     query: (question, topic) =>
-      `Authentic Hadith narrations that explicitly discuss ${topic}. Search the exact subject in the wording or chapter heading. Include collection and exact Hadith number. Query: ${question}. Exclude loosely related narrations.`,
+      `Hadith narrations specifically about the exact topic "${topic}". The narration itself or its chapter heading must directly address this topic. Do not include narrations about other topics merely because they are generally related to Islam. Include exact collection and Hadith reference when available. User question: ${question}.`,
   },
   {
     type: 'Scholarly explanation',
@@ -30,24 +30,9 @@ const sourceGroups = [
     ],
     limit: 1,
     query: (question, topic) =>
-      `Islamic scholarly explanation specifically about ${topic}, with direct Qur'an and Hadith evidence. Question: ${question}. Exclude unrelated topics.`,
+      `Islamic scholarly explanation specifically addressing "${topic}". Keep the explanation limited to this topic and exclude other subjects. User question: ${question}.`,
   },
 ];
-
-const TOPIC_ALIASES = [
-  { match: /\b(sabr|patience|patient|perseverance|steadfastness)\b/i, topic: 'Sabr (patience)', terms: ['sabr', 'patience', 'patient', 'patiently', 'perseverance', 'steadfastness'] },
-  { match: /\b(forgiveness|forgive|forgiven|forgiving|pardon)\b/i, topic: 'forgiveness (Allah’s forgiveness and forgiving others)', terms: ['forgive', 'forgiveness', 'forgiven', 'forgiving', 'pardon'] },
-  { match: /\b(tawakkul|reliance on allah|trust in allah)\b/i, topic: 'Tawakkul (reliance upon Allah)', terms: ['tawakkul', 'reliance', 'trust', 'putting trust'] },
-  { match: /\b(gratitude|thankfulness|shukr)\b/i, topic: 'Shukr (gratitude)', terms: ['shukr', 'gratitude', 'thankfulness', 'grateful'] },
-  { match: /\b(mercy|rahmah|compassion)\b/i, topic: 'mercy (rahmah)', terms: ['mercy', 'rahmah', 'compassion', 'merciful'] },
-];
-
-function getTopic(question) {
-  const found = TOPIC_ALIASES.find(item => item.match.test(question));
-  if (found) return found;
-  const words = tokenize(question);
-  return { topic: words.slice(0, 5).join(' ') || question, terms: words };
-}
 
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'can',
@@ -56,9 +41,11 @@ const STOP_WORDS = new Set([
   'or', 'our', 'please', 'should', 'so', 'that', 'the', 'their', 'them',
   'there', 'these', 'they', 'this', 'to', 'was', 'we', 'what', 'when',
   'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
-  'islam', 'islamic', 'quran', 'qur an', 'hadith', 'evidence', 'explain',
+  'islam', 'islamic', 'quran', 'qur', 'an', 'hadith', 'evidence', 'explain',
   'meaning', 'according', 'tell', 'about', 'related', 'relevant', 'question',
   'directly', 'exact', 'topic', 'source', 'sources', 'reference', 'references',
+  'verse', 'verses', 'ayah', 'ayat', 'mentioned', 'mentions', 'say', 'says',
+  'said', 'talk', 'talks', 'give', 'show', 'find',
 ]);
 
 function tokenize(value) {
@@ -74,61 +61,57 @@ function tokenize(value) {
   )];
 }
 
-function calculateRelevance(topic, title, content, providerScore) {
-  const terms = topic.terms || [];
-  const titleText = String(title || '').toLowerCase();
-  const contentText = String(content || '').toLowerCase();
-  if (!terms.length) return providerScore >= 0.45 ? providerScore : 0;
-
-  const titleMatches = terms.filter(term => titleText.includes(term.toLowerCase())).length;
-  const contentMatches = terms.filter(term => contentText.includes(term.toLowerCase())).length;
-  const titleRatio = titleMatches / terms.length;
-  const contentRatio = contentMatches / terms.length;
-  const hasDirectTopicMatch = titleMatches > 0 || contentMatches > 0;
-
-  // A high search-engine score alone is never enough: the page must contain
-  // at least one explicit term for the requested topic (or its listed synonym).
-  if (!hasDirectTopicMatch) return 0;
-  return (titleRatio * 0.55) + (contentRatio * 0.45) + (providerScore * 0.10);
+// Use only the topic words the user actually asked about.
+// Do not add fixed synonyms or adjacent concepts for any topic.
+function getTopic(question) {
+  const terms = tokenize(question);
+  return { topic: terms.join(' ') || String(question).trim(), terms };
 }
 
-// Support parsed JSON, JSON strings and raw request bodies.
+function calculateRelevance(topic, title, content, providerScore) {
+  const terms = topic.terms || [];
+  if (!terms.length) return 0;
+
+  const titleTerms = new Set(tokenize(title));
+  const contentTerms = new Set(tokenize(content));
+  const matchedTerms = new Set([
+    ...terms.filter(term => titleTerms.has(term)),
+    ...terms.filter(term => contentTerms.has(term)),
+  ]);
+
+  // A high search-engine score alone is never enough. The page must explicitly
+  // contain at least one of the user's requested topic words.
+  if (matchedTerms.size === 0) return 0;
+
+  const topicCoverage = matchedTerms.size / terms.length;
+  const titleCoverage = terms.filter(term => titleTerms.has(term)).length / terms.length;
+  const contentCoverage = terms.filter(term => contentTerms.has(term)).length / terms.length;
+
+  return (topicCoverage * 0.55) + (titleCoverage * 0.20) +
+    (contentCoverage * 0.20) + (Math.min(Math.max(providerScore, 0), 1) * 0.05);
+}
+
 async function getRequestBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
-
   if (typeof req.body === 'string') {
-    try {
-      return JSON.parse(req.body);
-    } catch {
-      return {};
-    }
+    try { return JSON.parse(req.body); } catch { return {}; }
   }
-
   if (typeof req.on === 'function') {
     return new Promise(resolve => {
       let raw = '';
       let tooLarge = false;
-
       req.on('data', chunk => {
         if (tooLarge) return;
         raw += chunk;
-        if (raw.length > 10000) {
-          tooLarge = true;
-          raw = '';
-        }
+        if (raw.length > 10000) { tooLarge = true; raw = ''; }
       });
-
       req.on('end', () => {
-        try {
-          resolve(!tooLarge && raw ? JSON.parse(raw) : {});
-        } catch {
-          resolve({});
-        }
+        try { resolve(!tooLarge && raw ? JSON.parse(raw) : {}); }
+        catch { resolve({}); }
       });
       req.on('error', () => resolve({}));
     });
   }
-
   return {};
 }
 
@@ -145,9 +128,7 @@ function isTrustedUrl(value, domains) {
     return ['https:', 'http:'].includes(url.protocol) && domains.some(domain =>
       url.hostname === domain || url.hostname.endsWith(`.${domain}`)
     );
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function getRetryAfter(response) {
@@ -156,35 +137,28 @@ function getRetryAfter(response) {
     response.headers.get('x-ratelimit-reset-requests'),
     response.headers.get('x-ratelimit-reset-tokens'),
   ].filter(Boolean);
-
   return values.find(value =>
     !/^(?:0+(?:\.0+)?)(?:\s*(?:ms|s|sec|seconds?))?$/i.test(value.trim())
   ) || values[0] || null;
 }
 
 export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed.' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
 
   try {
     const body = await getRequestBody(req);
     const query = getQuestion(body);
-
     if (query.length < 2 || query.length > MAX_QUERY_LENGTH) {
-      return res.status(400).json({
-        error: `Enter a search question between 2 and ${MAX_QUERY_LENGTH} characters.`,
-      });
+      return res.status(400).json({ error: `Enter a search question between 2 and ${MAX_QUERY_LENGTH} characters.` });
     }
 
     const topic = getTopic(query);
+    if (!topic.terms.length) {
+      return res.status(400).json({ error: 'Please enter the specific Islamic topic you want to research.' });
+    }
 
     const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey) {
-      return res.status(503).json({
-        error: 'Web research is not configured on the server.',
-      });
-    }
+    if (!apiKey) return res.status(503).json({ error: 'Web research is not configured on the server.' });
 
     const responses = await Promise.all(sourceGroups.map(group =>
       fetch('https://api.tavily.com/search', {
@@ -194,7 +168,7 @@ export default async function handler(req, res) {
           api_key: apiKey,
           query: group.query(query, topic.topic),
           search_depth: 'advanced',
-          max_results: 6,
+          max_results: 8,
           include_domains: group.domains,
           include_domains_mode: 'restrict',
           include_answer: false,
@@ -204,20 +178,14 @@ export default async function handler(req, res) {
     ));
 
     const candidates = [];
-
     for (let index = 0; index < responses.length; index++) {
       const response = responses[index];
       const group = sourceGroups[index];
       let data;
-
-      try {
-        data = await response.json();
-      } catch {
-        return res.status(502).json({
-          error: 'The web research service returned an invalid response.',
-        });
+      try { data = await response.json(); }
+      catch {
+        return res.status(502).json({ error: 'The web research service returned an invalid response.' });
       }
-
       if (!response.ok) {
         const retryAfter = getRetryAfter(response);
         if (retryAfter) res.setHeader('Retry-After', retryAfter);
@@ -228,35 +196,21 @@ export default async function handler(req, res) {
       }
 
       for (const result of Array.isArray(data.results) ? data.results : []) {
-        if (
-          !result ||
-          typeof result.url !== 'string' ||
-          typeof result.content !== 'string' ||
-          !isTrustedUrl(result.url, group.domains)
-        ) continue;
+        if (!result || typeof result.url !== 'string' || typeof result.content !== 'string' ||
+            !isTrustedUrl(result.url, group.domains)) continue;
 
         const url = new URL(result.url);
         const title = typeof result.title === 'string' && result.title.trim()
-          ? result.title.trim().slice(0, 250)
-          : url.hostname;
-        const content = result.content.slice(0, 2200);
+          ? result.title.trim().slice(0, 250) : url.hostname;
+        const content = result.content.slice(0, 5000);
         const providerScore = typeof result.score === 'number' ? result.score : 0;
         const relevance = calculateRelevance(topic, title, content, providerScore);
-
-        // Reject weak results rather than filling the list with loosely related pages.
         if (relevance < MIN_RELEVANCE_SCORE) continue;
 
-        candidates.push({
-          title,
-          url: url.href,
-          content,
-          sourceType: group.type,
-          score: relevance,
-        });
+        candidates.push({ title, url: url.href, content, sourceType: group.type, score: relevance });
       }
     }
 
-    // Remove duplicate URLs, including tracking-parameter variants where possible.
     const seenUrls = new Set();
     const uniqueCandidates = candidates.filter(source => {
       const normalizedUrl = new URL(source.url);
@@ -268,27 +222,18 @@ export default async function handler(req, res) {
       return true;
     });
 
-    // Keep the best directly relevant results within each evidence category.
     const results = [];
     for (const group of sourceGroups) {
-      const groupResults = uniqueCandidates
+      results.push(...uniqueCandidates
         .filter(source => source.sourceType === group.type)
         .sort((a, b) => b.score - a.score)
-        .slice(0, group.limit);
-      results.push(...groupResults);
+        .slice(0, group.limit));
     }
 
-    // The returned array is compact and ordered; the UI should label it 1, 2, 3...
     const finalResults = results.slice(0, MAX_SOURCES).map(({ score, ...source }) => source);
-
-    return res.status(200).json({
-      results: finalResults,
-      total: finalResults.length,
-    });
+    return res.status(200).json({ results: finalResults, total: finalResults.length });
   } catch (error) {
     console.error('Web search API error:', error);
-    return res.status(502).json({
-      error: 'Could not reach the web research service. Please try again.',
-    });
+    return res.status(502).json({ error: 'Could not reach the web research service. Please try again.' });
   }
 }
