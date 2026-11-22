@@ -11678,7 +11678,7 @@ return `<div class="scr" style="
             async function prefetchQuranSurah(num) {
         if (_quranDataCache[num]) return _quranDataCache[num];
 
-        const cacheKey = 'quran-surah-indopak-v2-' + num;
+        const cacheKey = 'quran-surah-indopak-v3-' + num;
         try {
           const raw = localStorage.getItem(cacheKey);
           if (raw) {
@@ -11747,7 +11747,7 @@ return `<div class="scr" style="
         let cached = _quranDataCache[num] || null;
         if (!cached) {
           try {
-            const raw = localStorage.getItem('quran-surah-indopak-v2-' + num);
+            const raw = localStorage.getItem('quran-surah-indopak-v3-' + num);
             if (raw) {
               const parsed = JSON.parse(raw);
               if (parsed && Date.now() - (parsed.__cachedAt || 0) < 30 * 24 * 3600 * 1000) {
@@ -11959,7 +11959,7 @@ return `<div class="scr" style="
           let data = _quranDataCache[num] || null;
 
           if (!data) {
-            const cacheKey = 'quran-surah-indopak-v2-' + num;
+            const cacheKey = 'quran-surah-indopak-v3-' + num;
             try {
               const cached = localStorage.getItem(cacheKey);
               if (cached) {
