@@ -16511,6 +16511,17 @@ ISLAMIC EVIDENCE AND ACCURACY:
 - When the retrieved evidence is insufficient, say what could not be established and limit the answer to supported information.
           `;
 
+          // Quran.com source links should always open the English translation.
+          // Translation ID 89 is Sherif Ahmeti (Albanian); ID 20 is Sahih International (English).
+          const normalizeGuideSourceUrl = value => {
+            const url = new URL(value);
+            const host = url.hostname.toLowerCase().replace(/^www\./, '');
+            if (host === 'quran.com') {
+              url.searchParams.set('translations', '20');
+            }
+            return url;
+          };
+
           const escapeGuideSourceHtml = value =>
             String(value || '').replace(/[&<>"']/g, character => ({
               '&': '&amp;',
@@ -16542,7 +16553,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
               const displayNumber = displayIndex + 1;
               if (!source || typeof source.url !== 'string') return '';
               try {
-                const url = new URL(source.url);
+                const url = normalizeGuideSourceUrl(source.url);
                 if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenUrls.has(url.href)) return '';
                 seenUrls.add(url.href);
 
@@ -16585,7 +16596,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                 return citation;
               }
               try {
-                const url = new URL(source.url);
+                const url = normalizeGuideSourceUrl(source.url);
                 if (url.protocol !== 'https:' && url.protocol !== 'http:') return citation;
                 const title = typeof source.title === 'string' && source.title.trim()
                   ? source.title.trim()
@@ -17792,12 +17803,19 @@ const toggleGuideRecording = async () => {
                     .filter(source => source && typeof source.url === 'string' && typeof source.content === 'string')
                     .filter(source => {
                       try {
-                        const url = new URL(source.url);
+                        const url = normalizeGuideSourceUrl(source.url);
                         if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenSourceUrls.has(url.href)) return false;
                         seenSourceUrls.add(url.href);
                         return true;
                       } catch {
                         return false;
+                      }
+                    })
+                    .map(source => {
+                      try {
+                        return { ...source, url: normalizeGuideSourceUrl(source.url).href };
+                      } catch {
+                        return source;
                       }
                     })
                     .slice(0, 5);
