@@ -16889,21 +16889,29 @@ ISLAMIC EVIDENCE AND ACCURACY:
             const appendAttachmentCards = (container, attachments) => {
               if (!Array.isArray(attachments) || !attachments.length) return;
               const list = document.createElement('div');
-              list.style.cssText = 'display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;';
+              list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:8px;max-width:100%;';
               attachments.forEach(attachment => {
                 const card = document.createElement('div');
-                card.style.cssText = 'display:flex;align-items:center;gap:8px;max-width:100%;padding:6px 8px;border:1px solid var(--border);border-radius:10px;background:var(--card);';
+                card.style.cssText = 'display:flex;align-items:center;gap:10px;width:min(100%,590px);max-width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);';
+
+                const kind = document.createElement('span');
+                kind.textContent = attachment.kind === 'pdf' ? 'PDF' : 'Image';
+                kind.style.cssText = 'flex:0 0 48px;font-size:13px;font-weight:500;color:var(--tx);';
+                card.appendChild(kind);
+
                 if (typeof attachment.preview === 'string' && attachment.preview.startsWith('data:image/')) {
                   const image = document.createElement('img');
                   image.src = attachment.preview;
                   image.alt = attachment.name || 'Attachment preview';
-                  image.style.cssText = 'width:64px;height:64px;object-fit:cover;border-radius:8px;';
+                  image.style.cssText = 'width:72px;height:72px;flex:0 0 72px;object-fit:cover;border-radius:9px;background:var(--card-el);';
                   card.appendChild(image);
                 }
-                const label = document.createElement('span');
-                label.textContent = `${attachment.kind === 'pdf' ? 'PDF' : 'Image'} · ${attachment.name || 'Attachment'}`;
-                label.style.cssText = 'overflow-wrap:anywhere;font-size:12px;';
-                card.appendChild(label);
+
+                const filename = document.createElement('span');
+                filename.textContent = attachment.name || 'Attachment';
+                filename.title = attachment.name || 'Attachment';
+                filename.style.cssText = 'min-width:0;flex:1;overflow-wrap:anywhere;word-break:break-word;font-size:13px;color:var(--tx);';
+                card.appendChild(filename);
                 list.appendChild(card);
               });
               container.appendChild(list);
@@ -17046,7 +17054,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
               if (!thinkingEl) {
                 thinkingEl = document.createElement('div');
                 thinkingEl.id = 'guide-thinking-bubble';
-              thinkingEl.style.cssText = 'align-self:flex-start;flex-shrink:0;max-width:85%;background:var(--card-el);padding:12px 16px;border-radius:16px 16px 16px 4px;font-size:13px;color:var(--tx3);display:flex;align-items:center;gap:8px;border-left:2px solid var(--gold);';
+              thinkingEl.style.cssText = 'align-self:flex-start;flex:0 1 auto;width:fit-content;max-width:min(85%,360px);min-width:0;box-sizing:border-box;overflow-wrap:anywhere;background:var(--card-el);padding:9px 12px;border-radius:14px 14px 14px 4px;font-size:13px;line-height:1.4;color:var(--tx3);display:flex;align-items:center;gap:8px;border-left:2px solid var(--gold);';
                 thinkingEl.innerHTML =
                   '<div style="width:12px;height:12px;border:2px solid var(--tx3);border-top-color:var(--gold);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>' +
                   '<span id="guide-thinking-text" role="status" aria-live="polite" style="animation:pulse 1.5s ease-in-out infinite;white-space:pre-line;"></span>';
@@ -17610,16 +17618,18 @@ const toggleGuideRecording = async () => {
                 return;
               }
               const retryStages = [
-                'Waiting to retry…',
-                'Almost ready…',
-                'Retrying shortly…'
+                'Waiting for the provider’s cooldown…',
+                'The provider has not allowed the retry yet; I’ll keep waiting…',
+                'Your question is held while the provider limit resets…',
+                'I’ll retry automatically when the provider allows it…',
+                'Still waiting for the provider’s stated reset time…'
               ];
               let statusIndex = 0;
-              const statusTimer = delay >= 1800
+              const statusTimer = delay >= 5500
                 ? window.setInterval(() => {
                   updateThinkingStage(retryStages[statusIndex % retryStages.length]);
                   statusIndex++;
-                }, 1800)
+                }, 5500)
                 : null;
               let timer;
               const cleanup = () => {
@@ -17675,8 +17685,10 @@ const toggleGuideRecording = async () => {
                   retryCandidates[0] ||
                   null;
                 const retryDelay = parseGuideRetryDelay(retryAfter);
-                if (response.status === 429 && !retried && retryDelay > 0 && retryDelay <= 24 * 60 * 60 * 1000) {
-                  showThinking('Retrying soon…');
+                // Retry automatically only when the provider's own cooldown is short.
+                // Long rate limits should not leave the chat spinning for minutes.
+                if (response.status === 429 && !retried && retryDelay > 0 && retryDelay <= 5000) {
+                  showThinking('Retrying…');
                   await waitForGuideRetry(retryDelay, signal);
                   retried = true;
                   continue;
