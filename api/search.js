@@ -2,67 +2,60 @@ export const config = { maxDuration: 60 };
 
 const MAX_QUERY_LENGTH = 1000;
 const MAX_SOURCES = 12;
-const MIN_RELEVANCE_SCORE = 0.30;
+const MIN_RELEVANCE_SCORE = 0.32;
 
+// Search only primary English Qur'an/Hadith sources for English questions.
+// quran.com and QuranEnc English routes are retained; Arabic-only Dorar is omitted.
 const sourceGroups = [
   {
     type: 'Qur’an evidence',
     domains: ['quran.com', 'quranenc.com'],
     limit: 6,
     query: (question, topic) =>
-      `Qur'an verses specifically about the exact topic "${topic}". Find verses that directly address this topic, not other virtues or loosely associated subjects. User question: ${question}.`,
+      `English Qur'an translation: Qur'an verses that directly discuss the exact topic "${topic}". Return English-language verse pages and English translation excerpts only. Do not return Albanian or any other language. Exclude verses about merely associated topics. User question: ${question}.`,
   },
   {
     type: 'Hadith evidence',
-    domains: ['sunnah.com', 'dorar.net'],
+    domains: ['sunnah.com'],
     limit: 5,
     query: (question, topic) =>
-      `Hadith narrations specifically about the exact topic "${topic}". The narration itself or its chapter heading must directly address this topic. Do not include narrations about other topics merely because they are generally related to Islam. Include exact collection and Hadith reference when available. User question: ${question}.`,
+      `English Hadith text from Sunnah.com specifically and directly about the exact topic "${topic}". The narration or chapter heading must directly address this topic. Exclude merely associated topics. Include collection and exact Hadith reference when the page provides them. User question: ${question}.`,
   },
   {
     type: 'Scholarly explanation',
-    domains: [
-      'islamweb.net',
-      'islamqa.info',
-      'islamqa.org',
-      'seekersguidance.org',
-      'yaqeeninstitute.org',
-    ],
+    domains: ['islamweb.net', 'islamqa.info', 'islamqa.org', 'seekersguidance.org', 'yaqeeninstitute.org'],
     limit: 1,
     query: (question, topic) =>
-      `Islamic scholarly explanation specifically addressing "${topic}". Keep the explanation limited to this topic and exclude other subjects. User question: ${question}.`,
+      `English-language Islamic scholarly explanation directly and specifically about "${topic}". Do not include adjacent or loosely related subjects. User question: ${question}.`,
   },
 ];
 
-const STOP_WORDS = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'can',
-  'could', 'did', 'do', 'does', 'for', 'from', 'had', 'has', 'have', 'how',
-  'i', 'if', 'in', 'into', 'is', 'it', 'its', 'may', 'me', 'my', 'of', 'on',
-  'or', 'our', 'please', 'should', 'so', 'that', 'the', 'their', 'them',
-  'there', 'these', 'they', 'this', 'to', 'was', 'we', 'what', 'when',
-  'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
-  'islam', 'islamic', 'quran', 'qur', 'an', 'hadith', 'evidence', 'explain',
-  'meaning', 'according', 'tell', 'about', 'related', 'relevant', 'question',
-  'directly', 'exact', 'topic', 'source', 'sources', 'reference', 'references',
-  'verse', 'verses', 'ayah', 'ayat', 'mentioned', 'mentions', 'say', 'says',
-  'said', 'talk', 'talks', 'give', 'show', 'find',
-]);
+const STOP_WORDS = new Set(`a an and are as at be been but by can could did do does for from had has have how i if in into is it its may me my of on or our please should so that the their them there these they this to was we what when where which who why will with would you your islam islamic quran qur an hadith evidence explain meaning according tell about related relevant question directly exact topic source sources reference references verse verses ayah ayat mentioned mentions say says said talk talks give show find what does tell me all the according to in the quran in quran in hadith`.split(/\s+/));
 
-function tokenize(value) {
-  return [...new Set(
-    String(value || '')
-      .toLowerCase()
-      .normalize('NFKD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^\p{L}\p{N}]+/gu, ' ')
-      .split(/\s+/)
-      .map(word => word.trim())
-      .filter(word => word.length > 2 && !STOP_WORDS.has(word))
-  )];
+function normalizeWord(word) {
+  const w = word.toLowerCase();
+  // Normalize inflections only; do not add neighbouring concepts.
+  if (w === 'forgiveness' || w === 'forgiven' || w === 'forgiving' || w === 'forgive') return 'forgiv';
+  if (w === 'patience' || w === 'patient' || w === 'patients' || w === 'sabr') return 'patien';
+  if (w === 'steadfastness' || w === 'steadfast') return 'steadfast';
+  if (w === 'repentance' || w === 'repent' || w === 'repenting' || w === 'tawbah') return 'repent';
+  if (w === 'prayers' || w === 'prayer' || w === 'salah' || w === 'salat') return 'prayer';
+  if (w === 'charity' || w === 'charities') return 'charit';
+  return w;
 }
 
-// Use only the topic words the user actually asked about.
-// Do not add fixed synonyms or adjacent concepts for any topic.
+function tokenize(value) {
+  return [...new Set(String(value || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .split(/\s+/)
+    .map(word => word.trim())
+    .filter(word => word.length > 2 && !STOP_WORDS.has(word))
+    .map(normalizeWord))];
+}
+
 function getTopic(question) {
   const terms = tokenize(question);
   return { topic: terms.join(' ') || String(question).trim(), terms };
@@ -71,111 +64,100 @@ function getTopic(question) {
 function calculateRelevance(topic, title, content, providerScore) {
   const terms = topic.terms || [];
   if (!terms.length) return 0;
-
   const titleTerms = new Set(tokenize(title));
   const contentTerms = new Set(tokenize(content));
-  const matchedTerms = new Set([
-    ...terms.filter(term => titleTerms.has(term)),
-    ...terms.filter(term => contentTerms.has(term)),
-  ]);
-
-  // A high search-engine score alone is never enough. The page must explicitly
-  // contain at least one of the user's requested topic words.
-  if (matchedTerms.size === 0) return 0;
-
-  const topicCoverage = matchedTerms.size / terms.length;
+  const matched = terms.filter(term => titleTerms.has(term) || contentTerms.has(term));
+  if (!matched.length) return 0;
+  const coverage = new Set(matched).size / terms.length;
   const titleCoverage = terms.filter(term => titleTerms.has(term)).length / terms.length;
   const contentCoverage = terms.filter(term => contentTerms.has(term)).length / terms.length;
+  // Lexical topic evidence dominates the search provider's score.
+  return coverage * 0.60 + titleCoverage * 0.15 + contentCoverage * 0.20 + Math.min(Math.max(providerScore, 0), 1) * 0.05;
+}
 
-  return (topicCoverage * 0.55) + (titleCoverage * 0.20) +
-    (contentCoverage * 0.20) + (Math.min(Math.max(providerScore, 0), 1) * 0.05);
+const ALBANIAN_MARKERS = /\b(është|eshte|dhe|nga|për|per|kush|kur|ku|nuk|që|qe|më|me|ata|ato|ju|shumë|shume|zoti|mëshirë|mesh ire|falë|fale|besojnë|besojne|jetën|jeten|thoni|thuaju)\b/i;
+const NON_ENGLISH_URL_MARKERS = /\/(?:sq|al|ar|ur|tr|id|fr|de|es|ru|bn|ms)(?:\/|$)/i;
+const ENGLISH_URL_MARKERS = /\/(?:en|english)(?:\/|$)/i;
+
+function looksEnglish(text) {
+  const value = String(text || '').trim();
+  if (!value) return false;
+  if (ALBANIAN_MARKERS.test(value)) return false;
+  // Reject obvious non-Latin Arabic/Urdu text as a translation excerpt.
+  const letters = value.match(/\p{L}/gu) || [];
+  if (!letters.length) return false;
+  const nonLatin = value.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0400-\u04FF]/g) || [];
+  if (nonLatin.length / letters.length > 0.08) return false;
+  // An English source excerpt should contain several common English words.
+  const common = (value.toLowerCase().match(/\b(the|and|of|to|is|in|you|your|he|who|for|with|his|them|those|will|not|forgive|forgives|forgiven|patience|patient)\b/g) || []).length;
+  return common >= 2 || /\b(Allah|God|Lord|Qur'an|Quran|Messenger|believers|forgive|forgiveness|patience|patient)\b/i.test(value);
+}
+
+function isEnglishQuranUrl(url) {
+  // Quran.com/QuranEnc URLs without an explicit English route cannot guarantee
+  // which translation the page will render, so omit them from English-only results.
+  return ENGLISH_URL_MARKERS.test(url.pathname) && !NON_ENGLISH_URL_MARKERS.test(url.pathname);
 }
 
 async function getRequestBody(req) {
   if (req.body && typeof req.body === 'object') return req.body;
-  if (typeof req.body === 'string') {
-    try { return JSON.parse(req.body); } catch { return {}; }
-  }
-  if (typeof req.on === 'function') {
-    return new Promise(resolve => {
-      let raw = '';
-      let tooLarge = false;
-      req.on('data', chunk => {
-        if (tooLarge) return;
-        raw += chunk;
-        if (raw.length > 10000) { tooLarge = true; raw = ''; }
-      });
-      req.on('end', () => {
-        try { resolve(!tooLarge && raw ? JSON.parse(raw) : {}); }
-        catch { resolve({}); }
-      });
-      req.on('error', () => resolve({}));
-    });
-  }
+  if (typeof req.body === 'string') { try { return JSON.parse(req.body); } catch { return {}; } }
+  if (typeof req.on === 'function') return new Promise(resolve => {
+    let raw = '', tooLarge = false;
+    req.on('data', chunk => { if (tooLarge) return; raw += chunk; if (raw.length > 10000) { tooLarge = true; raw = ''; } });
+    req.on('end', () => { try { resolve(!tooLarge && raw ? JSON.parse(raw) : {}); } catch { resolve({}); } });
+    req.on('error', () => resolve({}));
+  });
   return {};
 }
 
 function getQuestion(body) {
-  for (const value of [body?.query, body?.question, body?.text]) {
+  for (const value of [body?.query, body?.question, body?.text])
     if (typeof value === 'string' && value.trim()) return value.trim();
-  }
   return '';
 }
 
 function isTrustedUrl(value, domains) {
   try {
     const url = new URL(value);
-    return ['https:', 'http:'].includes(url.protocol) && domains.some(domain =>
-      url.hostname === domain || url.hostname.endsWith(`.${domain}`)
-    );
+    return url.protocol === 'https:' && domains.some(domain => url.hostname === domain || url.hostname.endsWith(`.${domain}`));
   } catch { return false; }
 }
 
 function getRetryAfter(response) {
-  const values = [
-    response.headers.get('retry-after'),
-    response.headers.get('x-ratelimit-reset-requests'),
-    response.headers.get('x-ratelimit-reset-tokens'),
-  ].filter(Boolean);
-  return values.find(value =>
-    !/^(?:0+(?:\.0+)?)(?:\s*(?:ms|s|sec|seconds?))?$/i.test(value.trim())
-  ) || values[0] || null;
+  const values = [response.headers.get('retry-after'), response.headers.get('x-ratelimit-reset-requests'), response.headers.get('x-ratelimit-reset-tokens')].filter(Boolean);
+  return values.find(value => !/^(?:0+(?:\.0+)?)(?:\s*(?:ms|s|sec|seconds?))?$/i.test(value.trim())) || values[0] || null;
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed.' });
-
   try {
     const body = await getRequestBody(req);
     const query = getQuestion(body);
-    if (query.length < 2 || query.length > MAX_QUERY_LENGTH) {
+    if (query.length < 2 || query.length > MAX_QUERY_LENGTH)
       return res.status(400).json({ error: `Enter a search question between 2 and ${MAX_QUERY_LENGTH} characters.` });
-    }
 
     const topic = getTopic(query);
-    if (!topic.terms.length) {
+    if (!topic.terms.length)
       return res.status(400).json({ error: 'Please enter the specific Islamic topic you want to research.' });
-    }
 
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'Web research is not configured on the server.' });
 
-    const responses = await Promise.all(sourceGroups.map(group =>
-      fetch('https://api.tavily.com/search', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          api_key: apiKey,
-          query: group.query(query, topic.topic),
-          search_depth: 'advanced',
-          max_results: 8,
-          include_domains: group.domains,
-          include_domains_mode: 'restrict',
-          include_answer: false,
-          include_raw_content: false,
-        }),
-      })
-    ));
+    const responses = await Promise.all(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query: group.query(query, topic.topic),
+        search_depth: 'advanced',
+        max_results: 8,
+        include_domains: group.domains,
+        include_domains_mode: 'restrict',
+        include_answer: false,
+        include_raw_content: false,
+      }),
+    })));
 
     const candidates = [];
     for (let index = 0; index < responses.length; index++) {
@@ -183,53 +165,39 @@ export default async function handler(req, res) {
       const group = sourceGroups[index];
       let data;
       try { data = await response.json(); }
-      catch {
-        return res.status(502).json({ error: 'The web research service returned an invalid response.' });
-      }
+      catch { return res.status(502).json({ error: 'The web research service returned an invalid response.' }); }
       if (!response.ok) {
         const retryAfter = getRetryAfter(response);
         if (retryAfter) res.setHeader('Retry-After', retryAfter);
-        return res.status(response.status === 429 ? 429 : 502).json({
-          error: 'The web research service could not complete this search.',
-          ...(retryAfter ? { retryAfter } : {}),
-        });
+        return res.status(response.status === 429 ? 429 : 502).json({ error: 'The web research service could not complete this search.', ...(retryAfter ? { retryAfter } : {}) });
       }
 
       for (const result of Array.isArray(data.results) ? data.results : []) {
-        if (!result || typeof result.url !== 'string' || typeof result.content !== 'string' ||
-            !isTrustedUrl(result.url, group.domains)) continue;
-
+        if (!result || typeof result.url !== 'string' || typeof result.content !== 'string' || !isTrustedUrl(result.url, group.domains)) continue;
         const url = new URL(result.url);
-        const title = typeof result.title === 'string' && result.title.trim()
-          ? result.title.trim().slice(0, 250) : url.hostname;
+        const title = typeof result.title === 'string' && result.title.trim() ? result.title.trim().slice(0, 250) : url.hostname;
         const content = result.content.slice(0, 5000);
+        if (group.type === 'Qur’an evidence' && !isEnglishQuranUrl(url)) continue;
+        if (!looksEnglish(`${title} ${content}`)) continue;
         const providerScore = typeof result.score === 'number' ? result.score : 0;
         const relevance = calculateRelevance(topic, title, content, providerScore);
         if (relevance < MIN_RELEVANCE_SCORE) continue;
-
         candidates.push({ title, url: url.href, content, sourceType: group.type, score: relevance });
       }
     }
 
-    const seenUrls = new Set();
-    const uniqueCandidates = candidates.filter(source => {
-      const normalizedUrl = new URL(source.url);
-      normalizedUrl.hash = '';
-      normalizedUrl.search = '';
-      const key = normalizedUrl.href.replace(/\/$/, '');
-      if (seenUrls.has(key)) return false;
-      seenUrls.add(key);
-      return true;
+    const seen = new Set();
+    const unique = candidates.filter(source => {
+      const url = new URL(source.url); url.hash = ''; url.search = '';
+      const key = url.href.replace(/\/$/, '');
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
     });
 
     const results = [];
     for (const group of sourceGroups) {
-      results.push(...uniqueCandidates
-        .filter(source => source.sourceType === group.type)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, group.limit));
+      results.push(...unique.filter(source => source.sourceType === group.type).sort((a, b) => b.score - a.score).slice(0, group.limit));
     }
-
     const finalResults = results.slice(0, MAX_SOURCES).map(({ score, ...source }) => source);
     return res.status(200).json({ results: finalResults, total: finalResults.length });
   } catch (error) {
