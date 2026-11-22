@@ -15005,6 +15005,38 @@ return `<div class="scr" style="
               .trim();
           }
 
+          // Small edit-distance helper for likely misspellings of known Islamic terms.
+          // It is deliberately conservative: only individual words of 5+ letters
+          // are compared, and the accepted distance is at most one character.
+          function _isLikelyIslamicTermTypo(word) {
+            if (!word || word.length < 5) return false;
+
+            const maxDistance = 1;
+            for (const term of ISLAMIC_ALLOWED) {
+              // Fuzzy-match single-word terms only; phrases keep their exact matching.
+              if (term.includes(' ') || term.length < 5) continue;
+              if (Math.abs(term.length - word.length) > maxDistance) continue;
+              if (term === word) return true;
+
+              let i = 0, j = 0, edits = 0;
+              while (i < word.length && j < term.length) {
+                if (word[i] === term[j]) {
+                  i++;
+                  j++;
+                  continue;
+                }
+                edits++;
+                if (edits > maxDistance) break;
+                if (word.length > term.length) i++;
+                else if (term.length > word.length) j++;
+                else { i++; j++; }
+              }
+              edits += (word.length - i) + (term.length - j);
+              if (edits <= maxDistance) return true;
+            }
+            return false;
+          }
+
           // STRICT classifier:
           //   1. Refuse anti-Islam phrases.
           //   2. Refuse anything containing a non-Islamic blocklist word.
@@ -15040,7 +15072,13 @@ return `<div class="scr" style="
               if (re.test(q)) return true;
             }
 
-            // 4. Arabic script.
+            // 4. Accept a clear one-character typo in a known Islamic term.
+            //    Examples: "iskam" -> "islam", "repentence" -> "repentance".
+            //    Blocklist checks above always take priority.
+            const words = q.split(/\s+/).filter(Boolean);
+            if (words.some(word => _isLikelyIslamicTermTypo(word))) return true;
+
+            // 5. Arabic script.
             if (/[\u0600-\u06FF]/.test(q)) return true;
 
             // 5. Not recognised → refuse.
@@ -16410,7 +16448,7 @@ function closeYouTubePlayer() {
       - Do not treat a passing mention of Allah, Islam, or a Muslim name as enough to make an unrelated question Islamic.
       - ONLY answer questions related to Islam (Aqeedah, Fiqh, Seerah, Tafsir, Hadith, Islamic history, ethics, etc.).
       - You MUST understand broken English and transliterated Urdu/Hindi/Arabic (e.g., "kya karte", "adhaar", "namaz", "hudhaifa"). Understand the Islamic intent and reply clearly in ENGLISH.
-      - Be tolerant of ordinary spelling mistakes, phonetic spellings and missing letters in Islamic terms. Infer the most likely intended term from the full sentence and answer naturally; do not tell the user to enter a "specific Islamic topic" merely because a word is misspelled. Examples: "isalm" or "isalm" means "Islam"; "tahejjud" means "Tahajjud"; "forgivness" means "forgiveness". If a correction is uncertain, briefly ask what they meant instead of inventing an interpretation.
+      - Be tolerant of ordinary spelling mistakes, phonetic spellings and missing letters in Islamic terms. Infer the most likely intended term from the full sentence and answer naturally; do not tell the user to enter a "specific Islamic topic" merely because a word is misspelled. Examples: "isalm", "iskam" or similar close spellings mean "Islam"; "tahejjud" means "Tahajjud"; "forgivness" and "repentence" mean "forgiveness" and "repentance". If a correction is uncertain, briefly ask what they meant instead of inventing an interpretation.
       - Distinguish an information request from a routine request. A question containing "Islam" or a misspelling of "Islam" asks for an explanation of Islam unless the user explicitly asks for a routine, schedule, plan or checklist. Generate a routine only when the user clearly requests one (for example, "Islamic routine", "make me a daily routine", or "routine for worship"). Do not turn a general question about Islam into a routine.
 
       HOW TO HANDLE NAMES:
