@@ -17539,22 +17539,7 @@ const startLiveRecognitionAttempt = () => {
 };
 
 const toggleGuideRecording = async () => {
-  if (liveRecognitionActive) {
-    // A second click always stops the current listening session immediately.
-    liveRecognitionActive = false;
-    if (liveRecognitionTimer) window.clearTimeout(liveRecognitionTimer);
-    liveRecognitionTimer = null;
-    if (liveRecognition) {
-      try { liveRecognition.stop(); } catch (error) {
-        console.warn('Could not stop live speech recognition:', error);
-        finishLiveRecognition(true);
-      }
-    } else {
-      finishLiveRecognition(true);
-    }
-    return;
-  }
-
+  // Tapping the microphone again stops the current recording immediately.
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     return;
@@ -17564,59 +17549,11 @@ const toggleGuideRecording = async () => {
     toast('Voice input needs the deployed app or a secure local server.');
     return;
   }
-
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SpeechRecognition) {
-    try {
-      const input = $('#guide-input');
-      liveRecognitionBaseText = input ? input.value.trim() : '';
-      liveRecognitionSpoken = '';
-      liveRecognitionInterim = '';
-      liveRecognitionActive = true;
-
-      const button = $('#guide-mic');
-      if (button) {
-        button.classList.add('is-recording');
-        button.setAttribute('aria-label', 'Stop listening');
-        button.title = 'Stop listening';
-        button.style.color = 'var(--red, #ef4444)';
-        button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
-      }
-      startVoicePlaceholderAnimation(input);
-
-      // One fixed 30-second limit for the complete session, including any
-      // automatic browser recognition restarts during silence.
-      liveRecognitionTimer = window.setTimeout(() => {
-        if (!liveRecognitionActive) return;
-        liveRecognitionActive = false;
-        toast('30 seconds completed. You can edit the detected text or type manually.');
-        if (liveRecognition) {
-          try { liveRecognition.stop(); } catch (error) {
-            console.warn('Could not stop recognition at the 30-second limit:', error);
-            finishLiveRecognition(true);
-          }
-        } else {
-          finishLiveRecognition(true);
-        }
-      }, 30000);
-
-      startLiveRecognitionAttempt();
-      return;
-    } catch (error) {
-      console.warn('Could not start live speech recognition:', error);
-      liveRecognitionActive = false;
-      if (liveRecognitionTimer) window.clearTimeout(liveRecognitionTimer);
-      liveRecognitionTimer = null;
-      liveRecognition = null;
-      resetMicButton();
-      // Fall through to the existing MediaRecorder transcription fallback.
-    }
-  }
-
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     toast('Voice recording is not supported in this browser.');
     return;
   }
+
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -17627,38 +17564,69 @@ const toggleGuideRecording = async () => {
     toast(message);
     return;
   }
+
   recordingStream = stream;
   recordingChunks = [];
   voiceRequestVersion++;
   const requestVersion = voiceRequestVersion;
-  const supportedType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
-    .find(type => MediaRecorder.isTypeSupported(type));
+  const input = $('#guide-input');
+  liveRecognitionActive = true;
+  startVoicePlaceholderAnimation(input);
+
+  const supportedType = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg'
+  ].find(type => MediaRecorder.isTypeSupported(type));
+
   try {
     mediaRecorder = supportedType
       ? new MediaRecorder(stream, { mimeType: supportedType })
       : new MediaRecorder(stream);
   } catch (error) {
+    liveRecognitionActive = false;
     stream.getTracks().forEach(track => track.stop());
     recordingStream = null;
-    throw error;
+    resetMicButton();
+    console.error('Could not create voice recorder:', error);
+    toast('Could not start voice recording. Please try again.');
+    return;
   }
+
   const recorder = mediaRecorder;
   recorder.ondataavailable = event => {
     if (event.data && event.data.size) recordingChunks.push(event.data);
   };
+
+  recorder.onerror = event => {
+    console.error('Voice recording error:', event.error || event);
+    if (recorder.state !== 'inactive') {
+      try { recorder.stop(); } catch {}
+    }
+  };
+
   recorder.onstop = async () => {
     if (recordingTimer) window.clearTimeout(recordingTimer);
     recordingTimer = null;
+    liveRecognitionActive = false;
     stream.getTracks().forEach(track => track.stop());
     if (recordingStream === stream) recordingStream = null;
     if (mediaRecorder === recorder) mediaRecorder = null;
     resetMicButton();
+
     if (requestVersion !== voiceRequestVersion) return;
+    const blob = new Blob(recordingChunks, { type: recorder.mimeType || 'audio/webm' });
+    recordingChunks = [];
+    if (!blob.size) {
+      toast('No audio was recorded. Please try again.');
+      return;
+    }
+
     S.guideThinking = true;
     setInputBusy(true);
     showThinking('Transcribing your message…');
     try {
-      const blob = new Blob(recordingChunks, { type: recorder.mimeType || 'audio/webm' });
       await transcribeRecording(blob, requestVersion);
     } catch (error) {
       if (requestVersion !== voiceRequestVersion) return;
@@ -17669,33 +17637,41 @@ const toggleGuideRecording = async () => {
         S.guideThinking = false;
         hideThinking();
         setInputBusy(false);
+        if (input) input.focus();
       }
     }
   };
+
   try {
-    recorder.start();
+    recorder.start(250);
   } catch (error) {
+    liveRecognitionActive = false;
     stream.getTracks().forEach(track => track.stop());
     recordingStream = null;
     mediaRecorder = null;
-    throw error;
+    resetMicButton();
+    console.error('Could not begin voice recording:', error);
+    toast('Could not start voice recording. Please try again.');
+    return;
   }
-  S.guideThinking = true;
-  setInputBusy(true);
+
   const button = $('#guide-mic');
   if (button) {
     button.classList.add('is-recording');
-    button.setAttribute('aria-label', 'Stop recording');
-    button.title = 'Stop recording';
+    button.setAttribute('aria-label', 'Stop listening');
+    button.title = 'Stop listening';
     button.style.color = 'var(--red, #ef4444)';
+    button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
   }
-  const input = $('#guide-input');
-  if (input) input.placeholder = 'Listening, speak now…';
+
+  // One 30-second maximum for the complete recording.
   recordingTimer = window.setTimeout(() => {
-    if (mediaRecorder === recorder && recorder.state !== 'inactive') recorder.stop();
+    if (mediaRecorder === recorder && recorder.state !== 'inactive') {
+      toast('30 seconds completed. You can edit the detected text or type manually.');
+      recorder.stop();
+    }
   }, 30000);
 };
-
 
             const ensureClearButton = () => {
               const hasMessages = S.guideMsgs.length > 0;
