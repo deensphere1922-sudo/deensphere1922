@@ -16687,13 +16687,18 @@ ISLAMIC EVIDENCE AND ACCURACY:
           function renderDeenGuide() {
             const msgs = S.guideMsgs || [];
             const hasMessages = msgs.length > 0;
-            const renderAttachments = attachments => (Array.isArray(attachments) ? attachments : []).map(attachment => {
-              const preview = typeof attachment.preview === 'string' &&
-                /^data:image\/(?:jpeg|png|webp);base64,/i.test(attachment.preview)
-                ? `<img src="${esc(attachment.preview)}" alt="${esc(attachment.name || 'Attachment')}" style="width:72px;height:72px;object-fit:cover;border-radius:10px;">`
-                : '';
-              return `<div style="display:inline-flex;align-items:center;gap:8px;margin:6px 6px 0 0;padding:6px 8px;border:1px solid var(--border);border-radius:10px;background:var(--card);max-width:100%;"><span>${attachment.kind === 'pdf' ? 'PDF' : 'Image'}</span>${preview}<span style="overflow-wrap:anywhere;">${esc(attachment.name || 'Attachment')}</span></div>`;
-            }).join('');
+            // Keep attachment previews in a dedicated block below the message text.
+            // This same renderer is used for newly sent and restored chat messages.
+            const renderAttachments = attachments => {
+              const items = (Array.isArray(attachments) ? attachments : []).map(attachment => {
+                const preview = typeof attachment.preview === 'string' &&
+                  /^data:image\/(?:jpeg|png|webp);base64,/i.test(attachment.preview)
+                  ? `<img src="${esc(attachment.preview)}" alt="${esc(attachment.name || 'Attachment')}" style="width:72px;height:72px;flex:0 0 72px;object-fit:cover;border-radius:10px;">`
+                  : '';
+                return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0 0;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);width:min(492px,100%);max-width:100%;min-width:0;box-sizing:border-box;"><span style="flex:0 0 auto;">${attachment.kind === 'pdf' ? 'PDF' : 'Image'}</span>${preview}<span style="min-width:0;overflow-wrap:anywhere;">${esc(attachment.name || 'Attachment')}</span></div>`;
+              }).join('');
+              return items ? `<div class="guide-message-attachments" style="display:flex;flex-direction:column;align-items:flex-start;width:100%;max-width:100%;margin-top:4px;">${items}</div>` : '';
+            };
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
                     <div>
@@ -16709,7 +16714,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   ${msgs.length
                 ? msgs.map(m => {
                   if (m.role === 'user') {
-                  return `<div style="align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);">${esc(m.text || '')}${renderAttachments(m.attachments)}</div>`;
+                  return `<div class="guide-user-message" style="align-self:flex-end;display:flex;flex-direction:column;align-items:stretch;flex:0 0 auto;width:fit-content;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);"><div style="white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;min-width:0;">${esc(m.text || '')}</div>${renderAttachments(m.attachments)}</div>`;
                   } else {
                   return `<div style="align-self:flex-start;flex-shrink:0;min-width:0;width:100%;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;text-align:left;background:var(--card-el);padding:12px 14px;border-radius:16px 16px 16px 4px;font-size:15.5px;line-height:1.62;color:var(--tx);border-left:2px solid var(--green);">${renderGuideMessageText(m.text, m.sources)}${renderGuideSources(m.sources, m.text)}</div>`;
                   }
