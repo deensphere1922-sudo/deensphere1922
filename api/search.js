@@ -1,23 +1,23 @@
 export const config = { maxDuration: 60 };
 
 const MAX_QUERY_LENGTH = 1000;
-const MAX_SOURCES = 5;
-const MIN_RELEVANCE_SCORE = 0.28;
+const MAX_SOURCES = 12;
+const MIN_RELEVANCE_SCORE = 0.22;
 
 const sourceGroups = [
   {
     type: 'Qur’an evidence',
     domains: ['quran.com', 'quranenc.com'],
-    limit: 2,
-    query: question =>
-      `${question} Qur'an verses and tafsir directly addressing the exact subject and question.`,
+    limit: 6,
+    query: (question, topic) =>
+      `Qur'an verses that explicitly discuss ${topic}. Give exact Surah and ayah references. Search only verses about this subject: ${question}. Exclude verses that merely mention a loosely related idea.`,
   },
   {
     type: 'Hadith evidence',
     domains: ['sunnah.com', 'dorar.net'],
-    limit: 2,
-    query: question =>
-      `${question} directly relevant Hadith narrations. Include the original collection, book/chapter and Hadith number when available.`,
+    limit: 5,
+    query: (question, topic) =>
+      `Authentic Hadith narrations that explicitly discuss ${topic}. Search the exact subject in the wording or chapter heading. Include collection and exact Hadith number. Query: ${question}. Exclude loosely related narrations.`,
   },
   {
     type: 'Scholarly explanation',
@@ -29,17 +29,32 @@ const sourceGroups = [
       'yaqeeninstitute.org',
     ],
     limit: 1,
-    query: question =>
-      `${question} focused Islamic scholarly explanation of this exact topic, with supporting evidence.`,
+    query: (question, topic) =>
+      `Islamic scholarly explanation specifically about ${topic}, with direct Qur'an and Hadith evidence. Question: ${question}. Exclude unrelated topics.`,
   },
 ];
+
+const TOPIC_ALIASES = [
+  { match: /\b(sabr|patience|patient|perseverance|steadfastness)\b/i, topic: 'Sabr (patience)', terms: ['sabr', 'patience', 'patient', 'patiently', 'perseverance', 'steadfastness'] },
+  { match: /\b(forgiveness|forgive|forgiven|forgiving|pardon)\b/i, topic: 'forgiveness (Allah’s forgiveness and forgiving others)', terms: ['forgive', 'forgiveness', 'forgiven', 'forgiving', 'pardon'] },
+  { match: /\b(tawakkul|reliance on allah|trust in allah)\b/i, topic: 'Tawakkul (reliance upon Allah)', terms: ['tawakkul', 'reliance', 'trust', 'putting trust'] },
+  { match: /\b(gratitude|thankfulness|shukr)\b/i, topic: 'Shukr (gratitude)', terms: ['shukr', 'gratitude', 'thankfulness', 'grateful'] },
+  { match: /\b(mercy|rahmah|compassion)\b/i, topic: 'mercy (rahmah)', terms: ['mercy', 'rahmah', 'compassion', 'merciful'] },
+];
+
+function getTopic(question) {
+  const found = TOPIC_ALIASES.find(item => item.match.test(question));
+  if (found) return found;
+  const words = tokenize(question);
+  return { topic: words.slice(0, 5).join(' ') || question, terms: words };
+}
 
 const STOP_WORDS = new Set([
   'a', 'an', 'and', 'are', 'as', 'at', 'be', 'been', 'but', 'by', 'can',
   'could', 'did', 'do', 'does', 'for', 'from', 'had', 'has', 'have', 'how',
   'i', 'if', 'in', 'into', 'is', 'it', 'its', 'may', 'me', 'my', 'of', 'on',
   'or', 'our', 'please', 'should', 'so', 'that', 'the', 'their', 'them',
-  'there', 'these', 'they', 'this', 'to', ' was', 'we', 'what', 'when',
+  'there', 'these', 'they', 'this', 'to', 'was', 'we', 'what', 'when',
   'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
   'islam', 'islamic', 'quran', 'qur an', 'hadith', 'evidence', 'explain',
   'meaning', 'according', 'tell', 'about', 'related', 'relevant', 'question',
@@ -59,27 +74,22 @@ function tokenize(value) {
   )];
 }
 
-function calculateRelevance(question, title, content, providerScore) {
-  const terms = tokenize(question);
-  if (!terms.length) return providerScore;
-
+function calculateRelevance(topic, title, content, providerScore) {
+  const terms = topic.terms || [];
   const titleText = String(title || '').toLowerCase();
   const contentText = String(content || '').toLowerCase();
-  let titleMatches = 0;
-  let contentMatches = 0;
+  if (!terms.length) return providerScore >= 0.45 ? providerScore : 0;
 
-  for (const term of terms) {
-    if (titleText.includes(term)) titleMatches++;
-    if (contentText.includes(term)) contentMatches++;
-  }
-
+  const titleMatches = terms.filter(term => titleText.includes(term.toLowerCase())).length;
+  const contentMatches = terms.filter(term => contentText.includes(term.toLowerCase())).length;
   const titleRatio = titleMatches / terms.length;
   const contentRatio = contentMatches / terms.length;
-  // Give the page title more weight, while retaining Tavily's relevance score.
-  return Math.max(
-    providerScore,
-    titleRatio * 0.65 + contentRatio * 0.35
-  );
+  const hasDirectTopicMatch = titleMatches > 0 || contentMatches > 0;
+
+  // A high search-engine score alone is never enough: the page must contain
+  // at least one explicit term for the requested topic (or its listed synonym).
+  if (!hasDirectTopicMatch) return 0;
+  return (titleRatio * 0.55) + (contentRatio * 0.45) + (providerScore * 0.10);
 }
 
 // Support parsed JSON, JSON strings and raw request bodies.
@@ -167,6 +177,8 @@ export default async function handler(req, res) {
       });
     }
 
+    const topic = getTopic(query);
+
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) {
       return res.status(503).json({
@@ -180,7 +192,7 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           api_key: apiKey,
-          query: group.query(query),
+          query: group.query(query, topic.topic),
           search_depth: 'advanced',
           max_results: 6,
           include_domains: group.domains,
@@ -229,7 +241,7 @@ export default async function handler(req, res) {
           : url.hostname;
         const content = result.content.slice(0, 2200);
         const providerScore = typeof result.score === 'number' ? result.score : 0;
-        const relevance = calculateRelevance(query, title, content, providerScore);
+        const relevance = calculateRelevance(topic, title, content, providerScore);
 
         // Reject weak results rather than filling the list with loosely related pages.
         if (relevance < MIN_RELEVANCE_SCORE) continue;
