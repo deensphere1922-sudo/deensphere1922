@@ -17933,6 +17933,24 @@ const toggleGuideRecording = async () => {
               setGuideWebSearchEnabled(false);
               if (inp) inp.value = '';
 
+              // Enforce Deen Guide's Islam-only scope before calling the AI.
+              // Keep attachment-only questions available for Islamic document/image analysis.
+              const explicitlyIslamicFraming = /\\b(islam|islamic|muslim|allah|qur'?an|quran|sunnah|hadith|deen|fiqh|aqeedah|aqidah|shariah|sharia|halal|haram|fatwa|ruling|islamically)\\b/i.test(text);
+              const isIslamicFollowUp = (S.guideMsgs || []).slice(0, -1).some(message =>
+                message.role === 'assistant' && /\\b(islam|islamic|muslim|allah|qur'?an|quran|sunnah|hadith|deen|fiqh|aqeedah|halal|haram)\\b/i.test(message.text || '')
+              ) && /^(why|how|what about|and|then|so|is it|does it|can i|should i|what if)\\b/i.test(text.trim());
+              if (text && !attachments.length && !_isIslamicQuery(text) &&
+                  !explicitlyIslamicFraming && !isIslamicFollowUp) {
+                const refusal = "I'm Deen Guide, your Islamic AI assistant. I can only help with questions about Islam. Please ask me an Islamic question.";
+                S.guideMsgs.push({ role: 'assistant', text: refusal });
+                appendMessage('assistant', refusal, [], [], true);
+                setInputBusy(false);
+                ensureClearButton();
+                setJSON('guide-history', S.guideMsgs).catch(error =>
+                  console.error('Could not save Deen Guide history:', error));
+                return;
+              }
+
               const requestVersion = ++guideRequestVersion;
               const controller = new AbortController();
               activeChatController = controller;
