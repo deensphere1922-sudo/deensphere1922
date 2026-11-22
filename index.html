@@ -10075,8 +10075,6 @@ return `<div class="scr" style="
  
 
 function _calculateQuranReadStats(targetDateStr) {
-  let lastBookmark = null;
-
   const bookmarks = Array.isArray(S.bookmarks)
     ? S.bookmarks.filter(bookmark =>
         bookmark?.date &&
@@ -10086,69 +10084,44 @@ function _calculateQuranReadStats(targetDateStr) {
       )
     : [];
 
-  const getDayBookmarks = (dateStr) => {
-    const start = new Date(dateStr + 'T00:00:00').getTime();
-    const end = new Date(dateStr + 'T23:59:59.999').getTime();
+  const start = new Date(targetDateStr + 'T00:00:00').getTime();
+  const end = new Date(targetDateStr + 'T23:59:59.999').getTime();
 
-    return bookmarks.filter(bookmark => {
+  const todayBookmarks = bookmarks
+    .filter(bookmark => {
       const time = new Date(bookmark.date).getTime();
       return time >= start && time <= end;
-    });
-  };
+    })
+    .sort((a, b) =>
+      new Date(a.date).getTime() - new Date(b.date).getTime()
+    );
 
-  // Find the highest cumulative bookmark position for a day.
-  // Multiple bookmarks must never be added together.
-  const getHighestBookmark = (dateStr) => {
-    const dayBookmarks = getDayBookmarks(dateStr);
-
-    return dayBookmarks.reduce((highest, bookmark) => {
-      const position = _qGlobalAyah(
-        Number(bookmark.surah),
-        Number(bookmark.verse)
-      );
-
-      const highestPosition = highest
-        ? _qGlobalAyah(
-            Number(highest.surah),
-            Number(highest.verse)
-          )
-        : 0;
-
-      return position > highestPosition ? bookmark : highest;
-    }, null);
-  };
-
-  // Today's highest bookmark.
-  lastBookmark = getHighestBookmark(targetDateStr);
-
-  if (!lastBookmark) {
+  if (!todayBookmarks.length) {
     return { versesRead: 0, lastBookmark: null };
   }
 
-  // Get yesterday's date.
-  const previousDate = new Date(targetDateStr + 'T00:00:00');
-  previousDate.setDate(previousDate.getDate() - 1);
+  // First bookmark of today = starting position.
+  const startingBookmark = todayBookmarks[0];
 
-  const previousDateStr =
-    previousDate.getFullYear() + '-' +
-    String(previousDate.getMonth() + 1).padStart(2, '0') + '-' +
-    String(previousDate.getDate()).padStart(2, '0');
-
-  // Yesterday's highest cumulative bookmark position.
-  const previousBookmark = getHighestBookmark(previousDateStr);
-
-  const previousTotal = previousBookmark
-    ? _qGlobalAyah(
-        Number(previousBookmark.surah),
-        Number(previousBookmark.verse)
-      )
-    : 0;
-
-  // Today's bookmark verse minus yesterday's cumulative position.
-  const versesRead = Math.max(
-    0,
-    Number(lastBookmark.verse) - previousTotal
+  // Furthest bookmark of today = ending position.
+  const lastBookmark = todayBookmarks.reduce((highest, bookmark) =>
+    _qGlobalAyah(Number(bookmark.surah), Number(bookmark.verse)) >
+    _qGlobalAyah(Number(highest.surah), Number(highest.verse))
+      ? bookmark
+      : highest
   );
+
+  const startPosition = _qGlobalAyah(
+    Number(startingBookmark.surah),
+    Number(startingBookmark.verse)
+  );
+
+  const endPosition = _qGlobalAyah(
+    Number(lastBookmark.surah),
+    Number(lastBookmark.verse)
+  );
+
+  const versesRead = Math.max(0, endPosition - startPosition);
 
   return { versesRead, lastBookmark };
 }
