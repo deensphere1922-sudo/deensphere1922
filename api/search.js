@@ -12,25 +12,25 @@ const sourceGroups = [
     domains: ['quran.com', 'quranenc.com'],
     limit: 6,
     query: (question, topic) =>
-      `English Qur'an translation in English only. ${topic === 'islam' ? "Find introductory Qur'an passages explaining Islam, submission to Allah, and the message of Islam." : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
+      `English Qur'an translation in English only. ${topic === 'islam' ? "Find introductory Qur'an passages explaining what Islam is, the meaning of Islam, submission to Allah, and the message of Islam." : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
   },
   {
     type: 'Hadith evidence',
     domains: ['sunnah.com'],
     limit: 5,
     query: (question, topic) =>
-      `English Hadith text from Sunnah.com. ${topic === 'islam' ? 'Find foundational narrations that explain Islam and its pillars.' : `Find narrations specifically and directly about the exact topic "${topic}"; exclude merely associated topics.`} Include collection and exact Hadith reference when the page provides them. User question: ${question}.`,
+      `English Hadith text from Sunnah.com. ${topic === 'islam' ? 'Find foundational narrations that explain what Islam is, the meaning of Islam, and its pillars.' : `Find narrations specifically and directly about the exact topic "${topic}"; exclude merely associated topics.`} Include collection and exact Hadith reference when the page provides them. User question: ${question}.`,
   },
   {
     type: 'Scholarly explanation',
     domains: ['islamweb.net', 'islamqa.info', 'islamqa.org', 'seekersguidance.org', 'yaqeeninstitute.org'],
     limit: 1,
     query: (question, topic) =>
-      `English-language Islamic scholarly explanation. ${topic === 'islam' ? 'Provide a reliable introductory explanation of Islam, its beliefs and five pillars.' : `Explain only the exact topic "${topic}"; do not include adjacent or loosely related subjects.`} User question: ${question}.`,
+      `English-language Islamic scholarly explanation. ${topic === 'islam' ? 'Provide a reliable introductory explanation of what Islam means, its core belief in the oneness of Allah, prophethood, worship, and five pillars.' : `Explain only the exact topic "${topic}"; do not include adjacent or loosely related subjects.`} User question: ${question}.`,
   },
 ];
 
-const STOP_WORDS = new Set(`a an and are as at be been but by can could did do does for from had has have how i if in into is it its may me my of on or our please should so that the their them there these they this to was we what when where which who why will with would you your islamic quran qur an hadith evidence explain meaning according tell about related relevant question directly exact topic source sources reference references verse verses ayah ayat mentioned mentions say says said talk talks give show find what does tell me all the according to in the quran in quran in hadith`.split(/\s+/));
+const STOP_WORDS = new Set(`a an and are as at be been but by can could did do does for from had has have how i if in into is it its may me my of on or our please should so that the their them there these they this to was we what when where which who why will with would you your islamic quran qur an hadith evidence explain meaning mean means definition define describe according tell about related relevant question directly exact topic source sources reference references verse verses ayah ayat mentioned mentions say says said talk talks give show find all`.split(/\s+/));
 
 const SPELLING_MAP = new Map([
   ['tahejjud', 'tahajjud'], ['tahajud', 'tahajjud'], ['tahajjudh', 'tahajjud'],
@@ -92,8 +92,8 @@ function tokenize(value) {
   return [...new Set(String(value || '')
     .toLowerCase()
     .normalize('NFKD')
-    .replace(/[\\u0300-\\u036f]/g, '')
-    .replace(/[^\\p{L}\\p{N}]+/gu, ' ')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .split(/\s+/)
     .map(word => word.trim())
     .filter(word => word.length > 2 && !STOP_WORDS.has(word))
@@ -137,22 +137,24 @@ const ENGLISH_URL_MARKERS = /\/(?:en|english)(?:\/|$)/i;
 
 function looksEnglish(text) {
   const value = String(text || '').trim();
-  if (!value) return false;
-  if (ALBANIAN_MARKERS.test(value)) return false;
-  // Reject obvious non-Latin Arabic/Urdu text as a translation excerpt.
+  if (!value || ALBANIAN_MARKERS.test(value)) return false;
+
   const letters = value.match(/\p{L}/gu) || [];
   if (!letters.length) return false;
+
   const nonLatin = value.match(/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\u0400-\u04FF]/g) || [];
-  if (nonLatin.length / letters.length > 0.08) return false;
-  // An English source excerpt should contain several common English words.
-  const common = (value.toLowerCase().match(/\b(the|and|of|to|is|in|you|your|he|who|for|with|his|them|those|will|not|forgive|forgives|forgiven|patience|patient)\b/g) || []).length;
-  return common >= 2 || /\b(Allah|God|Lord|Qur'an|Quran|Messenger|believers|forgive|forgiveness|patience|patient)\b/i.test(value);
+  // Permit a short Arabic quotation alongside an English translation, but
+  // reject excerpts that are predominantly Arabic/Urdu/Cyrillic.
+  if (nonLatin.length / letters.length > 0.45) return false;
+
+  const common = (value.toLowerCase().match(/\b(the|and|of|to|is|in|you|your|he|who|for|with|his|them|those|will|not|what|from|that|this|are|one|god|allah|lord|islam|submission|faith|believe|believers|quran|qur'an|messenger|forgive|forgiveness|patience|patient)\b/g) || []).length;
+  return common >= 1 || letters.length >= 30;
 }
 
 function isEnglishQuranUrl(url) {
-  // Quran.com/QuranEnc URLs without an explicit English route cannot guarantee
-  // which translation the page will render, so omit them from English-only results.
-  return ENGLISH_URL_MARKERS.test(url.pathname) && !NON_ENGLISH_URL_MARKERS.test(url.pathname);
+  // Quran.com verse URLs often use canonical paths without an /en/ segment.
+  // Accept canonical URLs, but reject explicit non-English language routes.
+  return !NON_ENGLISH_URL_MARKERS.test(url.pathname);
 }
 
 async function getRequestBody(req) {
