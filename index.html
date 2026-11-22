@@ -16776,16 +16776,18 @@ ISLAMIC EVIDENCE AND ACCURACY:
       <span aria-hidden="true" style="display:flex;flex:0 0 20px;justify-content:center;color:var(--tx2);"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg></span><span><strong style="display:block;font-size:13px;">Search the web</strong><small style="display:block;margin-top:3px;color:var(--tx3);">Find Islamic sources and citations</small></span>
     </button>
   </div>
-  <div id="guide-composer-row" style="display:flex;align-items:center;gap:8px;width:100%;">
+  <div id="guide-composer-row" style="display:flex;align-items:center;gap:8px;width:100%;min-height:42px;">
   <input id="guide-file-input" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf" multiple style="display:none;">
   <button class="btn" id="guide-attach" type="button" aria-label="Add to message" aria-haspopup="true" aria-expanded="false" aria-controls="guide-plus-menu" title="Add to message" style="width:42px;height:42px;min-width:42px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--green-l);background:var(--green-dim);color:var(--green-l);border-radius:12px;">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
   </button>
-  <input
+  <textarea
     id="guide-input"
+    rows="1"
     placeholder="Ask Deen Guide..."
-    style="flex:1;min-width:0;cursor:text;background:transparent!important;border:0!important;box-shadow:none!important;padding:10px 4px;"
-  >
+    aria-label="Ask Deen Guide"
+    style="flex:1 1 0%;min-width:0;width:100%;min-height:42px;max-height:120px;field-sizing:content;resize:none;overflow-y:auto;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.45;align-self:center;cursor:text;background:transparent!important;border:0!important;box-shadow:none!important;padding:10px 4px;"
+  ></textarea>
   <button class="btn" id="guide-mic" type="button" aria-label="Speak your message" title="Speak your message" style="width:42px;height:42px;min-width:42px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--card-el);color:var(--tx2);border-radius:12px;">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
   </button>
@@ -17389,6 +17391,11 @@ const resetMicButton = () => {
     button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
   }
   const input = $('#guide-input');
+            if (input && input.dataset.autoGrowBound !== '1') {
+              input.dataset.autoGrowBound = '1';
+              input.addEventListener('input', () => resizeGuideInput(input));
+              resizeGuideInput(input);
+            }
   if (input) {
     input.classList.remove('voice-listening');
     input.placeholder = 'Ask Deen Guide...';
@@ -17407,6 +17414,12 @@ const startVoicePlaceholderAnimation = input => {
     messageIndex = (messageIndex + 1) % messages.length;
     input.placeholder = messages[messageIndex];
   }, 1100);
+};
+
+const resizeGuideInput = input => {
+  if (!input || input.tagName !== 'TEXTAREA') return;
+  input.style.height = '42px';
+  input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
 };
 
 const transcribeRecording = async (blob, requestVersion) => {
@@ -17431,6 +17444,7 @@ const transcribeRecording = async (blob, requestVersion) => {
   if (!transcript) throw new Error('No speech was detected. Please try again.');
   if (input) {
     input.value = `${input.value.trim()}${input.value.trim() ? ' ' : ''}${transcript}`;
+    resizeGuideInput(input);
     input.focus();
   }
 };
@@ -17486,6 +17500,7 @@ const startLiveRecognitionAttempt = () => {
     if (input) {
       const parts = [liveRecognitionBaseText.trim(), liveRecognitionSpoken.trim(), liveRecognitionInterim].filter(Boolean);
       input.value = parts.join(' ');
+      resizeGuideInput(input);
       input.focus();
       input.setSelectionRange(input.value.length, input.value.length);
     }
