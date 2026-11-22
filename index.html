@@ -9981,50 +9981,44 @@ return `<div class="scr" style="
     return _routineStatsForDate(day, new Date());
   }
 
-  function _calculateQuranReadStats(targetDateStr) {
-    let versesRead = 0;
-    let lastBookmark = null;
+ 
+function _calculateQuranReadStats(targetDateStr) {
+  let versesRead = 0;
+  let lastBookmark = null;
 
-    if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
-      const sorted = [...S.bookmarks]
-        .filter(b => b && b.date)
-        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  // The displayed read count is the cumulative Qur'an position reached,
+  // not the distance from the previous bookmark. Always keep the furthest
+  // bookmarked ayah up to the selected date, so a later lower bookmark
+  // (for example Al-Baqarah 18 after Al-Baqarah 23) cannot reduce the count.
+  if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
+    const targetEnd = new Date(targetDateStr + 'T23:59:59.999').getTime();
+    let furthestGlobal = 0;
 
-      const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
-      const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
+    for (const bookmark of S.bookmarks) {
+      if (!bookmark || !bookmark.date || !bookmark.surah || !bookmark.verse) continue;
 
-      let todayBookmarks = [];
-      let yesterdayLast = null;
+      const bookmarkTime = new Date(bookmark.date).getTime();
+      if (!Number.isFinite(bookmarkTime) || bookmarkTime > targetEnd) continue;
 
-      // Separate today's bookmarks from yesterday's
-      sorted.forEach(b => {
-        const bTime = new Date(b.date).getTime();
-        if (bTime < targetStart) {
-          yesterdayLast = b;
-        } else if (bTime >= targetStart && bTime <= targetEnd) {
-          todayBookmarks.push(b);
-        }
-      });
+      const globalAyah = _qGlobalAyah(
+        Number(bookmark.surah),
+        Number(bookmark.verse)
+      );
 
-      if (todayBookmarks.length > 0) {
-        lastBookmark = todayBookmarks[todayBookmarks.length - 1];
-        
-        // Start from yesterday's last bookmark, or 0 (absolute beginning) if none
-        let startGlobal = yesterdayLast 
-          ? _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse) 
-          : 0;
-
-        // Calculate total read today (Global position of today's last bookmark minus start point)
-        const endGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
-        versesRead = endGlobal - startGlobal;
-        
-        // Safety check just in case
-        if (versesRead < 0) versesRead = 0;
+      if (Number.isFinite(globalAyah) && globalAyah > furthestGlobal) {
+        furthestGlobal = globalAyah;
+        lastBookmark = bookmark;
       }
     }
 
-    return { versesRead, lastBookmark };
+    // Example: Al-Fatihah 2 = 2, Al-Baqarah 23 = 30.
+    // Keep 30 as the cumulative total even if a newer bookmark is verse 18.
+    versesRead = furthestGlobal;
   }
+
+  return { versesRead, lastBookmark };
+}
+
 
         function _buildHomeProgressSummaryHTML(day) {
           const t = todaysTimes();
