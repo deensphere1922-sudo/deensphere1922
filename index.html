@@ -16490,8 +16490,11 @@ ISLAMIC EVIDENCE AND ACCURACY:
               : sources.map((source, index) => index + 1);
 
             const seenUrls = new Set();
-            const links = sourceNumbers.map(number => {
-              const source = sources[number - 1];
+            // Keep the original source index for citation lookup, but show a
+            // clean consecutive number in the visible Sources list.
+            const links = sourceNumbers.map((sourceIndex, displayIndex) => {
+              const source = sources[sourceIndex - 1];
+              const displayNumber = displayIndex + 1;
               if (!source || typeof source.url !== 'string') return '';
               try {
                 const url = new URL(source.url);
@@ -16506,7 +16509,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
                   : 'Web source';
 
                 return `<div style="display:flex;align-items:flex-start;gap:7px;margin-top:7px;min-width:0;">
-                  <span style="color:var(--tx3);flex:0 0 auto;">${number}.</span>
+                  <span style="color:var(--tx3);flex:0 0 auto;">${displayNumber}.</span>
                   <span style="min-width:0;overflow-wrap:anywhere;">
                     <a href="${escapeGuideSourceHtml(url.href)}" target="_blank" rel="noopener noreferrer" style="color:var(--green-l);text-decoration:underline;">${escapeGuideSourceHtml(title)}</a>
                     <span style="display:block;color:var(--tx3);font-size:11px;">${escapeGuideSourceHtml(sourceType)} · ${escapeGuideSourceHtml(url.hostname)}</span>
@@ -16554,7 +16557,9 @@ ISLAMIC EVIDENCE AND ACCURACY:
             let html = escapeGuideSourceHtml(text)
               .replace(/\*\*(.+?)\*\*/g, '<strong style="color:var(--tx);font-weight:600;">$1</strong>')
               .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
-              .replace(/`([^`\n]+)`/g, '<code>$1</code>');
+              .replace(/`([^`\n]+)`/g, '<code>$1</code>')
+              // Remove leftover Markdown asterisks so raw * characters never show.
+              .replace(/\*/g, '');
             citationLinks.forEach((link, index) => {
               html = html.replace(`\u0000GUIDE_CITATION_${index}\u0000`, link);
             });
