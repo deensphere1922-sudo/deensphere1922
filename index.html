@@ -16325,6 +16325,8 @@ function closeYouTubePlayer() {
       SCOPE & UNDERSTANDING:
       - ONLY answer questions related to Islam (Aqeedah, Fiqh, Seerah, Tafsir, Hadith, Islamic history, ethics, etc.).
       - You MUST understand broken English and transliterated Urdu/Hindi/Arabic (e.g., "kya karte", "adhaar", "namaz", "hudhaifa"). Understand the Islamic intent and reply clearly in ENGLISH.
+      - Be tolerant of ordinary spelling mistakes, phonetic spellings and missing letters in Islamic terms. Infer the most likely intended term from the full sentence and answer naturally; do not tell the user to enter a "specific Islamic topic" merely because a word is misspelled. Examples: "isalm" or "isalm" means "Islam"; "tahejjud" means "Tahajjud"; "forgivness" means "forgiveness". If a correction is uncertain, briefly ask what they meant instead of inventing an interpretation.
+      - Distinguish an information request from a routine request. A question containing "Islam" or a misspelling of "Islam" asks for an explanation of Islam unless the user explicitly asks for a routine, schedule, plan or checklist. Generate a routine only when the user clearly requests one (for example, "Islamic routine", "make me a daily routine", or "routine for worship"). Do not turn a general question about Islam into a routine.
 
       HOW TO HANDLE NAMES:
       - If the user mentions a general name like "Huzai", reply warmly: "Huzai is a beautiful boy's name. In Islam, it carries a good meaning..." and explain it.
@@ -16415,6 +16417,7 @@ DAILY ROUTINE & CHECKLIST RULES:
 - Each task must have an individual clickable checkbox.
 - Allow users to tick and untick tasks.
 - Show a completed-task count and update it whenever a checkbox is changed.
+- The interface automatically displays exactly one progress line: "Completed tasks: X/Y (update as you tick each box)". Do not write a second "Completed:" or "Completed tasks:" line in the answer. Do not add explanatory progress sentences such as "You can tick each box as you finish the task" or "This routine balances worship, study, and rest...". The interface owns the progress message; output only the checklist tasks.
 - Organize tasks in a clear and easy-to-follow order.
 - Generate tasks according to the user's request.
 - Do not use checklists for ordinary questions unless requested.
@@ -16597,7 +16600,12 @@ ISLAMIC EVIDENCE AND ACCURACY:
             const taskMatches = [...messageText.matchAll(/^\s*(?:[•*-]\s*)?\[[ xX]\]\s*(.*)$/gm)];
             const initialCompleted = taskMatches.filter((match, index) => !!S.dayCache?.[taskDate]?.routine?.[guideTaskStorageKey(messageText, index)]).length;
             const progressHtml = `<div class="guide-task-count" style="margin-top:12px;font-weight:600;"><strong>Completed tasks:</strong> <span class="guide-completed">${initialCompleted}</span>/<span class="guide-total">${taskTotal}</span> <span style="font-weight:400;color:var(--tx2);">(update as you tick each box)</span></div>`;
-            const renderedLines = messageText.split('\n').map(line => {
+            const renderedLines = messageText.split('\n').map(rawLine => {
+              const line = rawLine
+                .replace(/You can tick each box as you finish the task\.?/gi, '')
+                .replace(/This routine balances worship, study, and rest, helping you stay consistent with your faith\.?/gi, '')
+                .trim();
+              if (!line) return '';
               const task = line.match(/^\s*(?:[•*-]\s*)?\[([ xX])\]\s*(.*)$/);
               if (task) {
                 const key = guideTaskStorageKey(messageText, taskIndex++);
@@ -16866,7 +16874,12 @@ ISLAMIC EVIDENCE AND ACCURACY:
 
     const formatText = value => formatGuideInlineText(value, sources);
 
-    const html = lines.map(line => {
+    const html = lines.map(rawLine => {
+      const line = rawLine
+        .replace(/You can tick each box as you finish the task\.?/gi, '')
+        .replace(/This routine balances worship, study, and rest, helping you stay consistent with your faith\.?/gi, '')
+        .trim();
+      if (!line) return '';
       const task = line.match(/^\s*(?:[•*-]\s*)?\[([ xX])\]\s*(.*)$/);
 
       if (task) {
