@@ -17376,12 +17376,13 @@ const resetMicButton = () => {
   if (livePlaceholderTimer) window.clearInterval(livePlaceholderTimer);
   livePlaceholderTimer = null;
   const button = $('#guide-mic');
-  if (!button) return;
-  button.classList.remove('is-recording');
-  button.setAttribute('aria-label', 'Speak your message');
-  button.title = 'Speak your message';
-  button.style.color = '';
-  button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
+  if (button) {
+    button.classList.remove('is-recording');
+    button.setAttribute('aria-label', 'Speak your message');
+    button.title = 'Speak your message';
+    button.style.color = '';
+    button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
+  }
   const input = $('#guide-input');
   if (input) {
     input.classList.remove('voice-listening');
@@ -17583,6 +17584,7 @@ const toggleGuideRecording = async () => {
       liveRecognitionTimer = window.setTimeout(() => {
         if (!liveRecognitionActive) return;
         liveRecognitionActive = false;
+        toast('30 seconds completed. You can edit the detected text or type manually.');
         if (liveRecognition) {
           try { liveRecognition.stop(); } catch (error) {
             console.warn('Could not stop recognition at the 30-second limit:', error);
