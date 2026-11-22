@@ -16911,6 +16911,11 @@ ISLAMIC EVIDENCE AND ACCURACY:
             let recordingChunks = [];
             let voiceRequestVersion = 0;
             let liveRecognition = null;
+            let liveRecognitionActive = false;
+            let liveRecognitionTimer = null;
+            let liveRecognitionBaseText = '';
+            let liveRecognitionSpoken = '';
+            let liveRecognitionInterim = '';
             let liveRecognitionFinal = '';
             let attachmentVersion = 0;
             let pdfJsPromise = null;
@@ -17390,13 +17395,126 @@ const transcribeRecording = async (blob, requestVersion) => {
   }
 };
 
-const toggleGuideRecording = async () => {
-  if (liveRecognition) {
-    liveRecognition.stop();
+const finishLiveRecognition = (showNoSpeechMessage = true) => {
+  liveRecognitionActive = false;
+  if (liveRecognitionTimer) window.clearTimeout(liveRecognitionTimer);
+  liveRecognitionTimer = null;
+  liveRecognition = null;
+  resetMicButton();
+
+  const input = $('#guide-input');
+  const spoken = liveRecognitionSpoken.trim();
+  if (input) {
+    const combined = `${liveRecognitionBaseText.trim()}${liveRecognitionBaseText.trim() && spoken ? ' ' : ''}${spoken}`;
+    input.value = combined;
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+  if (!spoken && showNoSpeechMessage) {
+    toast('No speech detected. Please try again.');
+  }
+  liveRecognitionSpoken = '';
+  liveRecognitionInterim = '';
+  liveRecognitionBaseText = '';
+};
+
+const startLiveRecognitionAttempt = () => {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition || !liveRecognitionActive) return;
+
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = true;
+  recognition.lang = 'en-IN';
+  liveRecognition = recognition;
+
+  recognition.onresult = event => {
+    if (!liveRecognitionActive || liveRecognition !== recognition) return;
+    let finalText = '';
+    let interimText = '';
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      const transcript = event.results[i][0]?.transcript || '';
+      if (event.results[i].isFinal) finalText += transcript;
+      else interimText += transcript;
+    }
+    if (finalText.trim()) {
+      liveRecognitionSpoken = `${liveRecognitionSpoken.trim()}${liveRecognitionSpoken.trim() ? ' ' : ''}${finalText.trim()}`;
+    }
+    liveRecognitionInterim = interimText.trim();
+
+    const input = $('#guide-input');
+    if (input) {
+      const parts = [liveRecognitionBaseText.trim(), liveRecognitionSpoken.trim(), liveRecognitionInterim].filter(Boolean);
+      input.value = parts.join(' ');
+      input.focus();
+      input.setSelectionRange(input.value.length, input.value.length);
+    }
+  };
+
+  recognition.onerror = event => {
+    console.warn('Live speech recognition event:', event.error);
+    // Chrome may emit "no-speech" and end a recognition attempt during silence.
+    // Keep the overall 30-second session alive and start another attempt in onend.
+    if (event.error === 'no-speech' || event.error === 'aborted') return;
+
+    if (liveRecognition === recognition && liveRecognitionActive) {
+      liveRecognitionActive = false;
+      if (liveRecognitionTimer) window.clearTimeout(liveRecognitionTimer);
+      liveRecognitionTimer = null;
+      if (event.error === 'network') {
+        toast('Live recognition is temporarily unavailable. Please try again.');
+      } else if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+        toast('Microphone permission or speech recognition access is required.');
+      } else {
+        toast('Voice recognition stopped. Please try again.');
+      }
+    }
+  };
+
+  recognition.onend = () => {
+    if (liveRecognition !== recognition) return;
     liveRecognition = null;
-    resetMicButton();
+
+    if (liveRecognitionActive) {
+      // The browser may end recognition early during silence. Restart it
+      // without ending the user's 30-second listening session.
+      window.setTimeout(() => {
+        if (liveRecognitionActive && !liveRecognition) {
+          try {
+            startLiveRecognitionAttempt();
+          } catch (error) {
+            console.warn('Could not restart live speech recognition:', error);
+            finishLiveRecognition(false);
+            toast('Voice recognition could not continue. Please try again.');
+          }
+        }
+      }, 150);
+      return;
+    }
+
+    finishLiveRecognition(true);
+  };
+
+  recognition.start();
+};
+
+const toggleGuideRecording = async () => {
+  if (liveRecognitionActive) {
+    // A second click always stops the current listening session immediately.
+    liveRecognitionActive = false;
+    if (liveRecognitionTimer) window.clearTimeout(liveRecognitionTimer);
+    liveRecognitionTimer = null;
+    if (liveRecognition) {
+      try { liveRecognition.stop(); } catch (error) {
+        console.warn('Could not stop live speech recognition:', error);
+        finishLiveRecognition(true);
+      }
+    } else {
+      finishLiveRecognition(true);
+    }
     return;
   }
+
   if (mediaRecorder && mediaRecorder.state !== 'inactive') {
     mediaRecorder.stop();
     return;
@@ -17406,68 +17524,54 @@ const toggleGuideRecording = async () => {
     toast('Voice input needs the deployed app or a secure local server.');
     return;
   }
+
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (SpeechRecognition) {
     try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-IN';
-      liveRecognitionFinal = '';
       const input = $('#guide-input');
-      if (input) liveRecognitionFinal = input.value;
+      liveRecognitionBaseText = input ? input.value.trim() : '';
+      liveRecognitionSpoken = '';
+      liveRecognitionInterim = '';
+      liveRecognitionActive = true;
+
       const button = $('#guide-mic');
       if (button) {
         button.classList.add('is-recording');
         button.setAttribute('aria-label', 'Stop listening');
         button.title = 'Stop listening';
         button.style.color = 'var(--red, #ef4444)';
-     button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
         button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
       }
       if (input) input.placeholder = 'Listening… speak now';
-      recognition.onresult = event => {
-        let interimText = '';
-        let finalText = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const text = event.results[i][0].transcript;
-          if (event.results[i].isFinal) finalText += text;
-          else interimText += text;
+
+      // One fixed 30-second limit for the complete session, including any
+      // automatic browser recognition restarts during silence.
+      liveRecognitionTimer = window.setTimeout(() => {
+        if (!liveRecognitionActive) return;
+        liveRecognitionActive = false;
+        if (liveRecognition) {
+          try { liveRecognition.stop(); } catch (error) {
+            console.warn('Could not stop recognition at the 30-second limit:', error);
+            finishLiveRecognition(true);
+          }
+        } else {
+          finishLiveRecognition(true);
         }
-        if (finalText) liveRecognitionFinal = `${liveRecognitionFinal.trim()}${liveRecognitionFinal.trim() ? ' ' : ''}${finalText.trim()}`;
-        if (input) {
-          input.value = `${liveRecognitionFinal}${interimText ? `${liveRecognitionFinal ? ' ' : ''}${interimText}` : ''}`;
-          input.focus();
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
-      };
-      recognition.onend = () => {
-        if (liveRecognition !== recognition) return;
-        liveRecognition = null;
-        resetMicButton();
-      };
-      recognition.onerror = event => {
-        console.warn('Live speech recognition unavailable:', event.error);
-        if (liveRecognition === recognition) {
-          liveRecognition = null;
-          recognition.stop();
-        }
-        resetMicButton();
-        if (event.error === 'network' || event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-          if (event.error === 'network') toast('Live recognition unavailable. Try recording again.');
-          else toast('Microphone permission or speech recognition access is required.');
-        } else if (event.error === 'no-speech') {
-          toast('No speech detected. Try again.');
-        }
-      };
-      liveRecognition = recognition;
-      recognition.start();
+      }, 30000);
+
+      startLiveRecognitionAttempt();
       return;
     } catch (error) {
       console.warn('Could not start live speech recognition:', error);
+      liveRecognitionActive = false;
+      if (liveRecognitionTimer) window.clearTimeout(liveRecognitionTimer);
+      liveRecognitionTimer = null;
       liveRecognition = null;
+      resetMicButton();
+      // Fall through to the existing MediaRecorder transcription fallback.
     }
   }
+
   if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
     toast('Voice recording is not supported in this browser.');
     return;
