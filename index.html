@@ -3692,158 +3692,248 @@ function toast(msg) {
               : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
           }
 
-          /* ============================= ADHKAR SPEECH ============================= */
-          let _speechCurrentBtn = null;
-          let _arAudio = null;
-          let _arabicVoice = null;
-          let _speechCancelled = false;
+       
+/* ============================= ADHKAR SPEECH ============================= */
+let _speechCurrentBtn = null;
+let _speechCurrentKey = null;
+let _arAudio = null;
+let _arabicVoice = null;
+let _speechCancelled = false;
 
-          function _pickArabicVoice() {
-            const voices = window.speechSynthesis.getVoices() || [];
-            const preferred = [
-              v => /^ar-SA/i.test(v.lang),
-              v => /^ar-EG/i.test(v.lang),
-              v => /^ar/i.test(v.lang),
-              v => /Arabic/i.test(v.name),
-            ];
-            for (const t of preferred) {
-              const found = voices.find(t);
-              if (found) { _arabicVoice = found; return found; }
-            }
-            return null;
-          }
+const _speechPlayHTML =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Listen';
 
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            window.speechSynthesis.onvoiceschanged = () => { _pickArabicVoice(); };
-            _pickArabicVoice();
-          }
+const _speechPauseHTML =
+  '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause';
 
-          function _playArabic(text) {
-            return new Promise((resolve) => {
-              const synth = window.speechSynthesis;
-              if (!synth || !text || !text.trim()) { resolve(); return; }
-              if (!_arabicVoice) _pickArabicVoice();
-              const u = new SpeechSynthesisUtterance(text);
-              u.lang = (_arabicVoice && _arabicVoice.lang) ? _arabicVoice.lang : 'ar-SA';
-              if (_arabicVoice) u.voice = _arabicVoice;
-              u.rate = 0.85;
-              u.pitch = 1.0;
-              u.volume = 1.0;
-              let done = false;
-              const finish = () => { if (done) return; done = true; resolve(); };
-              u.onend = finish;
-              u.onerror = finish;
-              synth.speak(u);
-              setTimeout(finish, Math.min(30000 + text.length * 100, 90000));
-            });
-          }
+function _speechKeyForButton(btn) {
+  if (!btn) return null;
 
-          function _loadVoices() {
-            return new Promise((resolve) => {
-              const synth = window.speechSynthesis;
-              if (!synth) return resolve([]);
-              let voices = synth.getVoices();
-              if (voices && voices.length) return resolve(voices);
-              let tries = 0;
-              const iv = setInterval(() => {
-                voices = synth.getVoices();
-                tries++;
-                if ((voices && voices.length) || tries > 20) {
-                  clearInterval(iv);
-                  resolve(voices || []);
-                }
-              }, 120);
-            });
-          }
+  for (const attr of [
+    'speakAdhkar',
+    'speakHadith',
+    'speakTawhid',
+    'speakSunnah'
+  ]) {
+    if (btn.dataset[attr] !== undefined) {
+      return attr + ':' + btn.dataset[attr];
+    }
+  }
 
-          function _pickEnglishVoice(voices) {
-            if (!voices || !voices.length) voices = window.speechSynthesis.getVoices() || [];
-            const preferred = [
-              v => /Google UK English Female/i.test(v.name),
-              v => /Google US English/i.test(v.name),
-              v => /Microsoft (Aria|Jenny|Guy|Zira|David)/i.test(v.name),
-              v => /Samantha/i.test(v.name),
-              v => v.lang === 'en-GB',
-              v => v.lang === 'en-US',
-              v => /^en/i.test(v.lang),
-            ];
-            for (const t of preferred) {
-              const f = voices.find(t);
-              if (f) return f;
-            }
-            return null;
-          }
+  return null;
+}
 
-          function _playEnglish(text, onDone) {
-            const synth = window.speechSynthesis;
-            if (!synth || !text) {
-              if (onDone) onDone();
-              return;
-            }
-            const voices = synth.getVoices() || [];
-            const enVoice = _pickEnglishVoice(voices);
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = (enVoice && enVoice.lang) ? enVoice.lang : 'en-US';
-            if (enVoice) u.voice = enVoice;
-            u.rate = 0.95;
-            u.onend = () => { if (onDone) onDone(); };
-            u.onerror = () => { if (onDone) onDone(); };
-            synth.speak(u);
-          }
+function _syncSpeechButtons(root = document) {
+  const selector =
+    '[data-speak-adhkar], [data-speak-hadith], [data-speak-tawhid], [data-speak-sunnah]';
 
-          function _stopSpeech() {
-            _speechCancelled = true;
-            try { window.speechSynthesis.cancel(); } catch (e) { }
-            if (_arAudio) { try { _arAudio.pause(); } catch (e) { } _arAudio = null; }
-            if (_speechCurrentBtn) {
-              _speechCurrentBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Listen';
-              _speechCurrentBtn = null;
-            }
-          }
+  const updateButton = (btn) => {
+    btn.innerHTML =
+      _speechKeyForButton(btn) === _speechCurrentKey
+        ? _speechPauseHTML
+        : _speechPlayHTML;
+  };
 
-          async function speakAdhkar(btnEl, arabic, english) {
-            if (_speechCurrentBtn === btnEl) {
-              _stopSpeech();
-              return;
-            }
-            _stopSpeech();
-            _speechCancelled = false;
-            await _loadVoices();
-            if (_speechCancelled) return;
+  if (root.matches && root.matches(selector)) {
+    updateButton(root);
+  }
 
-            _speechCurrentBtn = btnEl;
-            btnEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14"/><rect x="14" y="5" width="4" height="14"/></svg> Pause';
+  if (root.querySelectorAll) {
+    root.querySelectorAll(selector).forEach(updateButton);
+  }
+}
 
-            const finish = () => {
-              if (_speechCurrentBtn === btnEl) {
-                btnEl.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg> Listen';
-                _speechCurrentBtn = null;
-              }
-            };
+function _pickArabicVoice() {
+  const voices = window.speechSynthesis.getVoices() || [];
+  const preferred = [
+    v => /^ar-SA/i.test(v.lang),
+    v => /^ar-EG/i.test(v.lang),
+    v => /^ar/i.test(v.lang),
+    v => /Arabic/i.test(v.name)
+  ];
 
-            if (arabic && arabic.trim()) {
-              await _playArabic(arabic);
+  for (const test of preferred) {
+    const found = voices.find(test);
+    if (found) {
+      _arabicVoice = found;
+      return found;
+    }
+  }
 
-              if (_speechCancelled || _speechCurrentBtn !== btnEl) {
-                finish();
-                return;
-              }
+  return null;
+}
 
-              if (english && english.trim()) {
-                _playEnglish(english, finish);
-              } else {
-                finish();
-              }
-            } else if (english && english.trim()) {
-              _playEnglish(english, finish);
-            } else {
-              finish();
-            }
-          }
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  window.speechSynthesis.onvoiceschanged = _pickArabicVoice;
+  _pickArabicVoice();
+}
 
-          if (typeof window !== 'undefined' && window.speechSynthesis) {
-            _loadVoices();
-          }
+function _playArabic(text) {
+  return new Promise(resolve => {
+    const synth = window.speechSynthesis;
+    if (!synth || !text || !text.trim()) {
+      resolve();
+      return;
+    }
+
+    if (!_arabicVoice) _pickArabicVoice();
+
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = _arabicVoice?.lang || 'ar-SA';
+    if (_arabicVoice) utterance.voice = _arabicVoice;
+    utterance.rate = 0.85;
+    utterance.pitch = 1;
+    utterance.volume = 1;
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      resolve();
+    };
+
+    utterance.onend = finish;
+    utterance.onerror = finish;
+    synth.speak(utterance);
+
+    setTimeout(finish, Math.min(30000 + text.length * 100, 90000));
+  });
+}
+
+function _loadVoices() {
+  return new Promise(resolve => {
+    const synth = window.speechSynthesis;
+    if (!synth) return resolve([]);
+
+    let voices = synth.getVoices();
+    if (voices.length) return resolve(voices);
+
+    let tries = 0;
+    const interval = setInterval(() => {
+      voices = synth.getVoices();
+      tries++;
+
+      if (voices.length || tries > 20) {
+        clearInterval(interval);
+        resolve(voices || []);
+      }
+    }, 120);
+  });
+}
+
+function _pickEnglishVoice(voices) {
+  if (!voices || !voices.length) {
+    voices = window.speechSynthesis.getVoices() || [];
+  }
+
+  const preferred = [
+    v => /Google UK English Female/i.test(v.name),
+    v => /Google US English/i.test(v.name),
+    v => /Microsoft (Aria|Jenny|Guy|Zira|David)/i.test(v.name),
+    v => /Samantha/i.test(v.name),
+    v => v.lang === 'en-GB',
+    v => v.lang === 'en-US',
+    v => /^en/i.test(v.lang)
+  ];
+
+  for (const test of preferred) {
+    const found = voices.find(test);
+    if (found) return found;
+  }
+
+  return null;
+}
+
+function _playEnglish(text, onDone) {
+  const synth = window.speechSynthesis;
+
+  if (!synth || !text) {
+    if (onDone) onDone();
+    return;
+  }
+
+  const voice = _pickEnglishVoice(synth.getVoices() || []);
+  const utterance = new SpeechSynthesisUtterance(text);
+
+  utterance.lang = voice?.lang || 'en-US';
+  if (voice) utterance.voice = voice;
+  utterance.rate = 0.95;
+  utterance.onend = () => onDone?.();
+  utterance.onerror = () => onDone?.();
+
+  synth.speak(utterance);
+}
+
+function _stopSpeech() {
+  _speechCancelled = true;
+
+  try {
+    window.speechSynthesis.cancel();
+  } catch (e) {}
+
+  if (_arAudio) {
+    try {
+      _arAudio.pause();
+    } catch (e) {}
+    _arAudio = null;
+  }
+
+  _speechCurrentKey = null;
+  _speechCurrentBtn = null;
+
+  _syncSpeechButtons();
+}
+
+async function speakAdhkar(btnEl, arabic, english) {
+  const requestedKey = _speechKeyForButton(btnEl);
+
+  if (requestedKey && requestedKey === _speechCurrentKey) {
+    _stopSpeech();
+    return;
+  }
+
+  _stopSpeech();
+  _speechCancelled = false;
+
+  await _loadVoices();
+
+  if (_speechCancelled) return;
+
+  _speechCurrentBtn = btnEl;
+  _speechCurrentKey = requestedKey;
+  _syncSpeechButtons();
+
+  const finish = () => {
+    if (_speechCurrentKey === requestedKey) {
+      _speechCurrentKey = null;
+      _speechCurrentBtn = null;
+      _syncSpeechButtons();
+    }
+  };
+
+  if (arabic && arabic.trim()) {
+    await _playArabic(arabic);
+
+    if (_speechCancelled || _speechCurrentKey !== requestedKey) {
+      return;
+    }
+
+    if (english && english.trim()) {
+      _playEnglish(english, finish);
+    } else {
+      finish();
+    }
+  } else if (english && english.trim()) {
+    _playEnglish(english, finish);
+  } else {
+    finish();
+  }
+}
+
+if (typeof window !== 'undefined' && window.speechSynthesis) {
+  _loadVoices();
+}
+
 
 
               /* ============================= FAST CROSS-DEVICE BROADCAST ============================= */
@@ -8409,6 +8499,7 @@ function niceDate() {
             }
                     bindGlobalNav();
             bindScreenActions(s);
+            _syncSpeechButtons();
             if (s === 'home') startCountdown(); else stopCountdown();
 
             // Flush the GPS toast immediately onto whichever screen is active
@@ -12494,6 +12585,7 @@ function _calculateQuranReadStats(targetDateStr) {
           }
 
           container.insertAdjacentHTML('beforeend', html);
+          _syncSpeechButtons(container);
 
           const newestRow = container.lastElementChild;
           if (newestRow && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -12626,6 +12718,7 @@ function _calculateQuranReadStats(targetDateStr) {
               `).join('');
 
               if (container.innerHTML !== newHTML) container.innerHTML = newHTML;
+              _syncSpeechButtons(container);
               _applyDsStaggeredChildren(container, '.pg-sub, .hadith-card');
 
               $$('[data-speak-hadith]').forEach(btn => {
@@ -12699,6 +12792,7 @@ function _calculateQuranReadStats(targetDateStr) {
                     `).join('');
 
               if (container.innerHTML !== newHTML) container.innerHTML = newHTML;
+              _syncSpeechButtons(container);
               _applyDsStaggeredChildren(container, '.pg-sub, .card');
 
               $$('[data-speak-sunnah]').forEach(btn => {
