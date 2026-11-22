@@ -10073,49 +10073,86 @@ return `<div class="scr" style="
   }
 
  
+
 function _calculateQuranReadStats(targetDateStr) {
-  let versesRead = 0;
   let lastBookmark = null;
 
-  const day = S.dayCache?.[targetDateStr] || {};
-  const dailyVerses = day.quranVersesRead || {};
+  const bookmarks = Array.isArray(S.bookmarks)
+    ? S.bookmarks.filter(bookmark =>
+        bookmark?.date &&
+        Number(bookmark.surah) > 0 &&
+        Number(bookmark.verse) > 0 &&
+        Number.isFinite(new Date(bookmark.date).getTime())
+      )
+    : [];
 
-  Object.entries(dailyVerses).forEach(([surah, verses]) => {
-    if (Array.isArray(verses)) {
-      versesRead += new Set(verses.map(Number)).size;
-    }
-  });
+  const getDayBookmarks = (dateStr) => {
+    const start = new Date(dateStr + 'T00:00:00').getTime();
+    const end = new Date(dateStr + 'T23:59:59.999').getTime();
 
-  const dayStart = new Date(targetDateStr + 'T00:00:00').getTime();
-  const dayEnd = new Date(targetDateStr + 'T23:59:59.999').getTime();
-
-  if (Array.isArray(S.bookmarks)) {
-    S.bookmarks.forEach(bookmark => {
-      if (!bookmark?.date || !bookmark.surah || !bookmark.verse) return;
-
-      const bookmarkTime = new Date(bookmark.date).getTime();
-
-      if (bookmarkTime < dayStart || bookmarkTime > dayEnd) return;
-
-      if (
-        !lastBookmark ||
-        _qGlobalAyah(Number(bookmark.surah), Number(bookmark.verse)) >
-        _qGlobalAyah(Number(lastBookmark.surah), Number(lastBookmark.verse))
-      ) {
-        lastBookmark = bookmark;
-      }
+    return bookmarks.filter(bookmark => {
+      const time = new Date(bookmark.date).getTime();
+      return time >= start && time <= end;
     });
+  };
+
+  // Find the highest cumulative bookmark position for a day.
+  // Multiple bookmarks must never be added together.
+  const getHighestBookmark = (dateStr) => {
+    const dayBookmarks = getDayBookmarks(dateStr);
+
+    return dayBookmarks.reduce((highest, bookmark) => {
+      const position = _qGlobalAyah(
+        Number(bookmark.surah),
+        Number(bookmark.verse)
+      );
+
+      const highestPosition = highest
+        ? _qGlobalAyah(
+            Number(highest.surah),
+            Number(highest.verse)
+          )
+        : 0;
+
+      return position > highestPosition ? bookmark : highest;
+    }, null);
+  };
+
+  // Today's highest bookmark.
+  lastBookmark = getHighestBookmark(targetDateStr);
+
+  if (!lastBookmark) {
+    return { versesRead: 0, lastBookmark: null };
   }
 
-  if (versesRead === 0 && lastBookmark) {
-    versesRead = _qGlobalAyah(
-      Number(lastBookmark.surah),
-      Number(lastBookmark.verse)
-    );
-  }
+  // Get yesterday's date.
+  const previousDate = new Date(targetDateStr + 'T00:00:00');
+  previousDate.setDate(previousDate.getDate() - 1);
+
+  const previousDateStr =
+    previousDate.getFullYear() + '-' +
+    String(previousDate.getMonth() + 1).padStart(2, '0') + '-' +
+    String(previousDate.getDate()).padStart(2, '0');
+
+  // Yesterday's highest cumulative bookmark position.
+  const previousBookmark = getHighestBookmark(previousDateStr);
+
+  const previousTotal = previousBookmark
+    ? _qGlobalAyah(
+        Number(previousBookmark.surah),
+        Number(previousBookmark.verse)
+      )
+    : 0;
+
+  // Today's bookmark verse minus yesterday's cumulative position.
+  const versesRead = Math.max(
+    0,
+    Number(lastBookmark.verse) - previousTotal
+  );
 
   return { versesRead, lastBookmark };
 }
+
 
         function _buildHomeProgressSummaryHTML(day) {
           const t = todaysTimes();
@@ -14143,13 +14180,24 @@ function _calculateQuranReadStats(targetDateStr) {
           });
         }
 
-   let quranText = '';
-        if (bestSurah > 0 && bestVerse > 0) {
-          const surMeta = SURAHS.find(x => x.num === bestSurah);
-          if (surMeta) {
-            quranText = `${bestVerse}/${surMeta.verses} (${surMeta.translit})`;
-          }
-        }
+
+let quranText = '';
+
+if (bestSurah > 0 && bestVerse > 0) {
+  const surMeta = SURAHS.find(x => x.num === bestSurah);
+
+  if (surMeta) {
+    quranText = `${bestVerse}/${surMeta.verses} (${surMeta.translit})`;
+  }
+}
+
+const dayStats = _calculateQuranReadStats(ds);
+
+const hasQuranReading =
+  bestSurah > 0 &&
+  bestVerse > 0 &&
+  dayStats.versesRead > 0;
+
 
         const morningDone = rec.adhkar?.morning;
         const eveningDone = rec.adhkar?.evening;
@@ -14172,30 +14220,76 @@ function _calculateQuranReadStats(targetDateStr) {
             </div>
 
                    
-<!-- QUR'AN STAT -->
-<div style="background:var(--bg2); border:1px solid var(--border); border-radius:10px; padding:${isMobile ? '10px' : '14px'}; margin-bottom:${isMobile ? '12px' : '20px'}; display:flex; justify-content:space-between; align-items:center;">
 
-  <div style="display:flex; align-items:center; min-height:20px;">
-    <div style="font-size:${isMobile ? '13px' : '15px'}; font-weight:600; color:var(--tx2); line-height:1; margin:0;">
-      Qur'an
+
+<!-- QUR'AN STAT -->
+
+${hasQuranReading ? `
+  <!-- QUR'AN READING EXISTS: FIRST SCREENSHOT -->
+  <div style="
+    background:var(--bg2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:${isMobile ? '10px' : '14px'};
+    margin-bottom:${isMobile ? '12px' : '20px'};
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+  ">
+    <div style="min-width:0;">
+      <div style="
+        font-size:${isMobile ? '11px' : '12px'};
+        color:var(--tx3);
+        margin-bottom:5px;
+      ">QUR'AN</div>
+
+      <div style="
+        font-size:${isMobile ? '13px' : '15px'};
+        font-weight:700;
+        color:var(--tx);
+      ">${quranText}</div>
+    </div>
+
+    <div style="
+      font-size:${isMobile ? '12px' : '15px'};
+      font-weight:700;
+      color:var(--green-l);
+      text-align:right;
+      white-space:nowrap;
+    ">
+      read ${dayStats.versesRead} verses
     </div>
   </div>
+` : `
+  <!-- NO QUR'AN READING: SECOND SCREENSHOT -->
+  <div style="
+    background:var(--bg2);
+    border:1px solid var(--border);
+    border-radius:10px;
+    padding:${isMobile ? '10px' : '14px'};
+    margin-bottom:${isMobile ? '12px' : '20px'};
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+  ">
+    <div style="
+      font-size:${isMobile ? '13px' : '15px'};
+      font-weight:600;
+      color:var(--tx2);
+    ">Qur'an</div>
 
-  ${(() => {
-    const dayStats = _calculateQuranReadStats(ds);
+    <div style="
+      font-size:${isMobile ? '13px' : '15px'};
+      font-weight:700;
+      color:var(--green-l);
+      text-align:right;
+      white-space:nowrap;
+    ">Not yet</div>
+  </div>
+`}
 
-    if (dayStats.versesRead > 0) {
-      return `<div style="font-size:${isMobile ? '13px' : '15px'}; font-weight:700; color:var(--green-l); text-align:right; line-height:1;">
-        read ${dayStats.versesRead} verses
-      </div>`;
-    }
-
-    return `<div style="font-size:${isMobile ? '13px' : '15px'}; font-weight:700; color:var(--green-l); text-align:right; line-height:1;">
-      Not yet
-    </div>`;
-  })()}
-
-</div>
 
 
             <!-- DETAILS GRID -->
