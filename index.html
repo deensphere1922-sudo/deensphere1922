@@ -15275,53 +15275,21 @@ return `<div class="scr" style="
           }
 
                
+// Keep the document and its real scroll container untouched while the player is open.
+// The fixed overlay covers the viewport, so the page naturally remains at the
+// exact scroll position and backdrop-filter can blur the actual page content.
 let _ytBackgroundScrollState = null;
-
-
 
 function lockYouTubeBackgroundScroll() {
   if (_ytBackgroundScrollState) return;
-
-  const html = document.documentElement;
-  const body = document.body;
-
-  _ytBackgroundScrollState = {
-    scrollY: window.scrollY,
-    htmlOverflow: html.style.overflow,
-    bodyOverflow: body.style.overflow
-  };
-
-  html.style.overflow = 'hidden';
-  body.style.overflow = 'hidden';
+  _ytBackgroundScrollState = { scrollY: window.scrollY };
 }
-
-
-
-
 
 function unlockYouTubeBackgroundScroll() {
-  if (!_ytBackgroundScrollState) return;
-
-  const state = _ytBackgroundScrollState;
-
-  document.documentElement.style.overflow =
-    state.htmlOverflow;
-
-  document.body.style.overflow =
-    state.bodyOverflow;
-
+  // Do not change html/body positioning or overflow here. Doing so can detach
+  // the visible page from its scroll container and leave a blank grey backdrop.
   _ytBackgroundScrollState = null;
-
-  // Restore the exact position where the video was opened.
-  window.scrollTo({
-    top: state.scrollY,
-    left: 0,
-    behavior: 'instant'
-  });
 }
-
-
-
 
 async function openYouTubePlayer(videoId) {
   const overlay = document.getElementById('yt-player-overlay');
@@ -15331,6 +15299,18 @@ async function openYouTubePlayer(videoId) {
   // This prevents the background from jumping to the top.
   if (overlay.parentElement !== document.body) {
     document.body.appendChild(overlay);
+  }
+
+  // Prevent scrolling only when the gesture starts on the dimmed backdrop.
+  // Gestures on the YouTube player and its controls remain untouched.
+  if (!overlay.dataset.backgroundScrollGuard) {
+    overlay.addEventListener('wheel', (event) => {
+      if (event.target === overlay) event.preventDefault();
+    }, { passive: false });
+    overlay.addEventListener('touchmove', (event) => {
+      if (event.target === overlay) event.preventDefault();
+    }, { passive: false });
+    overlay.dataset.backgroundScrollGuard = 'true';
   }
 
   try {
