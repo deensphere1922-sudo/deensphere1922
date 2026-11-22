@@ -15277,58 +15277,50 @@ return `<div class="scr" style="
                
 let _ytBackgroundScrollState = null;
 
+
+
 function lockYouTubeBackgroundScroll() {
   if (_ytBackgroundScrollState) return;
 
   const html = document.documentElement;
   const body = document.body;
 
-  // Capture the exact page position before the overlay is displayed.
-  const scrollY = window.scrollY || window.pageYOffset || 0;
-
   _ytBackgroundScrollState = {
-    scrollY,
+    scrollY: window.scrollY,
     htmlOverflow: html.style.overflow,
-    bodyOverflow: body.style.overflow,
-    bodyPosition: body.style.position,
-    bodyTop: body.style.top,
-    bodyLeft: body.style.left,
-    bodyRight: body.style.right,
-    bodyWidth: body.style.width
+    bodyOverflow: body.style.overflow
   };
 
-  // Freeze the complete page in place. This prevents the blurred background
-  // from jumping to the top or moving while the video popup is open.
   html.style.overflow = 'hidden';
-  body.style.position = 'fixed';
-  body.style.top = `-${scrollY}px`;
-  body.style.left = '0';
-  body.style.right = '0';
-  body.style.width = '100%';
   body.style.overflow = 'hidden';
 }
+
+
+
+
 
 function unlockYouTubeBackgroundScroll() {
   if (!_ytBackgroundScrollState) return;
 
   const state = _ytBackgroundScrollState;
-  const html = document.documentElement;
-  const body = document.body;
 
-  // Restore every inline style that was present before opening the player.
-  html.style.overflow = state.htmlOverflow;
-  body.style.overflow = state.bodyOverflow;
-  body.style.position = state.bodyPosition;
-  body.style.top = state.bodyTop;
-  body.style.left = state.bodyLeft;
-  body.style.right = state.bodyRight;
-  body.style.width = state.bodyWidth;
+  document.documentElement.style.overflow =
+    state.htmlOverflow;
+
+  document.body.style.overflow =
+    state.bodyOverflow;
 
   _ytBackgroundScrollState = null;
 
-  // Return to the exact same scroll position after closing the popup.
-  window.scrollTo(0, state.scrollY);
+  // Restore the exact position where the video was opened.
+  window.scrollTo({
+    top: state.scrollY,
+    left: 0,
+    behavior: 'instant'
+  });
 }
+
+
 
 
 async function openYouTubePlayer(videoId) {
