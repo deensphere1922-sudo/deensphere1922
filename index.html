@@ -17610,18 +17610,16 @@ const toggleGuideRecording = async () => {
                 return;
               }
               const retryStages = [
-                'Waiting for the provider’s cooldown…',
-                'The provider has not allowed the retry yet; I’ll keep waiting…',
-                'Your question is held while the provider limit resets…',
-                'I’ll retry automatically when the provider allows it…',
-                'Still waiting for the provider’s stated reset time…'
+                'Waiting to retry…',
+                'Almost ready…',
+                'Retrying shortly…'
               ];
               let statusIndex = 0;
-              const statusTimer = delay >= 5500
+              const statusTimer = delay >= 1800
                 ? window.setInterval(() => {
                   updateThinkingStage(retryStages[statusIndex % retryStages.length]);
                   statusIndex++;
-                }, 5500)
+                }, 1800)
                 : null;
               let timer;
               const cleanup = () => {
@@ -17678,11 +17676,7 @@ const toggleGuideRecording = async () => {
                   null;
                 const retryDelay = parseGuideRetryDelay(retryAfter);
                 if (response.status === 429 && !retried && retryDelay > 0 && retryDelay <= 24 * 60 * 60 * 1000) {
-                  showThinking(retryDelay <= 5000
-                    ? 'Please wait a moment…'
-                    : retryDelay <= 60000
-                      ? 'The service is taking a little longer. Please wait…'
-                      : 'Please wait while I reconnect when the provider is ready…');
+                  showThinking('Retrying soon…');
                   await waitForGuideRetry(retryDelay, signal);
                   retried = true;
                   continue;
