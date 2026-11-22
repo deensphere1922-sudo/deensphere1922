@@ -3354,6 +3354,20 @@ textarea:focus {
 
 
 
+
+/* Deen Guide voice placeholder: softly reveal each listening prompt in sequence. */
+#guide-input.voice-listening::placeholder {
+  color: var(--green-l) !important;
+  opacity: 1;
+  animation: guideVoicePlaceholderFade 1.1s ease-in-out both;
+}
+@keyframes guideVoicePlaceholderFade {
+  0% { opacity: .15; transform: translateY(3px); }
+  22% { opacity: 1; transform: translateY(0); }
+  78% { opacity: 1; }
+  100% { opacity: .25; }
+}
+
 </style>
       <!-- Code injected by Five-server -->
   <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
@@ -16913,6 +16927,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
             let liveRecognition = null;
             let liveRecognitionActive = false;
             let liveRecognitionTimer = null;
+            let livePlaceholderTimer = null;
             let liveRecognitionBaseText = '';
             let liveRecognitionSpoken = '';
             let liveRecognitionInterim = '';
@@ -17358,6 +17373,8 @@ const blobToBase64 = blob => new Promise((resolve, reject) => {
 });
 
 const resetMicButton = () => {
+  if (livePlaceholderTimer) window.clearInterval(livePlaceholderTimer);
+  livePlaceholderTimer = null;
   const button = $('#guide-mic');
   if (!button) return;
   button.classList.remove('is-recording');
@@ -17366,7 +17383,24 @@ const resetMicButton = () => {
   button.style.color = '';
   button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>';
   const input = $('#guide-input');
-  if (input) input.placeholder = 'Ask Deen Guide...';
+  if (input) {
+    input.classList.remove('voice-listening');
+    input.placeholder = 'Ask Deen Guide...';
+  }
+};
+
+const startVoicePlaceholderAnimation = input => {
+  if (!input) return;
+  if (livePlaceholderTimer) window.clearInterval(livePlaceholderTimer);
+  const messages = ['Listening…', 'Speak now…'];
+  let messageIndex = 0;
+  input.classList.add('voice-listening');
+  input.placeholder = messages[messageIndex];
+  livePlaceholderTimer = window.setInterval(() => {
+    if (!liveRecognitionActive) return;
+    messageIndex = (messageIndex + 1) % messages.length;
+    input.placeholder = messages[messageIndex];
+  }, 1100);
 };
 
 const transcribeRecording = async (blob, requestVersion) => {
@@ -17542,7 +17576,7 @@ const toggleGuideRecording = async () => {
         button.style.color = 'var(--red, #ef4444)';
         button.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
       }
-      if (input) input.placeholder = 'Listening… speak now';
+      startVoicePlaceholderAnimation(input);
 
       // One fixed 30-second limit for the complete session, including any
       // automatic browser recognition restarts during silence.
