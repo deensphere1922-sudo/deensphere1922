@@ -1,4 +1,7 @@
-export const config = { maxDuration: 15 };
+export const config = {
+  maxDuration: 15,
+  api: { bodyParser: { sizeLimit: '4.5mb' } }
+};
 
 const readJson = async response => {
   try { return await response.json(); } catch { return {}; }
