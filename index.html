@@ -11675,6 +11675,50 @@ return `<div class="scr" style="
       });
           }
 
+
+            async function fetchSahihInternationalByChapter(num) {
+              const translationByVerseKey = new Map();
+              let page = 1;
+              let totalPages = 1;
+
+              while (page <= totalPages) {
+                const url =
+                  'https://api.quran.com/api/v4/verses/by_chapter/' + num +
+                  '?language=en&translations=20&words=false&per_page=50&page=' + page +
+                  '&translation_fields=language_name,resource_name,verse_key';
+
+                const response = await fetch(url, { cache: 'no-store' });
+                if (!response.ok) {
+                  throw new Error('English Qur’an translation request failed: ' + response.status);
+                }
+
+                const payload = await response.json();
+                if (!payload || !Array.isArray(payload.verses)) {
+                  throw new Error('Invalid English Qur’an translation response.');
+                }
+
+                for (const verse of payload.verses) {
+                  const translation = Array.isArray(verse.translations)
+                    ? verse.translations.find(item =>
+                        Number(item.resource_id) === 20 &&
+                        (!item.language_name || String(item.language_name).toLowerCase() === 'english')
+                      )
+                    : null;
+
+                  if (!verse.verse_key || !translation || !translation.text) {
+                    throw new Error('Sahih International English text is missing for ' + (verse.verse_key || 'a verse'));
+                  }
+
+                  translationByVerseKey.set(verse.verse_key, translation.text);
+                }
+
+                totalPages = Number(payload.pagination?.total_pages || 1);
+                page += 1;
+              }
+
+              return translationByVerseKey;
+            }
+
             async function prefetchQuranSurah(num) {
         if (_quranDataCache[num]) return _quranDataCache[num];
 
@@ -11691,13 +11735,12 @@ return `<div class="scr" style="
         } catch (e) { }
 
         try {
-          const [arabicResp, englishResp] = await Promise.all([
-                fetch('https://api.quran.com/api/v4/quran/verses/indopak?chapter_number=' + num),
-            fetch('https://api.quran.com/api/v4/quran/translations/20?chapter_number=' + num)
+          const [arabicResp, englishByVerseKey] = await Promise.all([
+            fetch('https://api.quran.com/api/v4/quran/verses/indopak?chapter_number=' + num, { cache: 'no-store' }),
+            fetchSahihInternationalByChapter(num)
           ]);
-          if (!arabicResp.ok || !englishResp.ok) throw new Error('API error');
+          if (!arabicResp.ok) throw new Error('Arabic Qur’an request failed: ' + arabicResp.status);
           const arabicJson = await arabicResp.json();
-          const englishJson = await englishResp.json();
 
           const stripHtml = (s) => (s || '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim();
 
@@ -11722,7 +11765,7 @@ return `<div class="scr" style="
             verses: arabicJson.verses.map((v, i) => ({
               num: parseInt(v.verse_key.split(':')[1], 10),
               ar: cleanArabic(v.text_indopak || ''), // <--- APPLIED HERE
-              en: stripHtml(englishJson?.translations?.[i]?.text || '')
+              en: stripHtml(englishByVerseKey.get(v.verse_key) || '')
             })),
             __cachedAt: Date.now()
           };
@@ -11970,13 +12013,12 @@ return `<div class="scr" style="
           }
 
           if (!data) {
-            const [arabicResp, englishResp] = await Promise.all([
-                  fetch('https://api.quran.com/api/v4/quran/verses/indopak?chapter_number=' + num),
-              fetch('https://api.quran.com/api/v4/quran/translations/20?chapter_number=' + num)
+            const [arabicResp, englishByVerseKey] = await Promise.all([
+              fetch('https://api.quran.com/api/v4/quran/verses/indopak?chapter_number=' + num, { cache: 'no-store' }),
+              fetchSahihInternationalByChapter(num)
             ]);
-            if (!arabicResp.ok || !englishResp.ok) throw new Error('API error');
+            if (!arabicResp.ok) throw new Error('Arabic Qur’an request failed: ' + arabicResp.status);
             const arabicJson = await arabicResp.json();
-            const englishJson = await englishResp.json();
 
             const stripHtml = (s) => (s || '').replace(/<[^>]*>/g, '').replace(/&amp;/g, '&').trim();
 
@@ -12000,7 +12042,7 @@ return `<div class="scr" style="
               verses: arabicJson.verses.map((v, i) => ({
                 num: parseInt(v.verse_key.split(':')[1], 10),
                 ar: cleanArabic(v.text_indopak || ''), // <--- APPLIED HERE
-                en: stripHtml(englishJson?.translations?.[i]?.text || '')
+                en: stripHtml(englishByVerseKey.get(v.verse_key) || '')
               })),
               __cachedAt: Date.now()
             };
@@ -16293,7 +16335,7 @@ function closeYouTubePlayer() {
 
             <div class="card" style="margin-bottom:12px;">
               <div style="font-weight:600;margin-bottom:6px;">Qur'an</div>
-                      <div class="rowsub" style="line-height:1.6;">The complete Qur'an — all 114 surahs with full verses. Arabic text uses the Indo-Pak (Junagarhi) script, as printed in the South Asian mushaf. English translation uses Sahih International. Text is fetched live from the Quran.com API and cached on your device for fast, offline access. The cache refreshes automatically every 30 days.</div>
+                      <div class="rowsub" style="line-height:1.6;">The complete Qur'an — all 114 surahs with full verses. Arabic text uses the Indo-Pak (Junagarhi) script, as printed in the South Asian mushaf. English translation uses Sahih International (Quran.com translation ID 20), requested explicitly in English. Text is fetched live from the Quran.com API and cached on your device for fast, offline access. The cache refreshes automatically every 30 days.</div>
             </div>
 
             <div class="card" style="margin-bottom:12px;">
