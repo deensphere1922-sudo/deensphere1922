@@ -1747,11 +1747,19 @@
         cursor: text !important;
         pointer-events: auto !important;
       }
-      /* Composer sits above floating buttons that could steal taps */
-      body:has(#guide-thread) #theme-toggle,
-      body:has(#guide-thread) #back-to-top {
-        pointer-events: none !important;
-      }
+   
+/* Deen Guide: Keep the theme toggle clickable */
+body:has(#guide-thread) #theme-toggle {
+  pointer-events: auto !important;
+  z-index: 100001 !important;
+  touch-action: manipulation !important;
+}
+
+/* Keep the back-to-top button from blocking the composer */
+body:has(#guide-thread) #back-to-top {
+  pointer-events: none !important;
+}
+
       @media (max-width: 880px) {
         #guide-composer {
           padding-bottom: calc(10px + env(safe-area-inset-bottom)) !important;
