@@ -3355,27 +3355,22 @@ textarea:focus {
 
 
 
-/* Deen Guide voice placeholder: brighter, high-contrast emerald prompts. */
-#guide-input.voice-listening {
-  font-weight: 600 !important;
-}
+/* Deen Guide voice placeholder: only a subtle lift in brightness. */
 #guide-input.voice-listening::placeholder {
-  color: #42E6A0 !important;
-  -webkit-text-fill-color: #42E6A0 !important;
+  color: #35B985 !important;
+  -webkit-text-fill-color: #35B985 !important;
   opacity: 1 !important;
-  text-shadow: 0 0 10px rgba(66, 230, 160, .22);
   animation: guideVoicePlaceholderFade 1.1s ease-in-out both;
 }
 [data-theme="light"] #guide-input.voice-listening::placeholder {
-  color: #087A4B !important;
-  -webkit-text-fill-color: #087A4B !important;
-  text-shadow: 0 0 8px rgba(8, 122, 75, .12);
+  color: #218D62 !important;
+  -webkit-text-fill-color: #218D62 !important;
 }
 @keyframes guideVoicePlaceholderFade {
-  0% { opacity: .72; }
+  0% { opacity: .88; }
   22% { opacity: 1; }
   78% { opacity: 1; }
-  100% { opacity: .82; }
+  100% { opacity: .92; }
 }
 
 </style>
