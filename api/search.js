@@ -2,7 +2,7 @@ export const config = { maxDuration: 60 };
 
 const MAX_QUERY_LENGTH = 1000;
 const MAX_SOURCES = 12;
-const MIN_RELEVANCE_SCORE = 0.32;
+const MIN_RELEVANCE_SCORE = 0.24;
 
 // Search only primary English Qur'an/Hadith sources for English questions.
 // quran.com and QuranEnc English routes are retained; Arabic-only Dorar is omitted.
@@ -12,35 +12,75 @@ const sourceGroups = [
     domains: ['quran.com', 'quranenc.com'],
     limit: 6,
     query: (question, topic) =>
-      `English Qur'an translation: Qur'an verses that directly discuss the exact topic "${topic}". Return English-language verse pages and English translation excerpts only. Do not return Albanian or any other language. Exclude verses about merely associated topics. User question: ${question}.`,
+      `English Qur'an translation in English only. ${topic === 'islam' ? 'Find introductory Qur'an passages explaining Islam, submission to Allah, and the message of Islam.' : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
   },
   {
     type: 'Hadith evidence',
     domains: ['sunnah.com'],
     limit: 5,
     query: (question, topic) =>
-      `English Hadith text from Sunnah.com specifically and directly about the exact topic "${topic}". The narration or chapter heading must directly address this topic. Exclude merely associated topics. Include collection and exact Hadith reference when the page provides them. User question: ${question}.`,
+      `English Hadith text from Sunnah.com. ${topic === 'islam' ? 'Find foundational narrations that explain Islam and its pillars.' : `Find narrations specifically and directly about the exact topic "${topic}"; exclude merely associated topics.`} Include collection and exact Hadith reference when the page provides them. User question: ${question}.`,
   },
   {
     type: 'Scholarly explanation',
     domains: ['islamweb.net', 'islamqa.info', 'islamqa.org', 'seekersguidance.org', 'yaqeeninstitute.org'],
     limit: 1,
     query: (question, topic) =>
-      `English-language Islamic scholarly explanation directly and specifically about "${topic}". Do not include adjacent or loosely related subjects. User question: ${question}.`,
+      `English-language Islamic scholarly explanation. ${topic === 'islam' ? 'Provide a reliable introductory explanation of Islam, its beliefs and five pillars.' : `Explain only the exact topic "${topic}"; do not include adjacent or loosely related subjects.`} User question: ${question}.`,
   },
 ];
 
-const STOP_WORDS = new Set(`a an and are as at be been but by can could did do does for from had has have how i if in into is it its may me my of on or our please should so that the their them there these they this to was we what when where which who why will with would you your islam islamic quran qur an hadith evidence explain meaning according tell about related relevant question directly exact topic source sources reference references verse verses ayah ayat mentioned mentions say says said talk talks give show find what does tell me all the according to in the quran in quran in hadith`.split(/\s+/));
+const STOP_WORDS = new Set(`a an and are as at be been but by can could did do does for from had has have how i if in into is it its may me my of on or our please should so that the their them there these they this to was we what when where which who why will with would you your islamic quran qur an hadith evidence explain meaning according tell about related relevant question directly exact topic source sources reference references verse verses ayah ayat mentioned mentions say says said talk talks give show find what does tell me all the according to in the quran in quran in hadith`.split(/\s+/));
+
+const SPELLING_MAP = new Map([
+  ['tahejjud', 'tahajjud'], ['tahajud', 'tahajjud'], ['tahajjudh', 'tahajjud'],
+  ['tahajjudh', 'tahajjud'], ['tahajud prayer', 'tahajjud'],
+  ['salah', 'prayer'], ['salat', 'prayer'], ['namaz', 'prayer'],
+  ['quraan', 'quran'], ['quraan', 'quran'], ['koran', 'quran'],
+  ['ramzan', 'ramadan'], ['ramadhan', 'ramadan'],
+  ['roza', 'fasting'], [' saum', 'fasting'],
+  ['dua', 'dua'], ['duaa', 'dua'], ['dhikr', 'dhikr'], ['zikr', 'dhikr'],
+  ['wudu', 'wudu'], ['wudhu', 'wudu'], ['ablution', 'wudu'],
+  ['forgiveness', 'forgiv'], ['forgiven', 'forgiv'], ['forgiving', 'forgiv'], ['forgive', 'forgiv'],
+  ['patience', 'patien'], ['patient', 'patien'], ['patients', 'patien'], ['sabr', 'patien'],
+  ['repentance', 'repent'], ['repenting', 'repent'], ['tawbah', 'repent'], ['tawba', 'repent'],
+  ['prayers', 'prayer'], ['charity', 'charit'], ['charities', 'charit'],
+]);
+
+const COMMON_ISLAMIC_TERMS = [
+  'tahajjud', 'fajr', 'dhuhr', 'asr', 'maghrib', 'isha', 'salah', 'prayer',
+  'quran', 'hadith', 'sunnah', 'tawheed', 'tawhid', 'tawakkul', 'sabr',
+  'patience', 'forgiveness', 'tawbah', 'repentance', 'zakat', 'sawm',
+  'fasting', 'hajj', 'umrah', 'dua', 'dhikr', 'wudu', 'ghusl', 'jannah',
+  'jahannam', 'angels', 'prophets', 'islam'
+];
+
+function levenshtein(a, b) {
+  if (a === b) return 0;
+  if (!a.length) return b.length;
+  if (!b.length) return a.length;
+  let previous = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const current = [i];
+    for (let j = 1; j <= b.length; j++) {
+      current[j] = Math.min(current[j - 1] + 1, previous[j] + 1, previous[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    }
+    previous = current;
+  }
+  return previous[b.length];
+}
 
 function normalizeWord(word) {
-  const w = word.toLowerCase();
-  // Normalize inflections only; do not add neighbouring concepts.
-  if (w === 'forgiveness' || w === 'forgiven' || w === 'forgiving' || w === 'forgive') return 'forgiv';
-  if (w === 'patience' || w === 'patient' || w === 'patients' || w === 'sabr') return 'patien';
-  if (w === 'steadfastness' || w === 'steadfast') return 'steadfast';
-  if (w === 'repentance' || w === 'repent' || w === 'repenting' || w === 'tawbah') return 'repent';
-  if (w === 'prayers' || w === 'prayer' || w === 'salah' || w === 'salat') return 'prayer';
-  if (w === 'charity' || w === 'charities') return 'charit';
+  const w = String(word || '').toLowerCase();
+  if (SPELLING_MAP.has(w)) return SPELLING_MAP.get(w);
+  if (w.length >= 5) {
+    const match = COMMON_ISLAMIC_TERMS
+      .map(term => ({ term, distance: levenshtein(w, term) }))
+      .filter(item => item.distance <= (w.length >= 8 ? 2 : 1))
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (match) return SPELLING_MAP.get(match.term) || match.term;
+  }
+  if (w === 'sabr') return 'patien';
   return w;
 }
 
@@ -48,8 +88,8 @@ function tokenize(value) {
   return [...new Set(String(value || '')
     .toLowerCase()
     .normalize('NFKD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .replace(/[\\u0300-\\u036f]/g, '')
+    .replace(/[^\\p{L}\\p{N}]+/gu, ' ')
     .split(/\s+/)
     .map(word => word.trim())
     .filter(word => word.length > 2 && !STOP_WORDS.has(word))
@@ -57,17 +97,26 @@ function tokenize(value) {
 }
 
 function getTopic(question) {
-  const terms = tokenize(question);
-  return { topic: terms.join(' ') || String(question).trim(), terms };
+  const originalWords = String(question || '').toLowerCase().match(/[\p{L}\p{N}]+/gu) || [];
+  let terms = tokenize(question);
+  // A broad question such as "Islam" is valid; do not reject it because it
+  // is not a narrow subtopic. If only instruction words remain, preserve the
+  // meaningful original words rather than returning a validation error.
+  if (!terms.length) {
+    terms = [...new Set(originalWords.map(normalizeWord).filter(word => word.length > 2))];
+  }
+  const broad = terms.length === 1 && ['islam', 'quran', 'hadith'].includes(terms[0]);
+  const topic = terms.join(' ') || String(question).trim();
+  return { topic, terms, broad };
 }
 
 function calculateRelevance(topic, title, content, providerScore) {
   const terms = topic.terms || [];
-  if (!terms.length) return 0;
+  if (!terms.length) return Math.max(0, Math.min(providerScore, 1));
   const titleTerms = new Set(tokenize(title));
   const contentTerms = new Set(tokenize(content));
   const matched = terms.filter(term => titleTerms.has(term) || contentTerms.has(term));
-  if (!matched.length) return 0;
+  if (!matched.length) return topic.broad ? Math.min(Math.max(providerScore, 0), 1) * 0.60 : 0;
   const coverage = new Set(matched).size / terms.length;
   const titleCoverage = terms.filter(term => titleTerms.has(term)).length / terms.length;
   const contentCoverage = terms.filter(term => contentTerms.has(term)).length / terms.length;
@@ -138,8 +187,6 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: `Enter a search question between 2 and ${MAX_QUERY_LENGTH} characters.` });
 
     const topic = getTopic(query);
-    if (!topic.terms.length)
-      return res.status(400).json({ error: 'Please enter the specific Islamic topic you want to research.' });
 
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'Web research is not configured on the server.' });
