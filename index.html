@@ -16511,17 +16511,6 @@ ISLAMIC EVIDENCE AND ACCURACY:
 - When the retrieved evidence is insufficient, say what could not be established and limit the answer to supported information.
           `;
 
-          // Quran.com source links should always open the English translation.
-          // Translation ID 89 is Sherif Ahmeti (Albanian); ID 20 is Sahih International (English).
-          const normalizeGuideSourceUrl = value => {
-            const url = new URL(value);
-            const host = url.hostname.toLowerCase().replace(/^www\./, '');
-            if (host === 'quran.com') {
-              url.searchParams.set('translations', '20');
-            }
-            return url;
-          };
-
           const escapeGuideSourceHtml = value =>
             String(value || '').replace(/[&<>"']/g, character => ({
               '&': '&amp;',
@@ -16530,6 +16519,18 @@ ISLAMIC EVIDENCE AND ACCURACY:
               '"': '&quot;',
               "'": '&#39;'
             })[character]);
+
+          // Force Quran.com source pages to open with Sahih International English.
+          // Quran.com translation ID 20 is Sahih International (English).
+          const normalizeGuideSourceUrl = value => {
+            const url = new URL(value);
+            const host = url.hostname.toLowerCase().replace(/^www\\./, '');
+            if (host === 'quran.com' || host.endsWith('.quran.com')) {
+              url.searchParams.set('translations', '20');
+              url.searchParams.set('locale', 'en');
+            }
+            return url;
+          };
 
           const renderGuideSources = (sources, answerText) => {
             if (!Array.isArray(sources) || !sources.length) return '';
@@ -17803,19 +17804,12 @@ const toggleGuideRecording = async () => {
                     .filter(source => source && typeof source.url === 'string' && typeof source.content === 'string')
                     .filter(source => {
                       try {
-                        const url = normalizeGuideSourceUrl(source.url);
+                        const url = new URL(source.url);
                         if ((url.protocol !== 'https:' && url.protocol !== 'http:') || seenSourceUrls.has(url.href)) return false;
                         seenSourceUrls.add(url.href);
                         return true;
                       } catch {
                         return false;
-                      }
-                    })
-                    .map(source => {
-                      try {
-                        return { ...source, url: normalizeGuideSourceUrl(source.url).href };
-                      } catch {
-                        return source;
                       }
                     })
                     .slice(0, 5);
@@ -17825,7 +17819,7 @@ const toggleGuideRecording = async () => {
                   if (requestVersion !== guideRequestVersion) return;
                   const sourceExcerpts = researchSources.length
                     ? researchSources.map((source, index) =>
-                        `[${index + 1}] Type: ${source.sourceType || 'Islamic source'}\\n${source.title || source.url}\\nURL: ${source.url}\\nExcerpt: ${source.content.slice(0, 1600)}`
+                        `[${index + 1}] Type: ${source.sourceType || 'Islamic source'}\\n${source.title || source.url}\\nURL: ${(() => { try { return normalizeGuideSourceUrl(source.url).href; } catch { return source.url; } })()}\\nExcerpt: ${source.content.slice(0, 1600)}`
                       ).join('\\n\\n')
                     : 'No relevant external web sources were returned for this query. Answer the user’s general question carefully using established knowledge, do not invent citations or Qur’an/Hadith references, and briefly disclose that no web sources were found.';
                   requestHistory = history.slice();
