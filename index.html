@@ -10074,57 +10074,82 @@ return `<div class="scr" style="
 
  
 
+
+
+
+
+
 function _calculateQuranReadStats(targetDateStr) {
-  const bookmarks = Array.isArray(S.bookmarks)
-    ? S.bookmarks.filter(bookmark =>
-        bookmark?.date &&
-        Number(bookmark.surah) > 0 &&
-        Number(bookmark.verse) > 0 &&
-        Number.isFinite(new Date(bookmark.date).getTime())
-      )
-    : [];
-
-  const start = new Date(targetDateStr + 'T00:00:00').getTime();
-  const end = new Date(targetDateStr + 'T23:59:59.999').getTime();
-
-  const todayBookmarks = bookmarks
-    .filter(bookmark => {
-      const time = new Date(bookmark.date).getTime();
-      return time >= start && time <= end;
-    })
-    .sort((a, b) =>
-      new Date(a.date).getTime() - new Date(b.date).getTime()
+  const bookmarks = (Array.isArray(S.bookmarks) ? S.bookmarks : [])
+    .filter(b =>
+      Number(b?.surah) > 0 &&
+      Number(b?.verse) > 0 &&
+      b.date &&
+      Number.isFinite(new Date(b.date).getTime())
     );
 
-  if (!todayBookmarks.length) {
+  const getPosition = b =>
+    _qGlobalAyah(Number(b.surah), Number(b.verse));
+
+  // Get bookmarks saved on a specific local calendar date.
+  const getDayBookmarks = dateStr => {
+    const dayStart = new Date(dateStr + 'T00:00:00');
+    const nextDayStart = new Date(dayStart);
+    nextDayStart.setDate(nextDayStart.getDate() + 1);
+
+    return bookmarks.filter(b => {
+      const time = new Date(b.date).getTime();
+      return time >= dayStart.getTime() &&
+             time < nextDayStart.getTime();
+    });
+  };
+
+  // Find the furthest Qur'an position, regardless of save order.
+  const getFurthestBookmark = list =>
+    list.reduce((furthest, current) =>
+      !furthest || getPosition(current) > getPosition(furthest)
+        ? current
+        : furthest,
+      null
+    );
+
+  const todayBookmark = getFurthestBookmark(
+    getDayBookmarks(targetDateStr)
+  );
+
+  if (!todayBookmark) {
     return { versesRead: 0, lastBookmark: null };
   }
 
-  // First bookmark of today = starting position.
-  const startingBookmark = todayBookmarks[0];
+  // Calculate yesterday's date.
+  const previousDate = new Date(targetDateStr + 'T00:00:00');
+  previousDate.setDate(previousDate.getDate() - 1);
 
-  // Furthest bookmark of today = ending position.
-  const lastBookmark = todayBookmarks.reduce((highest, bookmark) =>
-    _qGlobalAyah(Number(bookmark.surah), Number(bookmark.verse)) >
-    _qGlobalAyah(Number(highest.surah), Number(highest.verse))
-      ? bookmark
-      : highest
+  const previousDateStr = dateStr(previousDate);
+
+  // Yesterday's furthest bookmark becomes today's starting position.
+  const previousBookmark = getFurthestBookmark(
+    getDayBookmarks(previousDateStr)
   );
 
-  const startPosition = _qGlobalAyah(
-    Number(startingBookmark.surah),
-    Number(startingBookmark.verse)
+  const previousPosition = previousBookmark
+    ? getPosition(previousBookmark)
+    : 0;
+
+  // Today's reading = today's furthest position - yesterday's position.
+  // If there was no bookmark yesterday, count from the beginning.
+  const versesRead = Math.max(
+    0,
+    getPosition(todayBookmark) - previousPosition
   );
 
-  const endPosition = _qGlobalAyah(
-    Number(lastBookmark.surah),
-    Number(lastBookmark.verse)
-  );
-
-  const versesRead = Math.max(0, endPosition - startPosition);
-
-  return { versesRead, lastBookmark };
+  return {
+    versesRead,
+    lastBookmark: todayBookmark
+  };
 }
+
+
 
 
         function _buildHomeProgressSummaryHTML(day) {
