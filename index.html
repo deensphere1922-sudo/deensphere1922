@@ -9981,39 +9981,50 @@ return `<div class="scr" style="
     return _routineStatsForDate(day, new Date());
   }
 
- 
-function _calculateQuranReadStats(targetDateStr) {
-  let versesRead = 0;
-  let lastBookmark = null;
+  function _calculateQuranReadStats(targetDateStr) {
+    let versesRead = 0;
+    let lastBookmark = null;
 
-  if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
-    const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
-    const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
+    if (Array.isArray(S.bookmarks) && S.bookmarks.length > 0) {
+      const sorted = [...S.bookmarks]
+        .filter(b => b && b.date)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-    const todayBookmarks = S.bookmarks
-      .filter(b => {
-        if (!b || !b.date || !b.surah || !b.verse) return false;
-        const time = new Date(b.date).getTime();
-        return time >= targetStart && time <= targetEnd;
-      })
-      .sort((a, b) => new Date(a.date) - new Date(b.date));
+      const targetStart = new Date(targetDateStr + 'T00:00:00').getTime();
+      const targetEnd = new Date(targetDateStr + 'T23:59:59').getTime();
 
-    if (todayBookmarks.length > 0) {
-      lastBookmark = todayBookmarks[todayBookmarks.length - 1];
+      let todayBookmarks = [];
+      let yesterdayLast = null;
 
-      // Count unique bookmarked verses created today.
-      // Do not calculate using the previous day's last bookmark.
-      const uniqueVerses = new Set(
-        todayBookmarks.map(b => `${b.surah}:${b.verse}`)
-      );
+      // Separate today's bookmarks from yesterday's
+      sorted.forEach(b => {
+        const bTime = new Date(b.date).getTime();
+        if (bTime < targetStart) {
+          yesterdayLast = b;
+        } else if (bTime >= targetStart && bTime <= targetEnd) {
+          todayBookmarks.push(b);
+        }
+      });
 
-      versesRead = uniqueVerses.size;
+      if (todayBookmarks.length > 0) {
+        lastBookmark = todayBookmarks[todayBookmarks.length - 1];
+        
+        // Start from yesterday's last bookmark, or 0 (absolute beginning) if none
+        let startGlobal = yesterdayLast 
+          ? _qGlobalAyah(yesterdayLast.surah, yesterdayLast.verse) 
+          : 0;
+
+        // Calculate total read today (Global position of today's last bookmark minus start point)
+        const endGlobal = _qGlobalAyah(lastBookmark.surah, lastBookmark.verse);
+        versesRead = endGlobal - startGlobal;
+        
+        // Safety check just in case
+        if (versesRead < 0) versesRead = 0;
+      }
     }
+
+    return { versesRead, lastBookmark };
   }
-
-  return { versesRead, lastBookmark };
-}
-
 
         function _buildHomeProgressSummaryHTML(day) {
           const t = todaysTimes();
