@@ -16692,12 +16692,15 @@ ISLAMIC EVIDENCE AND ACCURACY:
             const renderAttachments = attachments => {
               const items = (Array.isArray(attachments) ? attachments : []).map(attachment => {
                 const preview = typeof attachment.preview === 'string' &&
-                  /^data:image\/(?:jpeg|png|webp);base64,/i.test(attachment.preview)
-                  ? `<img src="${esc(attachment.preview)}" alt="${esc(attachment.name || 'Attachment')}" style="width:72px;height:72px;flex:0 0 72px;object-fit:cover;border-radius:10px;">`
+                  attachment.preview.startsWith('data:image/')
+                  ? `<img src="${esc(attachment.preview)}" alt="${esc(attachment.name || 'Attachment preview')}" style="width:72px;height:72px;flex:0 0 72px;object-fit:cover;border-radius:9px;background:var(--card-el);">`
                   : '';
-                return `<div style="display:flex;align-items:center;gap:10px;margin:6px 0 0;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);width:min(492px,100%);max-width:100%;min-width:0;box-sizing:border-box;"><span style="flex:0 0 auto;">${attachment.kind === 'pdf' ? 'PDF' : 'Image'}</span>${preview}<span style="min-width:0;overflow-wrap:anywhere;">${esc(attachment.name || 'Attachment')}</span></div>`;
+                const kindLabel = attachment.kind === 'pdf'
+                  ? '<span style="flex:0 0 34px;font-size:13px;font-weight:500;color:var(--tx);">PDF</span>'
+                  : '';
+                return `<div style="display:flex;align-items:center;gap:10px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);width:min(492px,100%);max-width:100%;min-width:0;box-sizing:border-box;">${kindLabel}${preview}<span style="min-width:0;flex:1;overflow-wrap:anywhere;word-break:break-word;font-size:13px;color:var(--tx);">${esc(attachment.name || 'Attachment')}</span></div>`;
               }).join('');
-              return items ? `<div class="guide-message-attachments" style="display:flex;flex-direction:column;align-items:flex-start;width:100%;max-width:100%;margin-top:4px;">${items}</div>` : '';
+              return items ? `<div class="guide-message-attachments" style="display:flex;flex-direction:column;align-items:stretch;width:100%;max-width:100%;min-width:0;gap:6px;margin-top:4px;box-sizing:border-box;">${items}</div>` : '';
             };
             return `<div id="deen-guide-screen" style="display:flex; flex-direction:column; height:100%; min-height:0; width:100%;">
                   <div class="pg-head" style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px; flex-shrink:0;">
@@ -16894,10 +16897,13 @@ ISLAMIC EVIDENCE AND ACCURACY:
             const appendAttachmentCards = (container, attachments) => {
               if (!Array.isArray(attachments) || !attachments.length) return;
               const list = document.createElement('div');
-              list.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:8px;max-width:100%;';
+              // Match the restored-history renderer: attachments always occupy
+              // their own full-width row below the message text.
+              list.className = 'guide-message-attachments';
+              list.style.cssText = 'display:flex;flex-direction:column;align-items:stretch;width:100%;max-width:100%;min-width:0;gap:6px;margin-top:4px;box-sizing:border-box;';
               attachments.forEach(attachment => {
                 const card = document.createElement('div');
-                card.style.cssText = 'display:flex;align-items:center;gap:10px;width:min(100%,590px);max-width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);';
+                card.style.cssText = 'display:flex;align-items:center;gap:10px;margin:0;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);width:min(492px,100%);max-width:100%;min-width:0;box-sizing:border-box;';
 
                 // Image attachments show only the preview and filename.
                 // Keep a small PDF label for document attachments.
@@ -16934,8 +16940,14 @@ ISLAMIC EVIDENCE AND ACCURACY:
   const div = document.createElement('div');
 
   if (role === 'user') {
-    div.style.cssText = 'align-self:flex-end;flex-shrink:0;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);';
-    div.textContent = text;
+    // Keep live messages pixel-consistent with renderDeenGuide() after refresh.
+    // A column flex wrapper prevents the attachment row from sharing the text line.
+    div.className = 'guide-user-message';
+    div.style.cssText = 'align-self:flex-end;display:flex;flex-direction:column;align-items:stretch;flex:0 0 auto;width:fit-content;min-width:0;max-width:100%;box-sizing:border-box;overflow-wrap:anywhere;word-break:break-word;white-space:normal;overflow-x:hidden;background:var(--green-dim);padding:12px 16px;border-radius:16px 16px 4px 16px;font-size:14px;line-height:1.6;color:var(--tx);';
+    const messageText = document.createElement('div');
+    messageText.style.cssText = 'white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;min-width:0;';
+    messageText.textContent = text || '';
+    div.appendChild(messageText);
     appendAttachmentCards(div, attachments);
    } else {
     // Assistant message: Process Markdown into HTML
