@@ -3342,11 +3342,14 @@ textarea:focus {
 }
 
 
-/* Deen Guide Plus (+) button – white hover background */
-#guide-thread button:hover,
-#guide-thread .guide-attach-btn:hover {
+/* Deen Guide Plus (+) button: white hover only in light mode.
+   Dark mode keeps its original theme-based hover appearance. */
+[data-theme="light"] #guide-attach:hover {
   background: #FFFFFF !important;
+  background-color: #FFFFFF !important;
   color: #1E8A5F !important;
+  border-color: #1E8A5F !important;
+  filter: none !important;
 }
 
 
@@ -16787,6 +16790,13 @@ ISLAMIC EVIDENCE AND ACCURACY:
                     }
                     #guide-attach:hover,
                     #guide-mic:hover { background:var(--card-el)!important; filter:brightness(.9); }
+                    [data-theme="light"] #guide-attach:hover {
+                      background:#FFFFFF!important;
+                      background-color:#FFFFFF!important;
+                      color:#1E8A5F!important;
+                      border-color:#1E8A5F!important;
+                      filter:none!important;
+                    }
                     #guide-attach:hover svg { transform: rotate(90deg); }
                     #guide-mic:hover svg { transform: translateY(-2px) scale(1.1); }
                     #guide-plus-menu button:focus-visible { outline:2px solid var(--tx2); outline-offset:1px; }
