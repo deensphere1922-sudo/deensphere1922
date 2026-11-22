@@ -8327,6 +8327,14 @@ function niceDate() {
         }
             document.body.classList.toggle('profile-locked', S.screen === 'profile');
             const s = S.screen;
+
+            // Stop and release any video player before leaving Islamic Videos.
+            // The overlay is temporarily mounted on <body> while open, so it
+            // must not survive a screen change and shadow the next video view.
+            if (s !== 'videos') {
+              try { closeYouTubePlayer(); } catch (_) {}
+            }
+
             const shouldAnimateScreen = _lastRenderedAnimatedScreen !== s;
             _lastRenderedAnimatedScreen = s;
             if (s === 'splash') { app.innerHTML = renderSplash(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); return; }
@@ -15166,8 +15174,17 @@ return `<div class="scr" style="
           }
 
             function bindVideos() {
-            // Ensure any previous YouTube player is destroyed when the screen re-renders
+            // Destroy any previous player before binding the current video screen.
             closeYouTubePlayer();
+
+            // A player overlay is moved to <body> while playing. After navigating
+            // away and back, discard that stale overlay so the fresh overlay
+            // rendered inside the current .content is the one used for playback.
+            const currentContent = document.querySelector('#app .content');
+            document.querySelectorAll('#yt-player-overlay').forEach((node) => {
+              if (!currentContent || !currentContent.contains(node)) node.remove();
+            });
+
             _applyDsStaggeredChildren(document.querySelector('.content'), '.videos-grid > .card');
 
             $$('[data-vidcat]').forEach(b => {
