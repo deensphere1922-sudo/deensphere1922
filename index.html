@@ -16894,10 +16894,14 @@ ISLAMIC EVIDENCE AND ACCURACY:
                 const card = document.createElement('div');
                 card.style.cssText = 'display:flex;align-items:center;gap:10px;width:min(100%,590px);max-width:100%;min-width:0;box-sizing:border-box;padding:8px 10px;border:1px solid var(--border);border-radius:12px;background:var(--card);';
 
-                const kind = document.createElement('span');
-                kind.textContent = attachment.kind === 'pdf' ? 'PDF' : 'Image';
-                kind.style.cssText = 'flex:0 0 48px;font-size:13px;font-weight:500;color:var(--tx);';
-                card.appendChild(kind);
+                // Image attachments show only the preview and filename.
+                // Keep a small PDF label for document attachments.
+                if (attachment.kind === 'pdf') {
+                  const kind = document.createElement('span');
+                  kind.textContent = 'PDF';
+                  kind.style.cssText = 'flex:0 0 34px;font-size:13px;font-weight:500;color:var(--tx);';
+                  card.appendChild(kind);
+                }
 
                 if (typeof attachment.preview === 'string' && attachment.preview.startsWith('data:image/')) {
                   const image = document.createElement('img');
@@ -17886,9 +17890,8 @@ const toggleGuideRecording = async () => {
                 S.guideThinking = false;
                 S.guideThinkStage = '';
                 hideThinking();
-                const retryWaitText = formatGuideRetryDelay(error.retryAfter);
-                const errorText = error.status === 429
-                  ? `Deen Guide is still rate-limited. ${retryWaitText ? `The provider asked us to wait ${retryWaitText}.` : 'Please try again shortly.'}`
+                const errorText = error.status === 429 || error.status === 503
+                  ? 'Deen Guide is temporarily busy. Please try again in a moment.'
                   : `Error: ${error.message || 'Deen Guide could not complete this request.'}`;
                 S.guideMsgs.push({ role: 'assistant', text: errorText, requestError: true });
                 appendMessage('assistant', errorText);
