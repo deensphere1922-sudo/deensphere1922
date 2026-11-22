@@ -12,7 +12,7 @@ const sourceGroups = [
     domains: ['quran.com', 'quranenc.com'],
     limit: 6,
     query: (question, topic) =>
-      `English Qur'an translation in English only. ${topic === 'islam' ? 'Find introductory Qur'an passages explaining Islam, submission to Allah, and the message of Islam.' : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
+      `English Qur'an translation in English only. ${topic === 'islam' ? "Find introductory Quran passages explaining Islam, submission to Allah, and the message of Islam." : `Find Qur'an verses that directly discuss the exact topic "${topic}"; exclude merely associated subjects.`} Return English-language verse pages and English translation excerpts only. Never return Albanian or another language. User question: ${question}.`,
   },
   {
     type: 'Hadith evidence',
