@@ -17728,8 +17728,18 @@ const startVoicePlaceholderAnimation = input => {
 
 const resizeGuideInput = input => {
   if (!input || input.tagName !== 'TEXTAREA') return;
+
+  input.style.fieldSizing = 'fixed';
   input.style.height = '42px';
-  input.style.height = `${Math.min(input.scrollHeight, 120)}px`;
+
+  if (!input.value.trim()) {
+    input.style.overflowY = 'hidden';
+    return;
+  }
+
+  const height = Math.min(Math.max(input.scrollHeight, 42), 120);
+  input.style.height = `${height}px`;
+  input.style.overflowY = input.scrollHeight > 120 ? 'auto' : 'hidden';
 };
 
 const transcribeRecording = async (blob, requestVersion) => {
@@ -18235,7 +18245,14 @@ const toggleGuideRecording = async () => {
               appendMessage('user', userText, savedAttachments);
               pendingAttachments = [];
               setGuideWebSearchEnabled(false);
-              if (inp) inp.value = '';
+             if (inp) {
+  inp.value = '';
+  inp.style.fieldSizing = 'fixed';
+  inp.style.height = '42px';
+  inp.style.minHeight = '42px';
+  inp.style.overflowY = 'hidden';
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+}
 
               // Enforce Deen Guide's Islam-only scope before calling the AI.
               // Keep attachment-only questions available for Islamic document/image analysis.
