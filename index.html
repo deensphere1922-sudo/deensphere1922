@@ -8113,6 +8113,41 @@ function niceDate() {
             } catch (e) { return 0; }
           }
 
+           const DEEN_ROUTES = {
+  home: '/',
+  'quran-library': '/quran',
+  'quran-reader': '/quran-reader',
+  adhkar: '/adhkar-duas',
+  hadith: '/hadith',
+  tawhid: '/aqeedah',
+  sunnah: '/sunnah-good-deeds',
+  videos: '/islamic-videos',
+  news: '/ummah-hub',
+  ramadan: '/ramadan',
+  routine: '/daily-routine',
+  tracker: '/tracker',
+  deenguide: '/deen-guide',
+  settings: '/settings',
+  profile: '/profile'
+};
+
+function updateDeenUrl(screen, arg) {
+  const route = DEEN_ROUTES[screen];
+  if (!route) return;
+
+  const url = screen === 'quran-reader' && arg
+    ? `${route}/${arg}`
+    : route;
+
+  if (location.pathname !== url) {
+    history.pushState(
+      { deenScreen: screen, deenArg: arg },
+      '',
+      url
+    );
+  }
+}   
+
           /* ============================= RENDER: SHELL ============================= */
                   function go(screen, arg, verseArg) {
 
