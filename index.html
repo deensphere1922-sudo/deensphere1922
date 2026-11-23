@@ -19844,9 +19844,7 @@ _notificationAdhanAudio.loop = false;
           if (event.data.type === 'PLAY_ADHAN') {
             _playNotificationAdhan((event.data.prayer || 'fajr').toLowerCase());
           }
-          if (event.data.type === 'STOP_ADHAN') {
-            _stopNotificationAdhan();
-          }
+          
           if (event.data.type === 'SHOW_PRAYER_MODAL') {
             let prayerName = event.data.prayer || '';
             if (!prayerName && event.data.title) {
@@ -19880,15 +19878,13 @@ _notificationAdhanAudio.loop = false;
         });
       }
 
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') {
-          _stopNotificationAdhan();
-          if (typeof window._stopAdhanPreview === 'function') window._stopAdhanPreview();
-        }
-      });
-      window.addEventListener('blur', () => {
-        _stopNotificationAdhan();
-      });
+     document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    if (typeof window._stopAdhanPreview === 'function') {
+      window._stopAdhanPreview();
+    }
+  }
+});
 
 
       /* ============================= COLD-START POPUP ============================= */
