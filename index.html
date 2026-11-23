@@ -19826,16 +19826,6 @@ _notificationAdhanAudio.loop = false;
 
         document.body.appendChild(banner);
         // 🛑 Kill banner + audio the instant the user leaves the app.
-        const killOnLeave = () => { if (!_userIsActuallyPresent()) _stopNotificationAdhan(); };
-        const killOnBlur   = () => setTimeout(() => { if (!_userIsActuallyPresent()) _stopNotificationAdhan(); }, 50);
-        document.addEventListener('visibilitychange', killOnLeave);
-        window.addEventListener('blur', killOnBlur);
-        window.addEventListener('pagehide', _stopNotificationAdhan);
-        banner.__cleanup = () => {
-          document.removeEventListener('visibilitychange', killOnLeave);
-          window.removeEventListener('blur', killOnBlur);
-          window.removeEventListener('pagehide', _stopNotificationAdhan);
-        };
         const closeBtn = banner.querySelector('#close-adhan-btn');
         if (closeBtn) {
           closeBtn.onclick = (e) => {
