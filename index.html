@@ -8131,13 +8131,25 @@ function niceDate() {
   profile: '/profile'
 }
 
-              function updateDeenUrl(screen, arg) {
-  const route = DEEN_ROUTES[screen];
-  if (!route) return;
+          
+function updateDeenUrl(screen, arg) {
+  let url = DEEN_ROUTES[screen];
+  if (!url) return;
 
-  const url = screen === 'quran-reader' && arg
-    ? `${route}/${arg}`
-    : route;
+  if (screen === 'quran-reader' && arg) {
+    const surah = SURAHS.find(s => Number(s[0]) === Number(arg));
+
+    if (surah) {
+      const slug = surah[2]
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '');
+
+      url = `/quran/${slug}`;
+    }
+  }
 
   if (window.location.pathname !== url) {
     window.history.pushState(
@@ -8147,6 +8159,7 @@ function niceDate() {
     );
   }
 }
+
 
           /* ============================= RENDER: SHELL ============================= */
                   function go(screen, arg, verseArg) {
