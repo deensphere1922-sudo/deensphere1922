@@ -20225,5 +20225,34 @@ transform: translateX(-50%);
 
       </script>
 
+            <style>
+  body:has(#tracker-day-modal),
+  body:has(#yt-player-overlay.show) {
+    overflow: hidden !important;
+  }
+
+  #tracker-day-modal,
+  #yt-player-overlay.show {
+    overscroll-behavior: none !important;
+  }
+</style>
+
+<script>
+(function () {
+  function popupOpen() {
+    return !!document.getElementById('tracker-day-modal') ||
+      !!document.querySelector('#yt-player-overlay.show');
+  }
+
+  document.addEventListener('wheel', function (e) {
+    if (popupOpen()) e.preventDefault();
+  }, { capture: true, passive: false });
+
+  document.addEventListener('touchmove', function (e) {
+    if (popupOpen()) e.preventDefault();
+  }, { capture: true, passive: false });
+})();
+</script>
+
       </body>
       </html>
