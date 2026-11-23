@@ -125,7 +125,7 @@
             --card: #111111;
             --card-el: #171717;
             --border: #242424;
-            --tx: #FFFFFF;
+            --tx: #FEFEFE;
             --tx2: #A1A1AA;
             --tx3: #71717A;
             --green: #1E8A5F;
@@ -3371,6 +3371,15 @@ textarea:focus {
   22% { opacity: 1; }
   78% { opacity: 1; }
   100% { opacity: .92; }
+}
+/* GLOBAL DARK MODE – soften primary white text */
+html[data-theme="dark"] body,
+html[data-theme="dark"] #app {
+  color: #FEFEFE !important;
+}
+
+html[data-theme="dark"] {
+  --tx: #FEFEFE !important;
 }
 
 </style>
