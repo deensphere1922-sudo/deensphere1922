@@ -3394,6 +3394,8 @@ html[data-theme="dark"] {
     pointer-events: none !important;
 }
 
+              
+
 </style>
       <!-- Code injected by Five-server -->
   <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
@@ -17096,7 +17098,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
     rows="1"
     placeholder="Ask Deen Guide..."
     aria-label="Ask Deen Guide"
-    style="flex:1 1 0%;min-width:0;width:100%;min-height:42px;max-height:120px;field-sizing:content;resize:none;overflow-y:auto;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.45;align-self:center;cursor:text;background:transparent!important;border:0!important;box-shadow:none!important;padding:10px 4px;"
+    style="flex:1 1 0%;min-width:0;width:100%;min-height:42px;max-height:120px;field-sizing:fixed;resize:none;overflow-y:auto;overflow-wrap:anywhere;white-space:pre-wrap;line-height:1.45;align-self:center;cursor:text;background:transparent!important;border:0!important;box-shadow:none!important;padding:10px 4px;"
   ></textarea>
   <button class="btn" id="guide-mic" type="button" aria-label="Speak your message" title="Speak your message" style="width:42px;height:42px;min-width:42px;padding:0;display:flex;align-items:center;justify-content:center;border:1px solid var(--border);background:var(--card-el);color:var(--tx2);border-radius:12px;">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8"/></svg>
@@ -17194,6 +17196,18 @@ ISLAMIC EVIDENCE AND ACCURACY:
     border-color: var(--green) !important;
     transition: border-color 160ms ease;
   }
+}
+
+/* Deen Guide — compact input after sending */
+#guide-input {
+  min-height: 42px !important;
+  max-height: 120px !important;
+  resize: none !important;
+  overflow-y: auto !important;
+}
+
+#guide-composer-row {
+  min-height: 42px !important;
 }
 
 </style>
@@ -18235,7 +18249,10 @@ const toggleGuideRecording = async () => {
               appendMessage('user', userText, savedAttachments);
               pendingAttachments = [];
               setGuideWebSearchEnabled(false);
-              if (inp) inp.value = '';
+             if (inp) {
+  inp.value = '';
+  resizeGuideInput(inp);
+}
 
               // Enforce Deen Guide's Islam-only scope before calling the AI.
               // Keep attachment-only questions available for Islamic document/image analysis.
@@ -18464,7 +18481,10 @@ const toggleGuideRecording = async () => {
               S.guideThinkStage = '';
               hideThinking();
               const input = $('#guide-input');
-              if (input) input.value = '';
+              if (input) {
+  input.value = '';
+  resizeGuideInput(input);
+}
 
               if (thread) {
                 thread.innerHTML = `<div class="empty guide-suggestions" style="margin:auto;display:flex;flex-direction:column;align-items:center;text-align:center;gap:4px;width:100%;">
