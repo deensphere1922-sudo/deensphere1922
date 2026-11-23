@@ -80,14 +80,6 @@ function _checkAll() {
       if (!t) continue;
       const label = key.charAt(0).toUpperCase() + key.slice(1);
 
-      // Prayer minute → play adhan in open app
-      if (t.getHours() === hh && t.getMinutes() === mm) {
-        const fireKey = todayKey + ':prayer-' + key;
-        if (!_swState.lastFired[fireKey]) {
-          _swState.lastFired[fireKey] = true;
-          _pingOpenClients({ type: 'PLAY_ADHAN', prayer: key });
-        }
-      }
 
       // +30 min → show popup in open app
       const checkTime = new Date(t.getTime() + 30 * 60 * 1000);
