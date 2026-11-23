@@ -622,42 +622,49 @@ self.addEventListener('notificationclick', (event) => {
   const data = notification.data || {};
   notification.close();
 
-  const isCheck = data.kind === 'check' || /check/i.test(notification.title || '');
+  const isCheck =
+    data.kind === 'check' ||
+    /check/i.test(notification.title || '');
+
   let prayer = String(data.prayer || '').trim().toLowerCase();
 
   if (!prayer && notification.title) {
-    prayer = notification.title.replace(/^[^\w]*/, '').replace(/\s*Check\s*$/i, '').trim().toLowerCase();
+    prayer = notification.title
+      .replace(/^[^\w]*/, '')
+      .replace(/\s*Check\s*$/i, '')
+      .trim()
+      .toLowerCase();
   }
 
   event.waitUntil((async () => {
-    const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    const windows = await self.clients.matchAll({
+      type: 'window',
+      includeUncontrolled: true
+    });
 
     for (const client of windows) {
       const clientUrl = new URL(client.url);
+
       if (clientUrl.origin !== self.location.origin) continue;
       if (clientUrl.pathname.endsWith('.js')) continue;
 
       if (isCheck) {
-        client.postMessage({ type: 'STOP_ADHAN' });
         client.postMessage({
           type: 'SHOW_PRAYER_MODAL',
           prayer: prayer || 'fajr',
           title: notification.title || '',
           tag: data.tag || null
         });
-      } else {
-        client.postMessage({ type: 'STOP_ADHAN' });
       }
 
       await client.focus();
       return;
     }
 
-    const targetUrl = new URL('/', self.location.origin);
     try {
-      await self.clients.openWindow(targetUrl.href);
-    } catch (e) {
-      try { await self.clients.openWindow(targetUrl.href); } catch (_) {}
-    }
+      await self.clients.openWindow(
+        new URL('/', self.location.origin).href
+      );
+    } catch (e) {}
   })());
 });
