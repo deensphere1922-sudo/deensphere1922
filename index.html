@@ -14125,7 +14125,7 @@ modal.addEventListener('touchmove', (e) => {
 
         const closeBtn = document.getElementById('close-tracker-modal');
         if (closeBtn) closeBtn.onclick = closeModal;
-        modal.onclick = (e) => { if (e.target === modal) closeModal(); };
+        
 
 
       // 4. FETCH THE LATEST DATA FROM CLOUD
@@ -15536,12 +15536,6 @@ ${hasQuranReading ? `
                 e.stopPropagation();
                 closeYouTubePlayer();
               };
-            }
-            const overlay = $('#yt-player-overlay');
-            if (overlay) {
-              overlay.addEventListener('click', (e) => {
-                if (e.target === overlay) closeYouTubePlayer();
-              });
             }
           }
 
