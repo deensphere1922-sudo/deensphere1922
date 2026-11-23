@@ -19762,14 +19762,17 @@ try {
 
             // 🚫 Only show the banner + play audio when the user is
         // genuinely on screen (visible tab AND focused window).
-        if (!_userIsActuallyPresent()) return;
+        // Do not require window focus to receive the push event.
 
         _stopNotificationAdhan();
 
         const prayerName = prayer.charAt(0).toUpperCase() + prayer.slice(1);
         const adhanUrl = 'https://media.assabile.com/assabile/adhan_3435370/166d1f7c435a.mp3';
 
-        _notificationAdhanAudio = new Audio(adhanUrl);
+      _notificationAdhanAudio = new Audio(adhanUrl);
+_notificationAdhanAudio.preload = 'auto';
+_notificationAdhanAudio.volume = 1;
+_notificationAdhanAudio.loop = false;
         _notificationAdhanAudio.onended = () => {
           _stopNotificationAdhan();
         };
