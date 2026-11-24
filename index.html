@@ -19230,30 +19230,7 @@ try {
             document.documentElement.setAttribute('data-arabic-size', mode || 'medium');
           }
 
-          /* ==================== BLOCK SWIPE-BACK FROM LEAVING THE APP ==================== */
-          (function installSwipeBackGuard() {
-            const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
-            const isMobileUA = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
-            if (!isTouch && !isMobileUA) return;
-
-            try {
-              history.pushState({ __deenGuard: true }, '', location.href);
-            } catch (e) {}
-
-            window.addEventListener('popstate', () => {
-              try {
-                history.pushState({ __deenGuard: true }, '', location.href);
-              } catch (e) {}
-            });
-
-            document.addEventListener('visibilitychange', () => {
-              if (document.visibilityState === 'visible') {
-                try {
-                  history.pushState({ __deenGuard: true }, '', location.href);
-                } catch (e) {}
-              }
-            });
-          })();
+       
 
           /* ============ START AUTO THEME CHECKER ============ */
           setInterval(checkAutoTheme, 60000);
