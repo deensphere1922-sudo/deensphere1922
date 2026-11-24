@@ -1278,14 +1278,29 @@ body {
               margin-bottom: 0; border-bottom: 1px solid var(--border);
               isolation: isolate; box-shadow: 0 10px 0 0 var(--bg);
             }
-            .settings-page .settings-fixed-top::before {
-              content: ""; position: absolute; top: 0; bottom: 0; left: -100vmax;
-              right: -100vmax; background: var(--bg); z-index: -1; pointer-events: none;
-            }
-            .settings-page .settings-fixed-top::after {
-              content: ""; position: absolute; left: -100vmax; right: -100vmax;
-              bottom: 100%; height: 12px; background: var(--bg); z-index: -1; pointer-events: none;
-            }
+          .settings-page .settings-fixed-top::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -16px;
+  right: -16px;
+  background: var(--bg);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.settings-page .settings-fixed-top::after {
+  content: "";
+  position: absolute;
+  left: -16px;
+  right: -16px;
+  bottom: 100%;
+  height: 12px;
+  background: var(--bg);
+  z-index: -1;
+  pointer-events: none;
+}
             .settings-page .settings-section:nth-of-type(1) .settings-fixed-top { top: 121px; z-index: 44; }
             .settings-page .settings-section:nth-of-type(2) .settings-fixed-top { top: 121px; z-index: 45; }
             .settings-page .settings-section:nth-of-type(3) .settings-fixed-top { top: 121px; z-index: 46; }
