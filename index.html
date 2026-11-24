@@ -8278,7 +8278,7 @@ function updateDeenUrl(screen, arg) {
         // instead of allowing them to skip the visible splash animation.
         if (S.screen === 'splash' && screen !== 'splash') {
           const splashStartedAt = window.__deenSplashStartedAt || Date.now();
-          const splashMinimumDuration = 2530;
+         const splashMinimumDuration = 1730;
           const remainingSplashTime = Math.max(
             0,
             splashMinimumDuration - (Date.now() - splashStartedAt)
@@ -8916,7 +8916,7 @@ async function bootSplash() {
 
   // Wait only until the splash animation finishes.
   const splashStartedAt = window.__deenSplashStartedAt || Date.now();
-  const splashAnimationDuration = 2530;
+ const splashAnimationDuration = 1730;
 
   const remainingTime = Math.max(
     0,
@@ -18944,9 +18944,16 @@ if (micButton) {
               } catch (e) { console.warn('OAuth hash parse failed:', e); }
             }
 
-            render();
+         render();
 
-           
+// Open the locally saved screen immediately while Supabase restores the session.
+if (S.profile && S.settings?.setupDone) {
+  const restored = readLastScreen();
+  go(restored.screen || 'home', restored.arg);
+} else if (S.profile) {
+  go('setup-location');
+}
+
 let user = null;
 
 try {
