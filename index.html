@@ -17842,6 +17842,12 @@ const resizeGuideInput = input => {
   input.style.overflowY = input.scrollHeight > 120 ? 'auto' : 'hidden';
 };
 
+                document.addEventListener('input', (event) => {
+  if (event.target.id === 'guide-input') {
+    resizeGuideInput(event.target);
+  }
+});
+
 const transcribeRecording = async (blob, requestVersion) => {
   if (blob.size > 3000000) throw new Error('That recording is too large. Please record a shorter message.');
   const mimeType = (blob.type || 'audio/webm').split(';')[0];
