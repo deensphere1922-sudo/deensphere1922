@@ -196,26 +196,19 @@
           }
 
         
-/* DEENSPHERE MOBILE TOUCH FIX */
+/* DEENSPHERE — IPHONE PWA MOBILE TAP FIX */
 
 html,
 body {
-  touch-action: pan-y pinch-zoom;
-  overscroll-behavior-x: none;
+  touch-action: auto;
+  -webkit-tap-highlight-color: transparent;
 }
 
 @media (max-width: 880px) {
-  html,
-  body,
   .shell,
   .main,
   .content {
-    touch-action: pan-y pinch-zoom;
-    overscroll-behavior-x: none;
-  }
-
-  .content {
-    overscroll-behavior-y: contain;
+    touch-action: auto !important;
     -webkit-overflow-scrolling: touch;
   }
 
@@ -228,14 +221,18 @@ body {
   [data-adk],
   [data-adkcat] {
     touch-action: manipulation !important;
-    pointer-events: auto;
     -webkit-tap-highlight-color: transparent;
   }
 
-  .bottomnav button,
-  [data-adk],
-  [data-adkcat] {
+  .bottomnav {
+    z-index: 1000;
+    pointer-events: auto;
+  }
+
+  .bottomnav button {
     min-height: 44px;
+    touch-action: manipulation !important;
+    pointer-events: auto !important;
   }
 
   button svg {
