@@ -8255,7 +8255,7 @@ function updateDeenUrl(screen, arg) {
   }
 
   if (window.location.pathname !== url) {
-    window.history.pushState(
+    window.history.replaceState(
       { deenScreen: screen, deenArg: arg },
       '',
       url
