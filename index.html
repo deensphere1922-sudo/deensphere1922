@@ -168,7 +168,11 @@
             color-scheme: light;
           }
 
-          html, body { touch-action: manipulation; }
+         html,
+body {
+  touch-action: manipulation;
+  overscroll-behavior-x: none;
+}
 
           @media (max-width: 880px) {
             html, body { overscroll-behavior-y: none; }
@@ -195,13 +199,25 @@
             overflow-x: hidden;
           }
 
-          html, body { overscroll-behavior-x: none; touch-action: pan-y; }
           @media (max-width: 880px) {
-            html, body, .shell, .main, .content {
-              overscroll-behavior-x: none;
-              touch-action: pan-y pinch-zoom;
-            }
-          }
+  html,
+  body {
+    touch-action: manipulation;
+    overscroll-behavior-x: none;
+    overscroll-behavior-y: none;
+  }
+
+  .shell,
+  .main,
+  .content {
+    touch-action: auto;
+  }
+
+  .content {
+    overscroll-behavior-y: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
 
           body, .card, .card-el, .sidebar, .topbar, .bottomnav,
           .theme-toggle, .audio-bar, .speed-menu,
