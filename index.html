@@ -168,11 +168,7 @@
             color-scheme: light;
           }
 
-         html,
-body {
-  touch-action: manipulation;
-  overscroll-behavior-x: none;
-}
+      
 
           @media (max-width: 880px) {
             html, body { overscroll-behavior-y: none; }
@@ -199,25 +195,54 @@ body {
             overflow-x: hidden;
           }
 
-          @media (max-width: 880px) {
-  html,
-  body {
-    touch-action: manipulation;
-    overscroll-behavior-x: none;
-    overscroll-behavior-y: none;
-  }
+        
+/* DEENSPHERE MOBILE TOUCH FIX */
 
+html,
+body {
+  touch-action: pan-y pinch-zoom;
+  overscroll-behavior-x: none;
+}
+
+@media (max-width: 880px) {
+  html,
+  body,
   .shell,
   .main,
   .content {
-    touch-action: auto;
+    touch-action: pan-y pinch-zoom;
+    overscroll-behavior-x: none;
   }
 
   .content {
     overscroll-behavior-y: contain;
     -webkit-overflow-scrolling: touch;
   }
+
+  button,
+  a,
+  [role="button"],
+  .btn,
+  .navitem,
+  [data-nav],
+  [data-adk],
+  [data-adkcat] {
+    touch-action: manipulation !important;
+    pointer-events: auto;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottomnav button,
+  [data-adk],
+  [data-adkcat] {
+    min-height: 44px;
+  }
+
+  button svg {
+    pointer-events: none;
+  }
 }
+
 
           body, .card, .card-el, .sidebar, .topbar, .bottomnav,
           .theme-toggle, .audio-bar, .speed-menu,
