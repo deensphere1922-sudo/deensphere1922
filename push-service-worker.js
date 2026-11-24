@@ -585,16 +585,7 @@ self.addEventListener('push', (event) => {
     // Save pending check for cold-start recovery (app is closed or in background)
     if (kind === 'check' && prayer && !hasAppWindow) {
       await savePendingPrayer(prayer, tag);
-    }
-
-    // EXACT TIMER LOGIC: Only delay "time" (Prayers). Show checks instantly.
-    if (kind === 'time' && data.targetTime) {
-      const delay = data.targetTime - Date.now();
-      if (delay > 0) {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-      }
-    }
-    
+    }    
     // Always show notification
     await self.registration.showNotification(title, options);
 
