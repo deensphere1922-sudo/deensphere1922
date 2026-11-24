@@ -168,7 +168,7 @@
             color-scheme: light;
           }
 
-          html, body { touch-action: manipulation; }
+      
 
           @media (max-width: 880px) {
             html, body { overscroll-behavior-y: none; }
@@ -195,13 +195,51 @@
             overflow-x: hidden;
           }
 
-          html, body { overscroll-behavior-x: none; touch-action: pan-y; }
-          @media (max-width: 880px) {
-            html, body, .shell, .main, .content {
-              overscroll-behavior-x: none;
-              touch-action: pan-y pinch-zoom;
-            }
-          }
+        
+/* DEENSPHERE — IPHONE PWA MOBILE TAP FIX */
+
+html,
+body {
+  touch-action: auto;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (max-width: 880px) {
+  .shell,
+  .main,
+  .content {
+    touch-action: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  button,
+  a,
+  [role="button"],
+  .btn,
+  .navitem,
+  [data-nav],
+  [data-adk],
+  [data-adkcat] {
+    touch-action: manipulation !important;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .bottomnav {
+    z-index: 1000;
+    pointer-events: auto;
+  }
+
+  .bottomnav button {
+    min-height: 44px;
+    touch-action: manipulation !important;
+    pointer-events: auto !important;
+  }
+
+  button svg {
+    pointer-events: none;
+  }
+}
+
 
           body, .card, .card-el, .sidebar, .topbar, .bottomnav,
           .theme-toggle, .audio-bar, .speed-menu,
@@ -3392,6 +3430,23 @@ html[data-theme="dark"] {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
     pointer-events: none !important;
+}
+
+              /* Settings & Routine — Horizontal Swipe Fix Only */
+@media (max-width: 880px) {
+
+  body.settings-active,
+  body:has(.routine-sticky-shell) {
+    overscroll-behavior-x: none !important;
+    overflow-x: clip !important;
+  }
+
+  body.settings-active .content,
+  .content:has(.routine-sticky-shell) {
+    touch-action: pan-y pinch-zoom !important;
+    overscroll-behavior-x: none !important;
+    overflow-x: clip !important;
+  }
 }
 
 </style>
@@ -20274,6 +20329,36 @@ transform: translateX(-50%);
   document.addEventListener('touchmove', function (e) {
     if (popupOpen()) e.preventDefault();
   }, { capture: true, passive: false });
+})();
+</script>
+
+            <script>
+(() => {
+  if (window.__deenSphereTapGuard) return;
+  window.__deenSphereTapGuard = true;
+
+  const lastTap = new WeakMap();
+
+  document.addEventListener('click', (e) => {
+    if (!(e.target instanceof Element)) return;
+
+    const button = e.target.closest(
+      'button, a, [role="button"], [data-nav], [data-adk], [data-adkcat]'
+    );
+
+    if (!button || e.detail === 0) return;
+
+    const now = Date.now();
+    const previous = lastTap.get(button) || 0;
+
+    if (now - previous < 450) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
+    lastTap.set(button, now);
+  }, true);
 })();
 </script>
 
