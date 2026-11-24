@@ -623,7 +623,11 @@ body {
               display: flex; align-items: center; justify-content: center;
               height: 100%; padding: 0 4px; color: var(--tx2); flex-shrink: 0;
             }
-            .bottomnav { display: block; }
+            #app > .shell > .bottomnav {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
             .content { padding: 8px 16px 130px; }
            body.settings-active .content {
   scroll-snap-type: y proximity;
@@ -8594,7 +8598,13 @@ if (!window.__deenHandlingPopState) {
 
             const shouldAnimateScreen = _lastRenderedAnimatedScreen !== s;
             _lastRenderedAnimatedScreen = s;
-            if (s === 'splash') { app.innerHTML = renderSplash(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); return; }
+           if (s === 'splash') {
+  // Keep the original HTML splash; do not recreate or restart its animation.
+  if (!app.querySelector('.splash-screen')) {
+    app.innerHTML = renderSplash();
+  }
+  return;
+}
             if (s === 'onboarding') { app.innerHTML = renderOnboarding(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindOnboarding(); return; }
             if (s === 'auth') { app.innerHTML = renderAuth(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindAuth(); return; }
             if (s === 'forgot-password') { app.innerHTML = renderForgotPassword(); _applyDeenSphereScreenEntrance(app, shouldAnimateScreen); bindForgotPassword(); return; }
