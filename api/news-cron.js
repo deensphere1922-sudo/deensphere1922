@@ -1117,9 +1117,21 @@ async function sendUserNotification(userId, payload, notificationKey) {
         JSON.stringify(finalPayload),
         { TTL: 3600 }
       );
-      delivered = true;
-    } catch (error) {
-      if (error.statusCode === 410 || error.statusCode === 404) {
+    delivered = true;
+
+console.log('PUSH SUCCESS:',
+  new URL(row.subscription.endpoint).hostname
+);
+
+} catch (error) {
+
+  console.error('PUSH FAILED:',
+    new URL(row.subscription.endpoint).hostname,
+    error.statusCode,
+    error.message
+  );
+
+  if (error.statusCode === 410 || error.statusCode === 404) {
         await supabase.from('push_subscriptions').delete().eq('user_id', userId).eq('subscription', row.subscription);
       }
     }
