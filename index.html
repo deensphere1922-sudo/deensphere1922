@@ -625,10 +625,15 @@ body {
             }
             .bottomnav { display: block; }
             .content { padding: 8px 16px 130px; }
-            body.settings-active .content {
-              scroll-snap-type: y proximity; overflow-y: auto; height: calc(100vh - 60px);
-              -webkit-overflow-scrolling: touch;
-            }
+           body.settings-active .content {
+  scroll-snap-type: y proximity;
+  overflow-y: auto;
+  overflow-x: hidden !important;
+  overscroll-behavior-x: none !important;
+  touch-action: pan-y !important;
+  height: calc(100vh - 60px);
+  -webkit-overflow-scrolling: touch;
+}
             body.settings-active .settings-section {
               scroll-snap-align: start; scroll-snap-stop: normal;
             }
