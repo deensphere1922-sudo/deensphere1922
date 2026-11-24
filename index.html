@@ -3469,6 +3469,22 @@ html[data-theme="dark"] {
   }
 }
 
+              /* ALL MOBILE PAGES — PREVENT HORIZONTAL NAVIGATION */
+@media (max-width: 880px) {
+  html,
+  body {
+    overscroll-behavior-x: none !important;
+  }
+
+  #app,
+  .shell,
+  .main,
+  .content {
+    overscroll-behavior-x: none !important;
+    touch-action: pan-y pinch-zoom !important;
+  }
+}
+
 </style>
       <!-- Code injected by Five-server -->
   <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
