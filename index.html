@@ -20318,5 +20318,35 @@ transform: translateX(-50%);
 })();
 </script>
 
+            <script>
+(() => {
+  if (window.__deenSphereTapGuard) return;
+  window.__deenSphereTapGuard = true;
+
+  const lastTap = new WeakMap();
+
+  document.addEventListener('click', (e) => {
+    if (!(e.target instanceof Element)) return;
+
+    const button = e.target.closest(
+      'button, a, [role="button"], [data-nav], [data-adk], [data-adkcat]'
+    );
+
+    if (!button || e.detail === 0) return;
+
+    const now = Date.now();
+    const previous = lastTap.get(button) || 0;
+
+    if (now - previous < 450) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return;
+    }
+
+    lastTap.set(button, now);
+  }, true);
+})();
+</script>
+
       </body>
       </html>
