@@ -3432,45 +3432,6 @@ html[data-theme="dark"] {
     pointer-events: none !important;
 }
 
-              /* MOBILE — PREVENT HORIZONTAL SWIPE */
-@media (max-width: 880px) {
-
-  html,
-  body {
-    width: 100%;
-    max-width: 100%;
-    overflow-x: clip !important;
-    overscroll-behavior-x: none !important;
-  }
-
-  #app,
-  .shell,
-  .main,
-  .content {
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: clip !important;
-    overscroll-behavior-x: none !important;
-  }
-
-  /* Settings and Daily Routine */
-  body.settings-active .content,
-  .content:has(.routine-sticky-shell) {
-    overflow-x: hidden !important;
-    touch-action: pan-y !important;
-    overscroll-behavior-x: none !important;
-  }
-
-  .settings-page,
-  .settings-section,
-  .routine-sticky-shell,
-  .routine-fixed-top,
-  .routine-section {
-    min-width: 0;
-    max-width: 100%;
-  }
-}
-
 </style>
       <!-- Code injected by Five-server -->
   <script async data-id="five-server" data-file="c:\Users\T0151\Desktop\deensphere1922\index.html" type="application/javascript" src="/fiveserver.js"></script>
