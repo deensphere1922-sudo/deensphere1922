@@ -137,7 +137,7 @@ const ENGLISH_URL_MARKERS = /\/(?:en|english)(?:\/|$)/i;
 
 function looksEnglish(text) {
   const value = String(text || '').trim();
-  if (!value || ALBANIAN_MARKERS.test(value)) return false;
+  if (!value) return false;
 
   const letters = value.match(/\p{L}/gu) || [];
   if (!letters.length) return false;
@@ -202,9 +202,10 @@ export default async function handler(req, res) {
 
     const responses = await Promise.all(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
+headers: {
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${apiKey}`
+},      body: JSON.stringify({
         query: group.query(query, topic.topic),
         search_depth: 'advanced',
         max_results: 8,
