@@ -263,13 +263,42 @@ if (successfulSearches === 0) {
     error: 'Islamic web research is temporarily unavailable.'
   });
 }
-    const seen = new Set();
-    const unique = candidates.filter(source => {
-      const url = new URL(source.url); url.hash = ''; url.search = '';
-      const key = url.href.replace(/\/$/, '');
-      if (seen.has(key)) return false;
-      seen.add(key); return true;
-    });
+ const seenUrls = new Set();
+const seenTitles = new Set();
+
+const unique = candidates
+  .sort((a, b) => b.score - a.score)
+  .filter(source => {
+    const url = new URL(source.url);
+
+    url.hash = '';
+    url.search = '';
+
+    const urlKey = url.href
+      .replace(/\/$/, '');
+
+    const titleKey = String(source.title || '')
+      .normalize('NFKC')
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    if (
+      seenUrls.has(urlKey) ||
+      (titleKey && seenTitles.has(titleKey))
+    ) {
+      return false;
+    }
+
+    seenUrls.add(urlKey);
+
+    if (titleKey) {
+      seenTitles.add(titleKey);
+    }
+
+    return true;
+  });
 
     const results = [];
     for (const group of sourceGroups) {
