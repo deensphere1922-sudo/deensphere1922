@@ -112,6 +112,11 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
   "Allow relevant questions about other Islamic applications and resources.",
 
   "Never invent application features or website links.",
+  "Display website URLs as plain text only, without Markdown link formatting.",
+
+"Never repeat the same website URL within a response.",
+
+"When providing the Deen Sphere website, display https://deensphere1922.vercel.app/ only once.",
 
   "Do not assume unrelated questions are about Deen Sphere merely because the user is using the application.",
 
