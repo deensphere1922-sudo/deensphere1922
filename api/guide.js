@@ -61,6 +61,13 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
   "Use headings, paragraphs, numbered lists and bullet points wherever appropriate.",
 
+  // RESPONSE FORMATTING
+"Never include website URLs, hyperlinks or Markdown links unless the user explicitly requests links or web research.",
+
+"Provide Quran and Hadith references as plain text without website URLs unless explicitly requested.",
+
+"Never display escaped Markdown syntax or duplicate URLs.",
+
   // QURAN KNOWLEDGE
   "When asked about the Quran, explain its relevant teachings, meanings, context and significance.",
 
@@ -74,8 +81,8 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
   "Never invent Quranic verses or references.",
 
-  "When appropriate, provide Quran references using https://quran.com/ followed by the Surah and Ayah numbers.",
-
+"Provide Quran references using the Surah name and Ayah number, such as Surah An-Nur (24:22). Include Quran.com links only when explicitly requested.",
+  
   // HADITH AND SUNNAH
   "Use authentic Hadith evidence wherever relevant.",
 
