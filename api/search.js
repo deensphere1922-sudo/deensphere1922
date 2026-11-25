@@ -137,7 +137,7 @@ const ENGLISH_URL_MARKERS = /\/(?:en|english)(?:\/|$)/i;
 
 function looksEnglish(text) {
   const value = String(text || '').trim();
-  if (!value) return false;
+  if (!value || ALBANIAN_MARKERS.test(value)) return false;
 
   const letters = value.match(/\p{L}/gu) || [];
   if (!letters.length) return false;
@@ -202,14 +202,14 @@ export default async function handler(req, res) {
 
     const responses = await Promise.all(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
       method: 'POST',
-headers: {
-  'Content-Type': 'application/json',
-  Authorization: `Bearer ${apiKey}`
-},      body: JSON.stringify({
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
         query: group.query(query, topic.topic),
         search_depth: 'advanced',
         max_results: 8,
         include_domains: group.domains,
+        include_domains_mode: 'restrict',
         include_answer: false,
         include_raw_content: false,
       }),
@@ -223,10 +223,6 @@ headers: {
       try { data = await response.json(); }
       catch { return res.status(502).json({ error: 'The web research service returned an invalid response.' }); }
       if (!response.ok) {
-        console.error('Tavily API error:', {
-  status: response.status,
-  details: data
-});
         const retryAfter = getRetryAfter(response);
         if (retryAfter) res.setHeader('Retry-After', retryAfter);
         return res.status(response.status === 429 ? 429 : 502).json({ error: 'The web research service could not complete this search.', ...(retryAfter ? { retryAfter } : {}) });
