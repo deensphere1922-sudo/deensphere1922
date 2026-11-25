@@ -19886,7 +19886,7 @@ _notificationAdhanAudio.loop = false;
         banner.style.cssText = `
           position: fixed;
          top: 20px;
-left: calc(50% + 125px);
+left: ${window.innerWidth <= 768 ? '50%' : 'calc(50% + 125px)'};
 transform: translateX(-50%);
           background: var(--green);
           color: #fff;
