@@ -309,6 +309,41 @@ function toGeminiContents(messages) {
   return contents;
 }
 
+async function getQuranEvidence(surahNumber) {
+  const number = Number(surahNumber);
+
+  if (!Number.isInteger(number) || number < 1 || number > 114) {
+    return null;
+  }
+
+  const response = await fetch(
+    `https://api.alquran.cloud/v1/surah/${number}/en.sahih`,
+    { signal: AbortSignal.timeout(5000) }
+  );
+
+  if (!response.ok) {
+    throw new Error('Quran retrieval failed');
+  }
+
+  const { data } = await response.json();
+
+  if (!data || !Array.isArray(data.ayahs)) {
+    throw new Error('Invalid Quran data');
+  }
+
+  return {
+    name: data.englishName,
+    number: data.number,
+    verseCount: data.numberOfAyahs,
+    revelationType: data.revelationType,
+    verses: data.ayahs.map(ayah => ({
+      reference: `${number}:${ayah.numberInSurah}`,
+      text: ayah.text,
+      url: `https://quran.com/${number}/${ayah.numberInSurah}`
+    }))
+  };
+}
+
 async function callGemini(model, apiKey, systemPrompt, messages, signal) {
   const contents = toGeminiContents(messages);
   const body = {
