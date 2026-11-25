@@ -17510,23 +17510,63 @@ ISLAMIC EVIDENCE AND ACCURACY:
       }));
     };
 
-    if (animate) {
-      let typedLength = 0;
-      const typingTimer = window.setInterval(() => {
-        typedLength = Math.min(text.length, typedLength + 5);
-        div.textContent = text.slice(0, typedLength);
-        scrollThread();
-        if (typedLength >= text.length) {
-          window.clearInterval(typingTimer);
-          div.innerHTML = formattedHtml;
-          setupTaskControls();
-          scrollThread();
-        }
-      }, 14);
-    } else {
-      setupTaskControls();
-    }
+   if (animate) {
+  div.innerHTML = formattedHtml;
+
+  const walker = document.createTreeWalker(
+    div,
+    NodeFilter.SHOW_TEXT
+  );
+
+  const nodes = [];
+  let node;
+
+  while ((node = walker.nextNode())) {
+    nodes.push({
+      node,
+      text: node.textContent
+    });
+    node.textContent = '';
   }
+
+  let nodeIndex = 0;
+  let charIndex = 0;
+
+  const typingTimer = window.setInterval(() => {
+    let remaining = 5;
+
+    while (remaining > 0 && nodeIndex < nodes.length) {
+      const current = nodes[nodeIndex];
+
+      const count = Math.min(
+        remaining,
+        current.text.length - charIndex
+      );
+
+      charIndex += count;
+      remaining -= count;
+
+      current.node.textContent =
+        current.text.slice(0, charIndex);
+
+      if (charIndex >= current.text.length) {
+        nodeIndex++;
+        charIndex = 0;
+      }
+    }
+
+    scrollThread();
+
+    if (nodeIndex >= nodes.length) {
+      window.clearInterval(typingTimer);
+      setupTaskControls();
+      scrollThread();
+    }
+  }, 14);
+
+} else {
+  setupTaskControls();
+}
 
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     div.classList.add('guide-message-enter');
