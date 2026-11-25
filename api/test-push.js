@@ -16,13 +16,15 @@ export default async function handler(req, res) {
   const { subscription } = req.body;
   if (!subscription) return res.status(400).send('No subscription provided');
 
-  const payload = JSON.stringify({
-    title: "🔔 Deen Sphere Test",
-    body: "If you see this, the server push is working perfectly!",
-    icon: "/Deensphere_app_icon.png",
-    url: "/",
-    tag: "test-notification"
-  });
+ const payload = JSON.stringify({
+  title: "🕌 Dhuhr Azaan",
+  body: "It's time for Dhuhr prayer",
+  icon: "/Deensphere_app_icon.png",
+  url: "/",
+  tag: "test-adhan",
+  kind: "time",
+  prayer: "dhuhr"
+});
 
   try {
     await webpush.sendNotification(subscription, payload, { TTL: 3600 });
