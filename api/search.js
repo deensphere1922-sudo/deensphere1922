@@ -197,19 +197,10 @@ export default async function handler(req, res) {
 
     const topic = getTopic(query);
 
-    const apiKey = process.env.TAVILY_API_KEY;
-   if (!apiKey) {
-  console.error('TAVILY_API_KEY is missing');
-
-  return res.status(200).json({
-    results: [],
-    total: 0,
-    researchUnavailable: true
-  });
-}
+  const apiKey = process.env.TAVILY_API_KEY?.trim();
 
 const responses = await Promise.allSettled(
-  sourceGroups.map(async group => {
+ (apiKey ? sourceGroups : []).map(async group => {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
         const response = await fetch(
@@ -299,12 +290,92 @@ successfulSearches++;
         candidates.push({ title, url: url.href, content, sourceType: group.type, score: relevance });
       }
     }
-if (successfulSearches === 0) {
-  return res.status(200).json({
-    results: [],
-    total: 0,
-    researchUnavailable: true
-  });
+
+
+  // SERPER BACKUP WEB SEARCH
+if (candidates.length === 0) {
+  const serperKey = process.env.SERPER_API_KEY?.trim();
+
+  if (serperKey) {
+    try {
+      const domains = [
+        ...new Set(sourceGroups.flatMap(group => group.domains))
+      ];
+
+      const siteFilter = domains
+        .map(domain => `site:${domain}`)
+        .join(' OR ');
+
+      const response = await fetch(
+        'https://google.serper.dev/search',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-API-KEY': serperKey
+          },
+          body: JSON.stringify({
+            q: `${query.slice(0, 300)} (${siteFilter})`,
+            hl: 'en',
+            num: 10
+          }),
+          signal: AbortSignal.timeout(10000)
+        }
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        for (const result of data.organic || []) {
+          const group = sourceGroups.find(group =>
+            isTrustedUrl(result.link, group.domains)
+          );
+
+          if (!group) continue;
+
+          const url = new URL(result.link);
+          const title = String(result.title || '').trim();
+          const content = String(result.snippet || '')
+            .replace(/<[^>]*>/g, '')
+            .trim();
+
+          if (!content || !looksEnglish(content)) continue;
+
+          if (
+            group.type === 'Qur’an evidence' &&
+            !isEnglishQuranUrl(url)
+          ) continue;
+
+          const score = calculateRelevance(
+            topic,
+            title,
+            content,
+            0
+          );
+
+          if (score < MIN_RELEVANCE_SCORE) continue;
+
+          candidates.push({
+            title,
+            url: url.href,
+            content,
+            sourceType: group.type,
+            score
+          });
+        }
+      } else {
+        console.error(
+          'Serper search failed:',
+          response.status
+        );
+      }
+    } catch (error) {
+      console.error(
+        'Serper fallback failed:',
+        error.message
+      );
+    }
+  }
 }
  const seenUrls = new Set();
 const seenTitles = new Set();
@@ -347,8 +418,16 @@ const unique = candidates
     for (const group of sourceGroups) {
       results.push(...unique.filter(source => source.sourceType === group.type).sort((a, b) => b.score - a.score).slice(0, group.limit));
     }
-    const finalResults = results.slice(0, MAX_SOURCES).map(({ score, ...source }) => source);
-    return res.status(200).json({ results: finalResults, total: finalResults.length });
+  const finalResults = results
+  .slice(0, MAX_SOURCES)
+  .map(({ score, ...source }) => source);
+
+return res.status(200).json({
+  results: finalResults,
+  total: finalResults.length,
+  researchUnavailable: finalResults.length === 0
+});
+
 } catch (error) {
   console.error('Web search API error:', error);
 
