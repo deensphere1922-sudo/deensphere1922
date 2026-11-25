@@ -137,7 +137,7 @@ const ENGLISH_URL_MARKERS = /\/(?:en|english)(?:\/|$)/i;
 
 function looksEnglish(text) {
   const value = String(text || '').trim();
-  if (!value || ALBANIAN_MARKERS.test(value)) return false;
+ if (!value) return false;
 
   const letters = value.match(/\p{L}/gu) || [];
   if (!letters.length) return false;
@@ -200,33 +200,50 @@ export default async function handler(req, res) {
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'Web research is not configured on the server.' });
 
-    const responses = await Promise.all(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
+  const responses = await Promise.allSettled(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         api_key: apiKey,
-        query: group.query(query, topic.topic),
-        search_depth: 'advanced',
-        max_results: 8,
-        include_domains: group.domains,
-        include_domains_mode: 'restrict',
-        include_answer: false,
-        include_raw_content: false,
+      query: query.trim().slice(0, 390),
+search_depth: 'basic',
+max_results: 8,
+include_domains: group.domains,
+include_answer: false,
+include_raw_content: false,
       }),
     })));
 
-    const candidates = [];
+const candidates = [];
+let successfulSearches = 0;
     for (let index = 0; index < responses.length; index++) {
-      const response = responses[index];
-      const group = sourceGroups[index];
-      let data;
-      try { data = await response.json(); }
-      catch { return res.status(502).json({ error: 'The web research service returned an invalid response.' }); }
-      if (!response.ok) {
-        const retryAfter = getRetryAfter(response);
-        if (retryAfter) res.setHeader('Retry-After', retryAfter);
-        return res.status(response.status === 429 ? 429 : 502).json({ error: 'The web research service could not complete this search.', ...(retryAfter ? { retryAfter } : {}) });
-      }
+    const group = sourceGroups[index];
+const settled = responses[index];
+
+if (settled.status === 'rejected') {
+  console.error('Search request failed:', group.type, settled.reason);
+  continue;
+}
+
+const response = settled.value;
+let data;
+   try {
+  data = await response.json();
+} catch {
+  console.error('Invalid search response:', group.type);
+  continue;
+}
+
+if (!response.ok) {
+  console.error('Tavily search failed:', {
+    source: group.type,
+    status: response.status,
+    error: data?.detail || data?.error || data?.message
+  });
+  continue;
+}
+
+successfulSearches++;
 
       for (const result of Array.isArray(data.results) ? data.results : []) {
         if (!result || typeof result.url !== 'string' || typeof result.content !== 'string' || !isTrustedUrl(result.url, group.domains)) continue;
@@ -241,7 +258,11 @@ export default async function handler(req, res) {
         candidates.push({ title, url: url.href, content, sourceType: group.type, score: relevance });
       }
     }
-
+if (successfulSearches === 0) {
+  return res.status(502).json({
+    error: 'Islamic web research is temporarily unavailable.'
+  });
+}
     const seen = new Set();
     const unique = candidates.filter(source => {
       const url = new URL(source.url); url.hash = ''; url.search = '';
