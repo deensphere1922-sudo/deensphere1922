@@ -198,7 +198,15 @@ export default async function handler(req, res) {
     const topic = getTopic(query);
 
     const apiKey = process.env.TAVILY_API_KEY;
-    if (!apiKey) return res.status(503).json({ error: 'Web research is not configured on the server.' });
+   if (!apiKey) {
+  console.error('TAVILY_API_KEY is missing');
+
+  return res.status(200).json({
+    results: [],
+    total: 0,
+    researchUnavailable: true
+  });
+}
 
 const responses = await Promise.allSettled(
   sourceGroups.map(async group => {
@@ -292,8 +300,10 @@ successfulSearches++;
       }
     }
 if (successfulSearches === 0) {
-  return res.status(502).json({
-    error: 'Islamic web research is temporarily unavailable.'
+  return res.status(200).json({
+    results: [],
+    total: 0,
+    researchUnavailable: true
   });
 }
  const seenUrls = new Set();
@@ -339,8 +349,13 @@ const unique = candidates
     }
     const finalResults = results.slice(0, MAX_SOURCES).map(({ score, ...source }) => source);
     return res.status(200).json({ results: finalResults, total: finalResults.length });
-  } catch (error) {
-    console.error('Web search API error:', error);
-    return res.status(502).json({ error: 'Could not reach the web research service. Please try again.' });
-  }
+} catch (error) {
+  console.error('Web search API error:', error);
+
+  return res.status(200).json({
+    results: [],
+    total: 0,
+    researchUnavailable: true
+  });
+}
 }
