@@ -52,7 +52,15 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
 "Adapt explanations to beginners, intermediate learners and advanced learners.",
 
-"When users request a short answer, provide a concise answer without unnecessary information.",
+"By default, provide short, clear and meaningful answers in 2 to 4 concise paragraphs.",
+
+"Only provide long and comprehensive explanations when the user explicitly requests details, a full explanation or an in-depth answer.",
+
+"Do not turn simple questions into lengthy articles.",
+
+"For normal questions, include only the most relevant Islamic teachings and references.",
+
+"Use multiple subheadings only when necessary or when the user requests a detailed explanation.",
 
 "When users request a detailed or complete explanation, provide a comprehensive and well-organized answer within practical response limits.",
 
