@@ -19763,7 +19763,39 @@ try {
     return true;
   }
 
-  let _notificationAdhanAudio = null;
+ let _notificationAdhanAudio = new Audio(
+  'https://praytimes.org/audio/sunni/Adhan-Makkah.mp3'
+);
+
+_notificationAdhanAudio.preload = 'auto';
+
+let _adhanUnlocked = false;
+let _adhanUnlockPending = false;
+
+document.addEventListener('click', function unlockAdhan() {
+  if (_adhanUnlocked || _adhanUnlockPending) return;
+  if (document.getElementById('in-app-banner')) return;
+
+  _adhanUnlockPending = true;
+  _notificationAdhanAudio.muted = true;
+
+  _notificationAdhanAudio.play().then(() => {
+    if (!document.getElementById('in-app-banner')) {
+      _notificationAdhanAudio.pause();
+      _notificationAdhanAudio.currentTime = 0;
+    }
+
+    _notificationAdhanAudio.muted = false;
+    _adhanUnlocked = true;
+
+    document.removeEventListener('click', unlockAdhan, true);
+  }).catch(err => {
+    _notificationAdhanAudio.muted = false;
+    console.warn('Audio activation failed:', err);
+  }).finally(() => {
+    _adhanUnlockPending = false;
+  });
+}, true);
 
       // function _stopNotificationAdhan() {
       //   if (_notificationAdhanAudio) {
@@ -19783,15 +19815,12 @@ try {
       function _stopNotificationAdhan() {
         if (_notificationAdhanAudio) {
           const audio = _notificationAdhanAudio;
-          _notificationAdhanAudio = null;
 
           audio.onended = null;
 
           try {
             audio.pause();
             audio.currentTime = 0;
-            audio.removeAttribute('src');
-            audio.load();
           } catch (e) {
             console.warn('Could not fully reset Adhan audio:', e);
           }
@@ -19866,7 +19895,8 @@ try {
         const prayerName = prayer.charAt(0).toUpperCase() + prayer.slice(1);
         const adhanUrl = 'https://praytimes.org/audio/sunni/Adhan-Makkah.mp3';
 
-      _notificationAdhanAudio = new Audio(adhanUrl);
+    _notificationAdhanAudio.currentTime = 0;
+_notificationAdhanAudio.muted = false;
 _notificationAdhanAudio.preload = 'auto';
 _notificationAdhanAudio.volume = 1;
 _notificationAdhanAudio.loop = false;
