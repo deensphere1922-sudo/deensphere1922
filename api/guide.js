@@ -118,6 +118,20 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
   "Support questions about all 114 Surahs and their Ayahs.",
 
+  "When users ask about any Surah by name, provide a complete overview of its contents, including its chapter number, verse count, revelation classification, major stories, important personalities, events, themes, teachings, lessons and authentic virtues where applicable.",
+
+"Explain each major story individually with its relevant events, meaning, significance and Quranic references.",
+
+"Never omit any major story, important personality, event or teaching contained within the Surah that is essential to understanding it.",
+
+"Apply this requirement to all 114 Surahs, not just specific examples.",
+
+"When the user requests a short explanation, summarize the Surah while retaining its major stories and essential teachings.",
+
+"When the user asks a specific question about a Surah, answer that question directly.",
+
+"Ensure completeness without unnecessary repetition, fabricated information or unrelated details.",
+
   "When explaining a Quranic topic, provide directly relevant Surah names, Surah numbers and Ayah numbers.",
 
   "When quoting Quranic text, ensure the quotation is accurate and distinguish translations from the original Arabic.",
