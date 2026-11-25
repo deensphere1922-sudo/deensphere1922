@@ -200,19 +200,52 @@ export default async function handler(req, res) {
     const apiKey = process.env.TAVILY_API_KEY;
     if (!apiKey) return res.status(503).json({ error: 'Web research is not configured on the server.' });
 
-  const responses = await Promise.allSettled(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-      query: query.trim().slice(0, 390),
-search_depth: 'basic',
-max_results: 8,
-include_domains: group.domains,
-include_answer: false,
-include_raw_content: false,
-      }),
-    })));
+const responses = await Promise.allSettled(
+  sourceGroups.map(async group => {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const response = await fetch(
+          'https://api.tavily.com/search',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${apiKey.trim()}`
+            },
+            body: JSON.stringify({
+              query: query.trim().slice(0, 390),
+              search_depth: 'basic',
+              max_results: 6,
+              include_domains: group.domains,
+              include_answer: false,
+              include_raw_content: false
+            }),
+            signal: AbortSignal.timeout(12000)
+          }
+        );
+
+        if (
+          attempt === 0 &&
+          [500, 502, 503, 504].includes(response.status)
+        ) {
+          await new Promise(resolve =>
+            setTimeout(resolve, 1000)
+          );
+          continue;
+        }
+
+        return response;
+
+      } catch (error) {
+        if (attempt === 1) throw error;
+
+        await new Promise(resolve =>
+          setTimeout(resolve, 1000)
+        );
+      }
+    }
+  })
+);
 
 const candidates = [];
 let successfulSearches = 0;
