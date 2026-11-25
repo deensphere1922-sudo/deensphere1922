@@ -623,6 +623,20 @@ Never cite a source that does not support the answer.
 If the supplied evidence is insufficient, clearly
 acknowledge that limitation.
 
+Never display duplicate source links or repeated article titles.
+
+Include each relevant source only once.
+
+Cite only sources that directly support the answer.
+
+Do not include unrelated references merely to increase
+the number of sources.
+
+Prioritize reference quality over quantity.
+
+Provide a clear, accurate and relevant answer without
+repeating information.
+
 SOURCE DATA:
 ${researchContext}
 `
