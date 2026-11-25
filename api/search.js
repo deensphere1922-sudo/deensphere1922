@@ -35,7 +35,7 @@ const STOP_WORDS = new Set(`a an and are as at be been but by can could did do d
 const SPELLING_MAP = new Map([
   ['tahejjud', 'tahajjud'], ['tahajud', 'tahajjud'], ['tahajjudh', 'tahajjud'],
   ['tahajjad', 'tahajjud'], ['tahajjudh', 'tahajjud'], ['tahajjud', 'tahajjud'],
-  ['isalm', 'islam'], ['islm', 'islam'], ['islaam', 'islam'],
+  ['islma', 'islam'], ['isalm', 'islam'], ['islm', 'islam'], ['islaam', 'islam'],
   ['forgivness', 'forgiv'], ['forgivnesss', 'forgiv'], ['forgivng', 'forgiv'],
   ['routin', 'routine'], ['routne', 'routine'], ['routien', 'routine'],
   ['quraan', 'quran'], ['quraan', 'quran'], ['tawakul', 'tawakkul'], ['tawakkal', 'tawakkul'],
@@ -137,7 +137,7 @@ const ENGLISH_URL_MARKERS = /\/(?:en|english)(?:\/|$)/i;
 
 function looksEnglish(text) {
   const value = String(text || '').trim();
-  if (!value || ALBANIAN_MARKERS.test(value)) return false;
+ if (!value) return false;
 
   const letters = value.match(/\p{L}/gu) || [];
   if (!letters.length) return false;
@@ -148,7 +148,7 @@ function looksEnglish(text) {
   if (nonLatin.length / letters.length > 0.45) return false;
 
   const common = (value.toLowerCase().match(/\b(the|and|of|to|is|in|you|your|he|who|for|with|his|them|those|will|not|what|from|that|this|are|one|god|allah|lord|islam|submission|faith|believe|believers|quran|qur'an|messenger|forgive|forgiveness|patience|patient)\b/g) || []).length;
-  return common >= 1 || letters.length >= 30;
+  return common >= 1;
 }
 
 function isEnglishQuranUrl(url) {
@@ -202,17 +202,19 @@ export default async function handler(req, res) {
 
     const responses = await Promise.all(sourceGroups.map(group => fetch('https://api.tavily.com/search', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query: group.query(query, topic.topic),
-        search_depth: 'advanced',
-        max_results: 8,
-        include_domains: group.domains,
-        include_domains_mode: 'restrict',
+    headers: {
+  'Content-Type': 'application/json',
+  Authorization: `Bearer ${apiKey}`
+},
+body: JSON.stringify({
+  query: `${query.slice(0, 300)} ${group.type}`,
+  search_depth: 'advanced',
+  max_results: 8,
+  include_domains: group.domains,
         include_answer: false,
         include_raw_content: false,
       }),
+      signal: AbortSignal.timeout(15000),
     })));
 
     const candidates = [];
@@ -223,6 +225,7 @@ export default async function handler(req, res) {
       try { data = await response.json(); }
       catch { return res.status(502).json({ error: 'The web research service returned an invalid response.' }); }
       if (!response.ok) {
+        console.error("Tavily search failed", response.status, group.type);
         const retryAfter = getRetryAfter(response);
         if (retryAfter) res.setHeader('Retry-After', retryAfter);
         return res.status(response.status === 429 ? 429 : 502).json({ error: 'The web research service could not complete this search.', ...(retryAfter ? { retryAfter } : {}) });
