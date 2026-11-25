@@ -17514,11 +17514,12 @@ ISLAMIC EVIDENCE AND ACCURACY:
       }));
     };
 
-   if (animate) {
-  div.innerHTML = formattedHtml;
+  if (animate) {
+  const template = document.createElement('div');
+  template.innerHTML = formattedHtml;
 
   const walker = document.createTreeWalker(
-    div,
+    template,
     NodeFilter.SHOW_TEXT
   );
 
@@ -17526,50 +17527,56 @@ ISLAMIC EVIDENCE AND ACCURACY:
   let node;
 
   while ((node = walker.nextNode())) {
-    nodes.push({
-      node,
-      text: node.textContent
-    });
-    node.textContent = '';
+    if (node.textContent.length > 0) {
+      nodes.push(node);
+    }
   }
+
+  div.innerHTML = '';
+  div.style.paddingBottom = '30px';
 
   let nodeIndex = 0;
   let charIndex = 0;
 
   const typingTimer = window.setInterval(() => {
-let remaining = 3;
+    let remaining = 3;
+
     while (remaining > 0 && nodeIndex < nodes.length) {
       const current = nodes[nodeIndex];
 
       const count = Math.min(
         remaining,
-        current.text.length - charIndex
+        current.textContent.length - charIndex
       );
 
       charIndex += count;
       remaining -= count;
 
-      current.node.textContent =
-        current.text.slice(0, charIndex);
+      const range = document.createRange();
+      range.setStart(template, 0);
+      range.setEnd(current, charIndex);
 
-      if (charIndex >= current.text.length) {
+      div.replaceChildren(range.cloneContents());
+
+      if (charIndex >= current.textContent.length) {
         nodeIndex++;
         charIndex = 0;
       }
     }
 
-    scrollThread();
-
     if (nodeIndex >= nodes.length) {
       window.clearInterval(typingTimer);
+      div.innerHTML = formattedHtml;
+      div.style.paddingBottom = '';
       setupTaskControls();
-      scrollThread();
     }
+
+    scrollThread();
   }, 25);
 
 } else {
   setupTaskControls();
-   }
+}
 }
 
   if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
