@@ -522,7 +522,37 @@ export default async function handler(req, res) {
 
   // Enforce the role on the server, after the client prompt, so a browser request
   // cannot replace or weaken the Islam-only restriction.
-   const enforcedSystemPrompt = DEEN_GUIDE_MANDATORY_SCOPE;
+  const enforcedSystemPrompt = DEEN_GUIDE_MANDATORY_SCOPE + `
+
+RESPONSE LENGTH AND RESEARCH MODE:
+
+${research ? `
+- Provide well-researched, moderately detailed explanations.
+- Elaborate on the topic using relevant retrieved evidence.
+- Include accurate Quran and Hadith references where applicable.
+- Include clickable links from the retrieved web sources.
+- Never invent references, quotations or source links.
+- Respect the user's requested answer length.
+` : `
+- By default, provide short and meaningful answers.
+- Prefer 2 to 4 concise paragraphs.
+- Provide longer explanations only when requested.
+- When asked about a Surah, briefly explain its actual contents, major stories and teachings.
+- When asked specifically about a story, explain the actual story clearly.
+- Include relevant Quran and Hadith references.
+- Do not include website links unless requested.
+`}
+
+ACCURACY REQUIREMENTS:
+
+- Prioritize factual accuracy over response length.
+- Never invent Quranic stories, events or personalities.
+- Never invent Quran verses or Hadith references.
+- Distinguish Quranic teachings, Hadith and scholarly interpretations.
+- Acknowledge uncertainty when reliable evidence is unavailable.
+- Avoid unnecessary repetition and unrelated information.
+
+`;
 
 messages.splice(
   0,
