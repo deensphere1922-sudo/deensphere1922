@@ -209,6 +209,7 @@ export default async function handler(req, res) {
         search_depth: 'advanced',
         max_results: 8,
         include_domains: group.domains,
+        include_domains_mode: 'restrict',
         include_answer: false,
         include_raw_content: false,
       }),
@@ -222,10 +223,6 @@ export default async function handler(req, res) {
       try { data = await response.json(); }
       catch { return res.status(502).json({ error: 'The web research service returned an invalid response.' }); }
       if (!response.ok) {
-        console.error('Tavily API error:', {
-  status: response.status,
-  details: data
-});
         const retryAfter = getRetryAfter(response);
         if (retryAfter) res.setHeader('Retry-After', retryAfter);
         return res.status(response.status === 429 ? 429 : 502).json({ error: 'The web research service could not complete this search.', ...(retryAfter ? { retryAfter } : {}) });
