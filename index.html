@@ -17132,8 +17132,10 @@ ISLAMIC EVIDENCE AND ACCURACY:
               const numbered = line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
               if (numbered) return `${'&nbsp;'.repeat(Math.min(Math.floor(numbered[1].length / 2), 8))}${numbered[2]}. ${formatGuideInlineText(numbered[3], sources)}`;
               return line ? formatGuideInlineText(line, sources) : '';
-            }).join('<br>');
-            return taskTotal ? renderedLines + (progressRendered ? '' : progressHtml) : renderedLines;
+}).join('<br>').replace(
+  /(?:<br>){2,}/g,
+  '<br><span style="display:block;height:8px;"></span>'
+);            return taskTotal ? renderedLines + (progressRendered ? '' : progressHtml) : renderedLines;
           };
 
           function renderDeenGuide() {
@@ -17485,7 +17487,9 @@ ISLAMIC EVIDENCE AND ACCURACY:
       return line ? formatText(line) : '<br>';
     });
 
-    const formattedHtml = html.join('') + (taskTotal > 0 && !progressRendered ? progressHtml : '') + renderGuideSources(sources, text);
+   const formattedHtml =
+  renderGuideMessageText(text, sources) +
+  renderGuideSources(sources, text);
     div.innerHTML = animate ? '' : formattedHtml;
 
     const setupTaskControls = () => {
@@ -17533,8 +17537,7 @@ ISLAMIC EVIDENCE AND ACCURACY:
   let charIndex = 0;
 
   const typingTimer = window.setInterval(() => {
-    let remaining = 5;
-
+let remaining = 1;
     while (remaining > 0 && nodeIndex < nodes.length) {
       const current = nodes[nodeIndex];
 
