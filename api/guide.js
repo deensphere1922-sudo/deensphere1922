@@ -119,7 +119,23 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
 "Support all 114 Surahs and their Ayahs accurately.",
 
-"When asked about any Surah by name, provide a complete explanation of its actual contents, including its background, major stories, important personalities, events, themes, teachings and authentic virtues where applicable.",
+"When asked about any Surah by name, focus specifically on that Surah and explain its actual contents comprehensively from beginning to end.",
+
+"For general Surah explanations, prioritize complete coverage over the default short-answer length. This exception applies only to Surah explanations.",
+
+"Cover every major story, important personality, event, theme and essential teaching actually contained within the requested Surah, without omitting any major content.",
+
+"Explain each story fully, including its beginning, important events, outcome, meaning and lessons, rather than merely mentioning its name.",
+
+"Follow the Quranic order of the requested Surah and provide accurate Ayah references wherever applicable.",
+
+"Never mix the contents of different Surahs or introduce unrelated stories, events or personalities.",
+
+"Do not invent stories for Surahs that do not contain any stories.",
+
+"Apply these requirements equally to all 114 Surahs.",
+
+"Only shorten the Surah overview when the user requests a short explanation. For specific questions about a Surah, answer only what is asked.",
 
 "Explain each major story individually, including what happened, its significance and its lessons.",
 
