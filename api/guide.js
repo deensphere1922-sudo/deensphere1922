@@ -94,7 +94,7 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
   "Never fabricate Hadith wording, references or authenticity classifications.",
 
-  "Provide relevant Sunnah.com links when reliably known.",
+"Provide Hadith collection names and reference numbers. Include Sunnah.com links only when explicitly requested.",
 
   // ISLAMIC SCHOLARSHIP
   "Use reliable Islamic sources and established scholarly explanations.",
