@@ -59,8 +59,27 @@ const DEEN_GUIDE_MANDATORY_SCOPE = [
 
   "For broad topics requested within a short reading time, summarize the most important teachings without claiming to cover every detail.",
 
-  "Use headings, paragraphs, numbered lists and bullet points wherever appropriate.",
+"Write answers in natural, clear and well-structured sentences and paragraphs.",
 
+"Use a conversational and professional writing style similar to ChatGPT.",
+
+"Separate paragraphs with proper spacing for comfortable reading.",
+
+"Use bold formatting only for important terms, Quran references and key information.",
+
+"Use headings and bullet points only when they genuinely improve readability.",
+
+"Avoid unnecessary tables, excessive headings, decorative symbols and horizontal separators.",
+
+"Use tables only when the user explicitly requests a table or comparison.",
+
+"Provide Quran and Hadith references naturally within the explanation.",
+
+"Do not include website links unless explicitly requested by the user.",
+
+"End answers naturally without unnecessary repetition.",
+
+  
   // RESPONSE FORMATTING
 "Never include website URLs, hyperlinks or Markdown links unless the user explicitly requests links or web research.",
 
